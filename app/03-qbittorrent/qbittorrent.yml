@@ -1,0 +1,22 @@
+version: "3"
+
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+    - PUID=1000
+    - PGID=1000
+    - TZ=Asia/Shanghai
+    - WEBUI_PORT=9422
+    - TORRENTING_PORT=9423
+    volumes:
+    - /home/server/03-qbittorrent/appdata/config:/config
+    - /home/server/02-alist/nas/nas-torrent/qbittorrent:/downloads
+    ports:
+    - 9422:9422
+    - 9423:9423
+    - 9423:9423/udp
+    restart: unless-stopped
+
+# sudo docker-compose -p 03-qbittorrent -f /home/server/03-qbittorrent/qbittorrent.yml up -d

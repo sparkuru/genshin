@@ -1,0 +1,117 @@
+" Vim with all enhancements
+source $VIMRUNTIME/vimrc_example.vim
+
+" 01. 配置基础路径
+" 修改备份、撤销、临时文件的目录
+set backupdir=~/.vim/tmp
+set undodir=~/.vim/tmp
+set directory=~/.vim/tmp
+
+" 02. 基础配置
+set shortmess=atI	" 启动不显示乌干达那个
+
+set encoding=UTF-8	" Encoding
+set nocompatible	" Don't try to be vi compatible
+filetype off	" Helps force plugins to load correctly when it is turned back on below
+syntax on	" Turn on syntax highlighting
+filetype plugin indent on	" For plugins to load correctly
+
+set modelines=0	" Security
+set number	" Show line numbers
+" set relativenumber " 相对行号
+set ruler	" Show file stats
+" set visualbell	" a1 高闪
+set guicursor=a:hor20-Cursor/lCursor
+set guifont=Consolas:h12
+
+" Whitespace
+set wrap
+set textwidth=1000
+set formatoptions=tcqrn1
+set tabstop=2
+set shiftwidth=2
+set softtabstop=2
+set expandtab
+set noshiftround
+
+" Cursor motion
+set scrolloff=3
+set backspace=indent,eol,start
+set matchpairs+=<:> " use % to jump between pairs
+runtime! macros/matchit.vim
+
+" Move up/down editor lines
+nnoremap j gj
+nnoremap k gk
+
+set hidden	" Allow hidden buffers
+set ttyfast	" Rendering
+set laststatus=2	" Status bar
+
+" Last line
+set showmode
+set showcmd
+
+" Searching
+nnoremap / /\v
+vnoremap / /\v
+set hlsearch
+set incsearch
+set ignorecase
+set smartcase
+set showmatch
+map <leader><space> :let @/=''<cr> " clear search
+
+" Remap help key.
+inoremap <F1> <ESC>:set invfullscreen<CR>a
+nnoremap <F1> :set invfullscreen<CR>
+vnoremap <F1> :set invfullscreen<CR>
+
+" Textmate holdouts
+
+map <leader>q gqip	" Formatting
+
+" Visualize tabs and newlines
+set listchars=tab:▸\ ,eol:¬
+" Uncomment this to enable by default:
+" set list " To enable by default
+" Or use your leader key + l to toggle on/off
+map <leader>l :set list!<CR> " Toggle tabs and EOL
+
+" Color scheme (terminal)
+set t_Co=256
+set background=dark
+colorscheme retrobox
+
+" TODO: Pick a leader key
+" let mapleader = ","
+
+" 03. plugins
+call plug#begin('~/.vim/plugins')
+Plug 'junegunn/fzf.vim'	" fzf 联动
+Plug 'junegunn/fzf', {'do': { -> fzf#install() }}	" fzf core
+Plug 'frazrepo/vim-rainbow'	" 括号高亮
+call plug#end()
+
+let g:rainbow_active = 1	" 括号高亮控制
+
+" 04. diy 键盘映射
+" leader 键
+let mapleader=","
+" 使用 ctrl + s 保存, windows only
+nnoremap <silent> <C-S> :w!<CR>
+" 使用 fzf 文件查看器
+nnoremap <silent> <C-f> :Files<CR>
+" 使用 ripgrep 查找
+nnoremap <silent> <Leader>f :Rg<CR>
+set grepprg=rg\ --vimgrep\ --smart-case\ --follow
+" 按 ,, 通过输入内容查找所有行
+nnoremap <silent> <leader>, :BLines<CR>
+" 按 ,b 打开 buffers 列表
+nnoremap <silent> <leader>b :Buffers<CR>
+" 按 ,h 选择历史文件
+nnoremap <silent> <leader>h :History<CR>
+" 按 ,c 选择历史指令
+nnoremap <silent> <leader>c :History:<CR>
+" 按 ,r 选择历史正则表达式
+nnoremap <silent> <leader>r :History/<CR>

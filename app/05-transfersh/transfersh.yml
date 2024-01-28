@@ -1,0 +1,19 @@
+version: "3"
+
+services:
+  transfersh:
+    image: transfer.sh-1000
+    container_name: transfersh
+    environment:
+    - TZ=Asia/Shanghai
+    - TEMP_PATH=/tmp
+    - BASEDIR=/home/storage
+    - LOG=/home/storage/log
+    command: --provider local
+    volumes:
+    - /home/server/05-transfersh/storage:/home/storage
+    ports:
+    - 9425:8080
+    restart: unless-stopped
+
+# sudo docker-compose -p 05-transfersh -f /home/server/05-transfersh/transfersh.yml up -d

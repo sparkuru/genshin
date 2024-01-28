@@ -1,0 +1,34 @@
+version: "3"
+
+services:
+  drawio:
+    image: jgraph/drawio
+    container_name: drawio
+    environment:
+      - UID=1000
+      - GID=1000
+      - CONTAINER_TIMEZONE=Asia/Shanghai
+      - CITY="Shanghai"
+      - COUNTRY_CODE="CN"
+      - KEYSTORE_PASS="1TsV3ry1nS3cur3P4ssw0rd"
+      - KEY_PASS="$KEYSTORE_PASS"
+      - LETS_ENCRYPT_ENABLED=true
+      - PUBLIC_DNS=draw.example.com
+    # volumes:
+    #   - ./data:/app/backend/data
+    ports:
+      - 80:8080
+      - 443:8443
+    restart: unless-stopped
+
+# sudo docker-compose -f docker-compose.yml up -d
+
+# LETS_ENCRYPT_ENABLED=${LETS_ENCRYPT_ENABLED:-false}
+# PUBLIC_DNS=${PUBLIC_DNS:-'draw.example.com'}
+# ORGANISATION_UNIT=${ORGANISATION_UNIT:-'Cloud Native Application'}
+# ORGANISATION=${ORGANISATION:-'example inc'}
+# CITY=${CITY:-'Paris'}
+# STATE=${STATE:-'Paris'}
+# COUNTRY_CODE=${COUNTRY_CODE:-'FR'}
+# KEYSTORE_PASS=${KEYSTORE_PASS:-'V3ry1nS3cur3P4ssw0rd'}
+# KEY_PASS=${KEY_PASS:-$KEYSTORE_PASS}

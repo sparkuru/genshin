@@ -1,0 +1,12 @@
+version: "3"
+
+services:
+  gtfobins:
+    image: djangobyjeffrey/gtfobins:latest
+    container_name: gtfobins
+    environment:
+      - TZ=Asia/Shanghai
+    ports:
+      - 9430:4000
+    restart: unless-stopped
+# sudo docker-compose -f /home/server/10-gtfobins/gtfobins.yml up -d

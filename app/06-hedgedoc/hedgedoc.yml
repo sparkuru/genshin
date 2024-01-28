@@ -1,0 +1,27 @@
+version: "3"
+
+services:
+  hedgedoc:
+    image: lscr.io/linuxserver/hedgedoc:latest
+    container_name: hedgedoc
+    environment:
+    - PUID=1000
+    - PGID=1000
+    - CMD_URL_ADDPORT=true # 参考 https://docs.hedgedoc.org/faq/#why-does-my-interface-look-weird
+    - TZ=Asia/Shanghai
+    - CMD_DOMAIN=md.domain.com # 指定 hedgedoc 使用的域名，或 IP
+    - CMD_PROTOCOL_USESSL=true
+    - CMD_PORT=3000
+    - CMD_EMAIL=true # 是否需要加 @email.com 后缀登录，若 false 则无法注册
+    - CMD_ALLOW_EMAIL_REGISTER=false # 是否允许用户注册，建议是在注册完后再关闭注册
+    - CMD_ALLOW_ORIGIN=['localhost']
+    - CMD_DB_URL=mysql://hedgedoc:password@mysql.domain.com/hedgedoc # 需要提前创建数据库 hedgedoc, 账密 hedgedoc / password
+    - UPLOADS_MODE=0744
+    - CMD_HSTS_ENABLE=true
+    volumes:
+    - /home/server/06-hedgedoc/config:/config
+    ports:
+    - 9426:3000
+    restart: unless-stopped
+
+# sudo docker-compose -f /home/server/06-hedgedoc/hedgedoc.yml up -d

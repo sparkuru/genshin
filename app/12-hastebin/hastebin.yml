@@ -1,0 +1,20 @@
+version: "3"
+
+services:
+  hastebin:
+    image: rlister/hastebin
+    container_name: hastebin
+    environment:
+      - STORAGE_TYPE=redis
+      - STORAGE_HOST=hastebinredis
+    ports:
+      - 9432:7777
+    restart: unless-stopped
+  hastebinredis:
+    image: redis
+    container_name: hastebinredis
+    entrypoint: redis-server --appendonly yes
+    volumes:
+      - /home/server/12-hastebin/data:/data
+    restart: unless-stopped
+# sudo docker-compose -f /home/server/12-hastebin/hastebin.yml up -d

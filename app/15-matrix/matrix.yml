@@ -1,0 +1,35 @@
+version: '3'
+
+services:
+  synapse:
+    image: matrixdotorg/synapse:latest
+    container_name: synapse
+    environment:
+    - PUID=1000
+    - PGID=1000
+    - TZ=Asia/Shanghai
+    volumes:
+    - /home/server/14-matrix/synapse/data:/data
+    restart: unless-stopped
+
+  element:
+    image: vectorim/element-web:latest
+    container_name: element
+    environment:
+    - PUID=1000
+    - PGID=1000
+    - TZ=Asia/Shanghai
+    volumes:
+    - /home/server/14-matrix/element/config.json:/app/config.json
+    restart: unless-stopped
+
+  synapse-admin:
+    image: awesometechnologies/synapse-admin:latest
+    container_name: synapse-admin
+    environment:
+    - PUID=1000
+    - PGID=1000
+    - TZ=Asia/Shanghai
+    restart: unless-stopped
+
+# sudo docker-compose -f /home/server/14-matrix/matrix.yml up -d

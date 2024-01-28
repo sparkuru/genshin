@@ -1,0 +1,10 @@
+{
+  "apps": [
+    {
+      "name": "frpc",
+      "cwd": "/home/wkyuu/cargo/bin/frp",
+      "script": "/home/wkyuu/cargo/bin/frp/frpc -c /home/wkyuu/cargo/bin/frp/frpc.toml",
+      "restart_delay": 60000
+    }
+  ]
+}

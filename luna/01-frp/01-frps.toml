@@ -1,0 +1,3 @@
+bindAddr = "0.0.0.0"
+bindPort = 9440
+auth.token = "abcdefg"

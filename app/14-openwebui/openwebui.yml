@@ -1,0 +1,18 @@
+version: "3"
+
+services:
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: openwebui
+    environment:
+      - UID=1000
+      - GID=1000
+      - CONTAINER_TIMEZONE=Asia/Shanghai
+      - WEBUI_SECRET_KEY="WEBUI_SECRET_KEY"
+    volumes:
+      - ./data:/app/backend/data
+    ports:
+      - 8080:8080
+    restart: unless-stopped
+
+# sudo docker-compose -f docker-compose.yml up -d

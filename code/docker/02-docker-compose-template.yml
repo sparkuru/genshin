@@ -1,0 +1,17 @@
+version: "3"
+
+services:
+  container_name:
+    image: owner/dockername:latest
+    container_name: container_name
+    environment:
+      - UID=1000
+      - GID=1000
+      - CONTAINER_TIMEZONE=Asia/Shanghai
+    volumes:
+      - /host/tmp:/docker/tmp
+    ports:
+      - 80:80	# host:docker
+    restart: unless-stopped
+
+# sudo docker-compose -f docker-compose.yml up -d

@@ -1,0 +1,18 @@
+serverAddr = "192.168.9.1"
+serverPort = 9440
+auth.method = "token"
+auth.token = "abcdefg"
+
+[[proxies]]
+name = "pve-web"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8006
+remotePort = 18006
+
+[[proxies]]
+name = "pve-22"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 22
+remotePort = 10022
