@@ -5,11 +5,12 @@ services:
     image: synctvorg/synctv:latest
     container_name: synctv
     environment:
-      - UMASK=022
-      - TZ=Asia/Shanghai
+    - UMASK=022
+    - TZ=Asia/Shanghai
     volumes:
-      - /home/server/04-synctv/data:/root/.synctv
+    - ./data:/root/.synctv
     ports:
-      - 9424:8080
+    - 9424:8080
     restart: unless-stopped
-# sudo docker-compose -p 04-synctv -f /home/server/04-synctv/synctv.yml up -d
+
+# docker-compose -f $PWD/synctv.yml up -d

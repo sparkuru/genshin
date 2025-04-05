@@ -5,8 +5,9 @@ services:
     image: wcjiang/reference:latest
     container_name: reference
     environment:
-      - CONTAINER_TIMEZONE=Asia/Shanghai
+    - CONTAINER_TIMEZONE=Asia/Shanghai
     ports:
-      - 9428:3000
+    - 9428:3000
     restart: always
-# sudo docker-compose -f /home/server/08-reference/reference.yml up -d
+
+# docker-compose -f $PWD/reference.yml up -d

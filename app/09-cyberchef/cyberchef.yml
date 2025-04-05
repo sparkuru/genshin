@@ -5,8 +5,9 @@ services:
     image: ghcr.io/gchq/cyberchef:latest
     container_name: cyberchef
     environment:
-      - TZ=Asia/Shanghai
+    - TZ=Asia/Shanghai
     ports:
-      - 9429:80
+    - 9429:80
     restart: unless-stopped
-# sudo docker-compose -f /home/server/09-cyberchef/cyberchef.yml up -d
+
+# docker-compose -f $PWD/cyberchef.yml up -d

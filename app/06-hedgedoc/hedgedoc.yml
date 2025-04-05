@@ -19,9 +19,9 @@ services:
     - UPLOADS_MODE=0744
     - CMD_HSTS_ENABLE=true
     volumes:
-    - /home/server/06-hedgedoc/config:/config
+    - ./config:/config
     ports:
     - 9426:3000
     restart: unless-stopped
 
-# sudo docker-compose -f /home/server/06-hedgedoc/hedgedoc.yml up -d
+# docker-compose -f $PWD/hedgedoc.yml up -d

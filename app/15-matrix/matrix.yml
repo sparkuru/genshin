@@ -9,7 +9,7 @@ services:
     - PGID=1000
     - TZ=Asia/Shanghai
     volumes:
-    - /home/server/14-matrix/synapse/data:/data
+    - ./synapse/data:/data
     restart: unless-stopped
 
   element:
@@ -20,7 +20,7 @@ services:
     - PGID=1000
     - TZ=Asia/Shanghai
     volumes:
-    - /home/server/14-matrix/element/config.json:/app/config.json
+    - ./element/config.json:/app/config.json
     restart: unless-stopped
 
   synapse-admin:
@@ -32,4 +32,4 @@ services:
     - TZ=Asia/Shanghai
     restart: unless-stopped
 
-# sudo docker-compose -f /home/server/14-matrix/matrix.yml up -d
+# docker-compose -f $PWD/matrix.yml up -d

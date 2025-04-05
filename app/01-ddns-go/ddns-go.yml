@@ -5,9 +5,9 @@ services:
     image: jeessy/ddns-go
     container_name: ddns-go
     volumes:
-    - /home/server/01-ddns-go/root:/root
+    - ./root:/root
     ports:
     - 9420:9876
     restart: unless-stopped
 
-# sudo docker-compose -p 01-ddns-go -f /home/server/01-ddns-go/ddns-go.yml up -d
+# docker-compose -f $PWD/ddns-go.yml up -d

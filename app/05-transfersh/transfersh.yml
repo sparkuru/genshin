@@ -11,9 +11,9 @@ services:
     - LOG=/home/storage/log
     command: --provider local
     volumes:
-    - /home/server/05-transfersh/storage:/home/storage
+    - ./storage:/home/storage
     ports:
     - 9425:8080
     restart: unless-stopped
 
-# sudo docker-compose -p 05-transfersh -f /home/server/05-transfersh/transfersh.yml up -d
+# docker-compose -f $PWD/transfersh.yml up -d

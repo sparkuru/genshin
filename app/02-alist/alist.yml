@@ -10,10 +10,10 @@ services:
     - UMASK=022
     - TZ=Asia/Shanghai
     volumes:
-    - /home/server/02-alist/data:/opt/alist/data
-    - /home/server/02-alist/nas:/opt/alist/nas
+    - ./data:/opt/alist/data
+    - /mnt/nas:/opt/alist/nas
     ports:
     - 9421:5244
     restart: unless-stopped
 
-# sudo docker-compose -p 02-alist -f /home/server/02-alist/alist.yml up -d
+# docker-compose -f $PWD/alist.yml up -d

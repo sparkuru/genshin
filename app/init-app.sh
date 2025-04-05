@@ -22,10 +22,8 @@ app=(
     drawio
     openwebui
     matrix
-    homepage
-    frp-panel
-    redroid
     chromium
+    redroid
 )
 
 app_length=${#app[@]}
