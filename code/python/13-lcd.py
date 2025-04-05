@@ -5,7 +5,7 @@ import argparse
 import json
 import os
 import sys
-from typing import List, Dict, Tuple, Optional
+from typing import List
 
 # Global variables
 DEBUG_MODE = False

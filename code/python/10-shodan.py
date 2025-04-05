@@ -10,7 +10,6 @@ from datetime import datetime, timezone, timedelta
 from rich.console import Console
 from rich.table import Table
 from rich import box
-from rich.panel import Panel
 import threading
 import time
 import hashlib

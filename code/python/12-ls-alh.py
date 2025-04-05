@@ -4,16 +4,17 @@
 import os
 import sys
 import ctypes
+import re
 from datetime import datetime
 import argparse
 from colorama import Fore, Style
 
-# 根据操作系统导入相应的模块
+# Import modules based on operating system
 if sys.platform != 'win32':
     import pwd
     import grp
 else:
-    # Windows系统下创建空的pwd和grp模块
+    # Create empty pwd and grp modules for Windows
     class PwdModule:
         def getpwuid(self, uid):
             class Passwd:
@@ -48,17 +49,7 @@ CLI_COLORS = {
 }
 
 def color(text: str, color_code: int = 0) -> str:
-    """
-    Add color to text output
-    ```python
-    color(
-        text,         # Text to colorize
-        color_code=0  # Color code (0-8)
-    )
-
-    return = Colorized text string
-    ```
-    """
+    """Add color to text output"""
     color_table = {
         0: "{}",                    # No color
         1: "\033[1;30m{}\033[0m",   # Bold black
@@ -73,18 +64,7 @@ def color(text: str, color_code: int = 0) -> str:
     return color_table[color_code].format(text)
 
 def debug(*args, file=None, append=True, **kwargs) -> None:
-    """
-    Print debug information with file and line number
-    ```python
-    debug(
-        'Hello',         # Arg 1 to print
-        'World',         # Arg 2 to print
-        file='debug.log', # Output file path (default: None)
-        append=True,     # Append to file (default: True)
-        **kwargs         # Key-value pairs to print
-    )
-    ```
-    """
+    """Print debug information with file and line number"""
     if not DEBUG_MODE:
         return
         
@@ -119,17 +99,7 @@ def divider(text: str = None, char: str = '=') -> None:
     print(f"{color(divider_str, CLI_COLORS['TITLE'])} {text} {color(divider_str, CLI_COLORS['TITLE'])}")
 
 def human_readable_size(size: int, decimal_places: int = 2) -> str:
-    """
-    Convert file size to human readable format
-    ```python
-    human_readable_size(
-        size,            # Size in bytes
-        decimal_places=2 # Number of decimal places
-    )
-
-    return = Human readable size string
-    ```
-    """
+    """Convert file size to human readable format"""
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
         if abs(size) < 1024.0 or unit == 'TB':
             break
@@ -137,16 +107,7 @@ def human_readable_size(size: int, decimal_places: int = 2) -> str:
     return f"{size:>{decimal_places + 4}.{decimal_places}f} {unit}"
 
 def is_hidden(filepath: str) -> bool:
-    """
-    Check if a file is hidden
-    ```python
-    is_hidden(
-        filepath  # Path to file
-    )
-
-    return = True if file is hidden, False otherwise
-    ```
-    """
+    """Check if a file is hidden"""
     # Windows method
     if sys.platform == 'win32':
         try:
@@ -161,20 +122,18 @@ def is_hidden(filepath: str) -> bool:
         return os.path.basename(filepath).startswith('.')
 
 def get_terminal_size() -> int:
-    """
-    Get terminal width
-    ```python
-    get_terminal_size()
-
-    return = Terminal width in characters
-    ```
-    """
+    """Get terminal width"""
     try:
         from shutil import get_terminal_size as get_size
         columns, _ = get_size()
         return columns
     except ImportError:
         return 80
+
+def natural_sort_key(s):
+    """Natural sort key function - sorts strings with numbers naturally"""
+    return [int(text) if text.isdigit() else text.lower() 
+            for text in re.split(r'(\d+)', s)]
 
 class FileFormatter:
     """File formatting class for ls-alh"""
@@ -324,13 +283,15 @@ class DirectoryLister:
                 # First sort directories before files
                 entries = sorted(entries, key=lambda entry: entry.is_dir(), reverse=True)
                 
-                # Then apply user-specified sort
+                # Then apply user-specified sort with natural sorting
                 if self.sort_by == 'name':
-                    entries = sorted(entries, key=lambda entry: entry.name.lower())
+                    entries = sorted(entries, key=lambda entry: natural_sort_key(entry.name))
                 elif self.sort_by == 'size':
-                    entries = sorted(entries, key=lambda entry: entry.stat().st_size, reverse=True)
+                    # Use natural sorting as secondary sort criteria
+                    entries = sorted(entries, key=lambda entry: (entry.stat().st_size, natural_sort_key(entry.name)), reverse=True)
                 elif self.sort_by == 'time':
-                    entries = sorted(entries, key=lambda entry: entry.stat().st_mtime, reverse=True)
+                    # Use natural sorting as secondary sort criteria
+                    entries = sorted(entries, key=lambda entry: (entry.stat().st_mtime, natural_sort_key(entry.name)), reverse=True)
                     
                 return entries
         except PermissionError:

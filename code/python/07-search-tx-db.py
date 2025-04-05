@@ -2,7 +2,6 @@
 
 import sqlite3
 import os
-import sys
 
 db_path = "2tencent_data.db"
 sql_path = "sql.sql"

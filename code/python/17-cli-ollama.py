@@ -8,7 +8,6 @@ import argparse
 import json
 import signal
 import time
-import threading
 import socket
 from ollama import Client
 import pprint

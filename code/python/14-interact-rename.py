@@ -5,15 +5,16 @@ import os
 import sys
 import argparse
 import re
+import shutil
+import signal
 from rich.console import Console
-from rich.table import Table
-from rich import box
 from rich.panel import Panel
 
 # Global variables
 DEBUG_MODE = False
 WORK_DIR = os.getcwd()
-VERSION = "1.1.4"
+VERSION = "1.1.5"
+SHOULD_EXIT = False
 
 # File extensions
 VIDEO_EXTENSIONS = (
@@ -44,9 +45,21 @@ CLI_COLORS = {
     "ERROR": 2,      # Red - Errors
 }
 
-class FileType:
-    """File type definitions and operations"""
+def natural_sort_key(s):
+    """
+    Natural sort key function for sorting strings with embedded numbers.
+    This function will sort strings in a human intuitive way:
+    e.g. ["1.txt", "2.txt", "10.txt"] instead of ["1.txt", "10.txt", "2.txt"]
     
+    Args:
+        s (str): String to convert to natural sort key
+        
+    Returns:
+        list: A list of string and integer chunks that can be used as a sort key
+    """
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+
+class FileType:
     VIDEO = 'video'
     IMAGE = 'image'
     
@@ -62,26 +75,13 @@ class FileType:
     
     @classmethod
     def get_extensions(cls, file_type: str) -> tuple:
-        """Get extensions for file type"""
         return cls.EXTENSIONS.get(file_type, ())
         
     @classmethod
     def get_default_ext(cls, file_type: str) -> str:
-        """Get default output extension for file type"""
         return cls.DEFAULT_OUTPUT.get(file_type, '')
 
 def color(text: str, color_code: int = 0) -> str:
-    """
-    Add color to text output
-    ```python
-    color(
-        text,    # Text to colorize
-        color_code=0    # Color code (0-8)
-    )
-
-    return = Colorized text string
-    ```
-    """
     color_table = {
         0: "{}",  # No color
         1: "\033[1;30m{}\033[0m",  # Bold black
@@ -96,18 +96,6 @@ def color(text: str, color_code: int = 0) -> str:
     return color_table[color_code].format(text)
 
 def debug(*args, file=None, append=True, **kwargs):
-    """
-    Print debug information with file and line number
-    ```python
-    debug(
-        'Hello',    # Arg 1 to print
-        'World',    # Arg 2 to print
-        file='debug.log',  # Output file path (default: None)
-        append=True,  # Append to file (default: True)
-        **kwargs  # Key-value pairs to print
-    )
-    ```
-    """
     if not DEBUG_MODE:
         return
         
@@ -135,57 +123,84 @@ def debug(*args, file=None, append=True, **kwargs):
         print(output, end='')
 
 def divider(text: str = False, char: str = '=') -> None:
-    """Print a divider line with optional text"""
     divider_str = char * 10
     print(f"{color(divider_str, 5)} {text if text else 'Divider'} {color(divider_str, 5)}")
 
 class FileRenamer:
-    """File renaming operations manager"""
-    
     def __init__(self, directory: str):
         self.directory = directory
         self.console = Console()
         self.total_files = 0
         self.modified_files = 0
+        # Setup signal handler
+        signal.signal(signal.SIGINT, self._signal_handler)
+        
+    def _signal_handler(self, signum, frame):
+        global SHOULD_EXIT
+        SHOULD_EXIT = True
+        print("\nSafely exiting...")
         
     def _show_statistics(self) -> None:
-        """Display operation statistics"""
         print()  # Empty line for better readability
         print(f"{color('Total Files', CLI_COLORS['SUB_TITLE'])}: {color(str(self.total_files), CLI_COLORS['CONTENT'])} | {color('Modified Files', CLI_COLORS['SUB_TITLE'])}: {color(str(self.modified_files), CLI_COLORS['CONTENT'])}")
 
     def is_ignored(self, filename: str, ignore_list: list) -> bool:
-        """Check if file should be ignored"""
         return filename in ignore_list
         
     def get_file_list(self, include_dirs: bool = False) -> list:
-        """Get list of files to process"""
         files = [
             f for f in os.listdir(self.directory)
             if os.path.isfile(os.path.join(self.directory, f)) or 
             (include_dirs and os.path.isdir(os.path.join(self.directory, f)))
         ]
-        files.sort()
+        # Use natural sort
+        files.sort(key=natural_sort_key)
         file_list = [f for f in files if not self.is_ignored(f, IGNORE_FILES + SCRIPT_IGNORE_FILES)]
         self.total_files = len(file_list)
         return file_list
 
     def show_files(self, file_list: list) -> None:
-        """Display list of files in workspace"""
         divider('Files in workspace')
         for filename in file_list:
             print(color(filename, CLI_COLORS["CONTENT"]))
         print()
 
+    def _move_file(self, src: str, dst: str, show_progress: bool = False, current: int = 0, total: int = 0, count_as_modified: bool = True) -> bool:
+        if SHOULD_EXIT:
+            return False
+            
+        try:
+            if show_progress:
+                self._show_progress(current, total, "Renaming: ")
+                
+            # Check file size
+            file_size = os.path.getsize(src)
+            is_large_file = file_size > 100 * 1024 * 1024  # Files larger than 100MB
+            
+            if is_large_file:
+                print(f"\nProcessing large file: {os.path.basename(src)} ({file_size / (1024*1024):.1f}MB)")
+                
+            try:
+                os.rename(src, dst)
+            except OSError:
+                if is_large_file:
+                    print("Using alternative method for large file, this may take longer...")
+                shutil.move(src, dst)
+            
+            # Only increment counter if requested    
+            if count_as_modified:
+                self.modified_files += 1
+                
+            return True
+            
+        except OSError as e:
+            print(color(f"Error moving file: {str(e)}", CLI_COLORS["ERROR"]))
+            return False
+        except Exception as e:
+            print(color(f"Unexpected error: {str(e)}", CLI_COLORS["ERROR"]))
+            return False
+
     def fast_rename(self, file_type: str, width: int = 3) -> None:
-        """
-        Fast rename files with sequential numbers
-        ```python
-        fast_rename(
-            file_type,    # 'video' or 'image'
-            width=3    # Width of number padding
-        )
-        ```
-        """
         if file_type not in [FileType.VIDEO, FileType.IMAGE]:
             print(color(f"Error: type must be '{FileType.VIDEO}' or '{FileType.IMAGE}'", CLI_COLORS["ERROR"]))
             return
@@ -203,7 +218,8 @@ class FileRenamer:
             print(color(f"No {file_type} files found in directory", CLI_COLORS["WARNING"]))
             return
             
-        files.sort()
+        # Use natural sort
+        files.sort(key=natural_sort_key)
         default_ext = FileType.get_default_ext(file_type)
         self.modified_files = 0
         
@@ -228,16 +244,12 @@ class FileRenamer:
             return
         
         # Request user confirmation
-        if self._confirm_changes():
+        if self._confirm_changes(file_count=len(changes)):
             # Apply changes
             for old_name, new_name in changes:
-                try:
-                    src = os.path.join(self.directory, old_name)
-                    dst = os.path.join(self.directory, new_name)
-                    os.rename(src, dst)
-                    self.modified_files += 1
-                except OSError as e:
-                    print(color(f"Error renaming '{old_name}': {str(e)}", CLI_COLORS["ERROR"]))
+                src = os.path.join(self.directory, old_name)
+                dst = os.path.join(self.directory, new_name)
+                self._move_file(src, dst)
             
             divider('Changes confirmed')
             self._show_statistics()
@@ -245,17 +257,6 @@ class FileRenamer:
             divider('Changes cancelled')
 
     def prefix_rename(self, file_list: list, width: int = 3, mode: str = 'add', start_num: int = 1) -> None:
-        """
-        Add or remove numeric prefixes to filenames
-        ```python
-        prefix_rename(
-            file_list,    # List of files to process
-            width=3,    # Width of number padding
-            mode='add',    # 'add' or 'remove'
-            start_num=1    # Starting number for add mode
-        )
-        ```
-        """
         if not file_list:
             print(color("No files to process", CLI_COLORS["WARNING"]))
             return
@@ -300,14 +301,13 @@ class FileRenamer:
             return
             
         # Use common confirmation function
-        if self._confirm_changes():
+        if self._confirm_changes(file_count=len(changes)):
             try:
                 # Apply changes
                 for old_name, new_name in changes:
                     src = os.path.join(self.directory, old_name)
                     dst = os.path.join(self.directory, new_name)
-                    os.rename(src, dst)
-                    self.modified_files += 1
+                    self._move_file(src, dst)
                 divider('Changes confirmed')
                 self._show_statistics()
             except OSError as e:
@@ -316,14 +316,6 @@ class FileRenamer:
             divider('Changes cancelled')
 
     def interactive_rename(self, file_list: list) -> None:
-        """
-        Interactive file renaming with pattern matching
-        ```python
-        interactive_rename(
-            file_list    # List of files to process
-        )
-        ```
-        """
         banner = Panel(
             "[cyan]Interactive Batch Rename[/cyan]\n\n"
             "Enter base name pattern with '>' symbol for custom input positions\n"
@@ -445,16 +437,15 @@ class FileRenamer:
                     
                     if os.path.exists(new_path) and old_path != new_path:
                         print(color(f"Error: '{new_name}' already exists", CLI_COLORS["ERROR"]))
-                        choice = input(f'Overwrite? ({color("[Y]", CLI_COLORS["WARNING"])} to overwrite, any other key to skip): ').upper()
-                        if choice != 'Y':
+                        choice = input(f'Overwrite? ({color("[Y/n]", CLI_COLORS["WARNING"])}, default is Yes): ').upper()
+                        if choice == 'N':
                             print(f'Skipped: {color(old_file, CLI_COLORS["CONTENT"])}')
                             print()
                             continue
                     
-                    os.rename(old_path, new_path)
-                    print(f'Renamed: {color(old_file, CLI_COLORS["CONTENT"])} => {color(new_name, CLI_COLORS["CONTENT"])}')
-                    print()
-                    self.modified_files += 1
+                    if self._move_file(old_path, new_path):
+                        print(f'Renamed: {color(old_file, CLI_COLORS["CONTENT"])} => {color(new_name, CLI_COLORS["CONTENT"])}')
+                        print()
                 except OSError as e:
                     print(color(f"Error renaming '{old_file}': {str(e)}", CLI_COLORS["ERROR"]))
                     print()
@@ -462,16 +453,6 @@ class FileRenamer:
         self._show_statistics()
 
     def replace_in_name(self, file_list: list, old_text: str, new_text: str) -> None:
-        """
-        Replace text in filenames
-        ```python
-        replace_in_name(
-            file_list,    # List of files to process
-            old_text,    # Text to replace
-            new_text    # Replacement text
-        )
-        ```
-        """
         if not old_text:
             print(color("Error: old text cannot be empty", CLI_COLORS["ERROR"]))
             return
@@ -480,6 +461,10 @@ class FileRenamer:
         self.modified_files = 0
         
         for filename in file_list:
+            if SHOULD_EXIT:
+                print("\nOperation interrupted by user")
+                return
+                
             new_name = filename.replace(old_text, new_text)
             if new_name == filename:
                 continue
@@ -498,15 +483,15 @@ class FileRenamer:
             return
         
         # Request user confirmation
-        if self._confirm_changes():
+        if self._confirm_changes(file_count=len(changes)):
             for old_name, new_name in changes:
-                try:
-                    src = os.path.join(self.directory, old_name)
-                    dst = os.path.join(self.directory, new_name)
-                    os.rename(src, dst)
-                    self.modified_files += 1
-                except OSError as e:
-                    print(color(f"Error renaming '{old_name}': {str(e)}", CLI_COLORS["ERROR"]))
+                if SHOULD_EXIT:
+                    print("\nOperation interrupted by user")
+                    return
+                    
+                src = os.path.join(self.directory, old_name)
+                dst = os.path.join(self.directory, new_name)
+                self._move_file(src, dst)
                 
             divider('Changes confirmed')
             self._show_statistics()
@@ -514,15 +499,6 @@ class FileRenamer:
             divider('Changes cancelled')
 
     def sort_files(self, file_list: list, width: int = 3) -> None:
-        """
-        Sort and rename files with numeric prefixes
-        ```python
-        sort_files(
-            file_list,    # List of files to process
-            width=3    # Width of number padding
-        )
-        ```
-        """
         changes = []
         self.modified_files = 0
         
@@ -543,13 +519,10 @@ class FileRenamer:
             return
         
         # Use common confirmation function
-        if self._confirm_changes():
-            for src, dst in changes:
-                try:
-                    os.rename(src, dst)
-                    self.modified_files += 1
-                except OSError as e:
-                    print(color(f"Error renaming file: {str(e)}", CLI_COLORS["ERROR"]))
+        if self._confirm_changes(file_count=len(changes)):
+            total = len(changes)
+            for i, (src, dst) in enumerate(changes, 1):
+                self._move_file(src, dst, show_progress=True, current=i, total=total)
                 
             divider('Changes confirmed')
             self._show_statistics()
@@ -557,14 +530,6 @@ class FileRenamer:
             divider('Changes cancelled')
 
     def lowercase_files(self, file_list: list) -> None:
-        """
-        Convert filenames to lowercase
-        ```python
-        lowercase_files(
-            file_list    # List of files to process
-        )
-        ```
-        """
         changes = []
         self.modified_files = 0
         temp_changes = []  # Store temporary renames for Windows system
@@ -607,22 +572,22 @@ class FileRenamer:
             return
             
         # Use common confirmation function
-        if self._confirm_changes():
+        if self._confirm_changes(file_count=len(changes)):
             try:
                 # Handle temporary renames for Windows system
                 for old_name, temp_name in temp_changes:
                     src = os.path.join(self.directory, old_name)
                     temp_path = os.path.join(self.directory, temp_name)
-                    os.rename(src, temp_path)
+                    # Don't count temporary moves in the statistics
+                    self._move_file(src, temp_path, count_as_modified=False)
                     
                 # Process all renames
                 for old_name, new_name in changes:
                     src = os.path.join(self.directory, old_name)
                     dst = os.path.join(self.directory, new_name)
                     if os.path.exists(src):  # Check if source exists (for temp files)
-                        os.rename(src, dst)
-                        if not old_name.endswith('.tmp'):  # Don't count temporary renames
-                            self.modified_files += 1
+                        # Only count non-temporary files as modifications
+                        self._move_file(src, dst, count_as_modified=True)
                     
                 divider('Changes confirmed')
                 self._show_statistics()
@@ -631,19 +596,23 @@ class FileRenamer:
         else:
             divider('Changes cancelled')
 
-    def _confirm_changes(self, changes_message='Confirm the above changes?') -> bool:
-        """Request user confirmation for changes
-        
-        Args:
-            changes_message: Confirmation message to display to user
-            
-        Returns:
-            bool: Whether user confirmed the changes
-        """
-        return input(f'\n{changes_message} ({color("[y/N]", CLI_COLORS["CONTENT"])}): ').lower() == 'y'
+    def _confirm_changes(self, changes_message='Confirm the above changes?', file_count=None) -> bool:
+        count_info = ""
+        if file_count is not None:
+            count_info = f"{color(str(file_count), CLI_COLORS['CONTENT'])} files will be modified | "
+        return input(f'\n{count_info}{changes_message} ({color("[Y/n]", CLI_COLORS["CONTENT"])}, default is Yes): ').lower() != 'n'
+
+    def _show_progress(self, current: int, total: int, prefix: str = '') -> None:
+        if total == 0:
+            return
+        percent = (current / total) * 100
+        progress = int(percent / 2)  # 50 character progress bar
+        bar = '█' * progress + '░' * (50 - progress)
+        self.console.print(f"\r{prefix} [{bar}] {percent:.1f}% {current}/{total}", end="")
+        if current == total:
+            self.console.print()  # newline
 
 def create_example_text() -> str:
-    """Create formatted example text for help menu"""
     script_name = os.path.basename(sys.argv[0])
     
     examples = [
@@ -671,7 +640,8 @@ def create_example_text() -> str:
         "Fast rename supports file types: image, video",
         "try replace 'sth' '\"\"' to remove the string",
         "Interactive rename uses '>' symbol to mark custom input positions",
-        "Lowercase command converts all uppercase letters to lowercase in filenames"
+        "Lowercase command converts all uppercase letters to lowercase in filenames",
+        "Files are sorted using natural sort (e.g., 1.txt, 2.txt, 10.txt instead of 1.txt, 10.txt, 2.txt)"
     ]
     
     text += f'\n{color("Notes:", CLI_COLORS["SUB_TITLE"])}'
@@ -681,16 +651,6 @@ def create_example_text() -> str:
     return text
 
 def create_help_text(parser: argparse.ArgumentParser) -> str:
-    """
-    Create formatted help text for the parser
-    ```python
-    create_help_text(
-        parser    # ArgumentParser instance
-    )
-
-    return = Formatted help text string
-    ```
-    """
     help_parts = []
     
     # Add description
@@ -731,17 +691,6 @@ def create_help_text(parser: argparse.ArgumentParser) -> str:
     return "\n".join(help_parts)
 
 def create_command_help(parser: argparse.ArgumentParser, command: str) -> str:
-    """
-    Create formatted help text for a specific command
-    ```python
-    create_command_help(
-        parser,     # ArgumentParser instance
-        command     # Command name
-    )
-
-    return = Formatted help text string
-    ```
-    """
     help_parts = []
     
     # Add description
@@ -916,7 +865,7 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print(color("\nOperation cancelled by user", CLI_COLORS["ERROR"]))
+        print(color("\nOperation interrupted by user", CLI_COLORS["ERROR"]))
         sys.exit(0)
     except Exception as e:
         if DEBUG_MODE:
