@@ -140,6 +140,39 @@ services:
 
 以下是自己构建的一些镜像，直接下载并 `docker -i xxx.tar` 即可
 
+## devcontainer
+
+microsoft 的 vscode 自带一套很好用的自动化起 docker 流程
+
+1. 创建一个空文件夹
+
+2. 在空文件夹下，创建对应文件：`mkdir .devcontainer`，`touch .devcontainer/devcontainer.json`，写入以下内容（参考）
+
+	```json
+	// For format details, see https://aka.ms/devcontainer.json.
+	{
+	    "name": "dev-ubuntu",
+	    "image": "mcr.microsoft.com/devcontainers/base:jammy",
+	    "runArgs": ["--privileged"],
+	    "mounts": [
+	            "source=/dev,target=/dev,type=bind"
+	    ],
+	    "postCreateCommand": "sudo apt-get update && sudo apt-get install -y git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0",
+	    "customizations": {
+	            "vscode": {
+	                    "extensions": [
+	                            "ms-vscode.cpptools"
+	                    ]
+	            }
+	    },
+	    "remoteUser": "root"
+	}
+	```
+
+3. 在 vscode 的拓展商店里安装 devcontainer 插件
+
+4. 左下角 "在容器中重新打开"
+
 ## sth
 
 1. 添加用户组，目的是不再需要 `sudo` 去管理 docker：`sudo usermod -aG docker user`

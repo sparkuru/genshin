@@ -21,8 +21,6 @@ services:
     - 443:8443
     restart: unless-stopped
 
-# docker-compose -f $PWD/drawio.yml up -d
-
 # LETS_ENCRYPT_ENABLED=${LETS_ENCRYPT_ENABLED:-false}
 # PUBLIC_DNS=${PUBLIC_DNS:-'draw.example.com'}
 # ORGANISATION_UNIT=${ORGANISATION_UNIT:-'Cloud Native Application'}
@@ -32,3 +30,5 @@ services:
 # COUNTRY_CODE=${COUNTRY_CODE:-'FR'}
 # KEYSTORE_PASS=${KEYSTORE_PASS:-'V3ry1nS3cur3P4ssw0rd'}
 # KEY_PASS=${KEY_PASS:-$KEYSTORE_PASS}
+
+# docker-compose -f $PWD/drawio.yml up -d
