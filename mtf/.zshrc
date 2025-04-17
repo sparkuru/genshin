@@ -4,7 +4,7 @@
 setopt autocd              # change directory just by typing its name
 #setopt correct            # auto correct mistakes
 setopt interactivecomments # allow comments in interactive mode
-setopt magicequalsubst     # enable filename expansion for arguments of the form ‘anything=expression’
+setopt magicequalsubst     # enable filename expansion for arguments of the form 'anything=expression'
 setopt nonomatch           # hide error message if there is no match for the pattern
 setopt notify              # report the status of background jobs immediately
 setopt numericglobsort     # sort filenames numerically when it makes sense
@@ -96,22 +96,104 @@ configure_prompt() {
     prompt_symbol="(.ᗜ ᴗ ᗜ.)"
     # Skull emoji for root terminal
     #[ "$EUID" -eq 0 ] && prompt_symbol=💀
+    
+    git_prompt() {
+        command -v git >/dev/null 2>&1 || return
+        
+        local git_status branch repo_name
+        if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            branch=$(git symbolic-ref --short HEAD 2>/dev/null || git describe --tags --always 2>/dev/null)
+            
+            repo_name=$(basename -s .git $(git config --get remote.origin.url 2>/dev/null) 2>/dev/null || basename $(git rev-parse --show-toplevel 2>/dev/null))
+            
+            git_status=$(git status --porcelain 2>/dev/null)
+            
+            local status_color="%F{green}" 
+            local status_text="clean"
+            
+            if [[ -n "$git_status" ]]; then
+                local added_count=$(echo "$git_status" | grep -c "^A\|^??\|^ A")
+                local modified_count=$(echo "$git_status" | grep -c "^M\|^ M")
+                local deleted_count=$(echo "$git_status" | grep -c "^D\|^ D")
+                
+                status_color="%F{red}"
+                status_text="commit"
+                if [[ $added_count -gt 0 || $modified_count -gt 0 || $deleted_count -gt 0 ]]; then
+                    local details=""
+                    [[ $added_count -gt 0 ]] && details+="+$added_count"
+                    [[ $modified_count -gt 0 ]] && details+="~$modified_count"
+                    [[ $deleted_count -gt 0 ]] && details+="-$deleted_count"
+                    status_text+="[$details]"
+                fi
+            elif git rev-list --count --left-right @{upstream}...HEAD 2>/dev/null | grep -q -v "^0[[:space:]]0$"; then
+                local ahead_behind=$(git rev-list --count --left-right @{upstream}...HEAD 2>/dev/null)
+                local behind=$(echo "$ahead_behind" | awk '{print $1}')
+                local ahead=$(echo "$ahead_behind" | awk '{print $2}')
+                
+                status_color="%F{yellow}"
+                status_text="sync"
+                
+                if [[ $ahead -gt 0 && $behind -gt 0 ]]; then
+                    status_text+="[↓$behind↑$ahead]"
+                elif [[ $ahead -gt 0 ]]; then
+                    status_text+="[↑$ahead]"
+                elif [[ $behind -gt 0 ]]; then
+                    status_text+="[↓$behind]"
+                fi
+            fi
+            
+            echo "-(git/$repo_name/$branch)-${status_color}($status_text)%f"
+        else
+            echo ""
+        fi
+    }
+    
     case "$PROMPT_ALTERNATIVE" in
         twoline)
-            PROMPT=$'%F{%(#.blue.green)}┌──${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(%B%F{%(#.red.blue)}%n'$prompt_symbol$'%m%b%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]\n└─%B%(#.%F{red}#.%F{blue}$)%b%F{reset} '
+            PROMPT=$'%F{%(#.blue.green)}┌──${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(%B%F{%(#.red.blue)}%n'$prompt_symbol$'%m%b%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]$(git_prompt)\n%F{%(#.blue.green)}└─%B%(#.%F{red}#.%F{blue}$)%b%F{reset} '
             # Right-side prompt with exit codes and background processes
             #RPROMPT=$'%(?.. %? %F{red}%B⨯%b%F{reset})%(1j. %j %F{yellow}%B⚙%b%F{reset}.)'
             ;;
         oneline)
-            PROMPT=$'${debian_chroot:+($debian_chroot)}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))}%B%F{%(#.red.blue)}%n@%m%b%F{reset}:%B%F{%(#.blue.green)}%~%b%F{reset}%(#.#.$) '
+            PROMPT=$'${debian_chroot:+($debian_chroot)}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))}%B%F{%(#.red.blue)}%n@%m%b%F{reset}:%B%F{%(#.blue.green)}%~%b%F{reset}$(git_prompt)%(#.#.$) '
             RPROMPT=
             ;;
         backtrack)
-            PROMPT=$'${debian_chroot:+($debian_chroot)}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))}%B%F{red}%n@%m%b%F{reset}:%B%F{blue}%~%b%F{reset}%(#.#.$) '
+            PROMPT=$'${debian_chroot:+($debian_chroot)}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))}%B%F{red}%n@%m%b%F{reset}:%B%F{blue}%~%b%F{reset}$(git_prompt)%(#.#.$) '
             RPROMPT=
             ;;
     esac
     unset prompt_symbol
+}
+
+function precmd_update_git_vars() {
+    if [ -n "$__EXECUTED_GIT_COMMAND" ]; then
+        update_current_git_vars
+        unset __EXECUTED_GIT_COMMAND
+    fi
+}
+
+function preexec_update_git_vars() {
+    case "$1" in
+        git*|hub*|gh*|stg*)
+            __EXECUTED_GIT_COMMAND=1
+            ;;
+    esac
+}
+
+precmd_functions+=(precmd_update_git_vars)
+preexec_functions+=(preexec_update_git_vars)
+
+function update_current_git_vars() {
+    unset __CURRENT_GIT_STATUS
+    
+    command -v git >/dev/null 2>&1 || return
+    
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        __CURRENT_GIT_STATUS=1
+    else
+        unset __CURRENT_GIT_STATUS
+    fi
 }
 
 # The following block is surrounded by two delimiters.
