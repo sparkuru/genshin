@@ -23,9 +23,11 @@ from bs4 import BeautifulSoup
 # 全局日志级别
 DEBUG_MODE = False
 
+
 def clean_path(path):
     """清理路径，只保留文件名"""
     return os.path.basename(path)
+
 
 def color(text, color_code=0):
     """为调试信息添加颜色"""
@@ -41,6 +43,7 @@ def color(text, color_code=0):
         8: "\033[1;37m{}\033[0m",  # 白色加粗
     }
     return color_table[color_code].format(text)
+
 
 def debug(*args, file=None, append=True, **kwargs):
     """
@@ -59,40 +62,43 @@ def debug(*args, file=None, append=True, **kwargs):
     """
     if not DEBUG_MODE:
         return
-        
+
     import inspect
+
     frame = inspect.currentframe().f_back
     info = inspect.getframeinfo(frame)
-    
+
     output = f"{color(clean_path(info.filename), 3)}: {color(info.lineno, 4)} {color('|', 7)} "
-    
+
     for i, arg in enumerate(args):
         arg_str = str(arg)
         output += f"{color(arg_str, 2)} "
-    
+
     for k, v in kwargs.items():
-        output += f"{color(k+'=', 6)}{color(str(v), 2)} "
-    
-    output += '\n'
-    
+        output += f"{color(k + '=', 6)}{color(str(v), 2)} "
+
+    output += "\n"
+
     if file:
-        mode = 'a' if append else 'w'
+        mode = "a" if append else "w"
         with open(file, mode) as f:
-            clean_output = re.sub(r'\033\[\d+;\d+m|\033\[0m', '', output)
+            clean_output = re.sub(r"\033\[\d+;\d+m|\033\[0m", "", output)
             f.write(clean_output)
     else:
-        print(output, end='')
+        print(output, end="")
+
 
 # CLI 帮助样式模板
 class CLIStyle:
     """CLI 工具统一样式配置"""
+
     COLORS = {
-        "TITLE": 7,      # 青色 - 主标题
+        "TITLE": 7,  # 青色 - 主标题
         "SUB_TITLE": 2,  # 红色 - 子标题
-        "CONTENT": 3,    # 绿色 - 普通内容
-        "EXAMPLE": 7,    # 青色 - 示例
-        "WARNING": 4,    # 黄色 - 警告
-        "ERROR": 2,      # 红色 - 错误
+        "CONTENT": 3,  # 绿色 - 普通内容
+        "EXAMPLE": 7,  # 青色 - 示例
+        "WARNING": 4,  # 黄色 - 警告
+        "ERROR": 2,  # 红色 - 错误
     }
 
     @staticmethod
@@ -111,65 +117,81 @@ class CLIStyle:
         }
         return color_table[color].format(text)
 
+
 class ColoredArgumentParser(argparse.ArgumentParser):
     """统一的命令行参数解析器"""
+
     def _format_action_invocation(self, action):
         if not action.option_strings:
-            metavar, = self._metavar_formatter(action, action.dest)(1)
+            (metavar,) = self._metavar_formatter(action, action.dest)(1)
             return metavar
         else:
             parts = []
             if action.nargs == 0:
-                parts.extend(map(lambda x: CLIStyle.color(x, CLIStyle.COLORS["SUB_TITLE"]), 
-                               action.option_strings))
+                parts.extend(
+                    map(
+                        lambda x: CLIStyle.color(x, CLIStyle.COLORS["SUB_TITLE"]),
+                        action.option_strings,
+                    )
+                )
             else:
                 default = action.dest.upper()
                 args_string = self._format_args(action, default)
                 for option_string in action.option_strings:
-                    parts.append(CLIStyle.color(
-                        f'{option_string} {args_string}', 
-                        CLIStyle.COLORS["SUB_TITLE"]
-                    ))
-            return ', '.join(parts)
+                    parts.append(
+                        CLIStyle.color(
+                            f"{option_string} {args_string}",
+                            CLIStyle.COLORS["SUB_TITLE"],
+                        )
+                    )
+            return ", ".join(parts)
 
     def format_help(self):
         formatter = self._get_formatter()
-        
+
         # 添加描述
         if self.description:
-            formatter.add_text(CLIStyle.color(self.description, CLIStyle.COLORS["TITLE"]))
-            
+            formatter.add_text(
+                CLIStyle.color(self.description, CLIStyle.COLORS["TITLE"])
+            )
+
         # 添加用法
         formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
-        
+
         # 添加参数组
-        formatter.add_text(CLIStyle.color("\nOptional Arguments:", CLIStyle.COLORS["TITLE"]))
+        formatter.add_text(
+            CLIStyle.color("\nOptional Arguments:", CLIStyle.COLORS["TITLE"])
+        )
         for action_group in self._action_groups:
             formatter.start_section(action_group.title)
             formatter.add_arguments(action_group._group_actions)
             formatter.end_section()
-            
+
         # 添加示例和注释
         if self.epilog:
             formatter.add_text(self.epilog)
-            
+
         return formatter.format_help()
+
 
 def create_example_text(script_name: str, examples: list, notes: list = None) -> str:
     """创建统一的示例文本"""
-    text = f'\n{CLIStyle.color("Examples:", CLIStyle.COLORS["SUB_TITLE"])}'
-    
+    text = f"\n{CLIStyle.color('Examples:', CLIStyle.COLORS['SUB_TITLE'])}"
+
     for desc, cmd in examples:
-        text += f'\n  {CLIStyle.color(f"# {desc}", CLIStyle.COLORS["EXAMPLE"])}'
-        text += f'\n  {CLIStyle.color(f"{script_name} {cmd}", CLIStyle.COLORS["CONTENT"])}'
-        text += '\n'
-    
+        text += f"\n  {CLIStyle.color(f'# {desc}', CLIStyle.COLORS['EXAMPLE'])}"
+        text += (
+            f"\n  {CLIStyle.color(f'{script_name} {cmd}', CLIStyle.COLORS['CONTENT'])}"
+        )
+        text += "\n"
+
     if notes:
-        text += f'\n{CLIStyle.color("Notes:", CLIStyle.COLORS["SUB_TITLE"])}'
+        text += f"\n{CLIStyle.color('Notes:', CLIStyle.COLORS['SUB_TITLE'])}"
         for note in notes:
-            text += f'\n  {CLIStyle.color(f"- {note}", CLIStyle.COLORS["CONTENT"])}'
-    
+            text += f"\n  {CLIStyle.color(f'- {note}', CLIStyle.COLORS['CONTENT'])}"
+
     return text
+
 
 # Global variable definitions
 shodan_dir_name = ".shodan"
@@ -190,7 +212,9 @@ def show_loading_animation():
     start_time = time.time()
     while is_searching:
         elapsed = time.time() - start_time
-        sys.stdout.write(f"\r{CLIStyle.color(f'{animation[i]} Pending... ({elapsed:.1f}s)', 6)}")
+        sys.stdout.write(
+            f"\r{CLIStyle.color(f'{animation[i]} Pending... ({elapsed:.1f}s)', 6)}"
+        )
         sys.stdout.flush()
         time.sleep(0.1)
         i = (i + 1) % len(animation)
@@ -201,7 +225,7 @@ def show_loading_animation():
 def truncate(text, width):
     """截断文本并添加省略号"""
     if len(text) > width:
-        return text[:width-3] + "..."
+        return text[: width - 3] + "..."
     return text
 
 
@@ -404,13 +428,19 @@ class ShodanClient:
                 json.dump(index_data, f, indent=2)
 
         except Exception as e:
-            print(CLIStyle.color(f"Warning: Failed to update search index: {str(e)}", 4))
+            print(
+                CLIStyle.color(f"Warning: Failed to update search index: {str(e)}", 4)
+            )
 
     def search(self, query, page=1, no_cache=False, delete_cache=False):
         """Execute search and handle caching"""
         if not self.client:
             debug("API key not configured")
-            print(CLIStyle.color("Error: API key not configured. Use 'init' command first.", 2))
+            print(
+                CLIStyle.color(
+                    "Error: API key not configured. Use 'init' command first.", 2
+                )
+            )
             return None
 
         # Check paid API access for pagination
@@ -470,8 +500,13 @@ class ShodanClient:
                 loading_thread.start()
 
                 results = self._do_search(query, page)
-                debug("Search results", total=results.get("total") if results else None, 
-                      matches_count=len(results.get("matches", [])) if results and "matches" in results else 0)
+                debug(
+                    "Search results",
+                    total=results.get("total") if results else None,
+                    matches_count=len(results.get("matches", []))
+                    if results and "matches" in results
+                    else 0,
+                )
                 is_searching = False
                 loading_thread.join()
 
@@ -506,15 +541,21 @@ class ShodanClient:
             # 在处理结果之前添加更严格的验证
             if not results or not isinstance(results, dict):
                 debug("Invalid results format", results=results)
-                print(CLIStyle.color("搜索返回了无效的结果格式", CLIStyle.COLORS["ERROR"]))
+                print(
+                    CLIStyle.color("搜索返回了无效的结果格式", CLIStyle.COLORS["ERROR"])
+                )
                 return None
-            
+
             matches = results.get("matches", [])
             if not isinstance(matches, list):
                 debug("Invalid matches format", matches=matches)
-                print(CLIStyle.color("搜索返回了无效的匹配结果格式", CLIStyle.COLORS["ERROR"]))
+                print(
+                    CLIStyle.color(
+                        "搜索返回了无效的匹配结果格式", CLIStyle.COLORS["ERROR"]
+                    )
+                )
                 return None
-            
+
             # 确保 total 字段存在且有效
             total = results.get("total", 0)
             if not isinstance(total, (int, float)):
@@ -525,7 +566,11 @@ class ShodanClient:
         except Exception as e:
             is_searching = False
             debug("Search error", error=str(e))
-            print(CLIStyle.color(f"\n搜索过程中发生错误: {str(e)}", CLIStyle.COLORS["ERROR"]))
+            print(
+                CLIStyle.color(
+                    f"\n搜索过程中发生错误: {str(e)}", CLIStyle.COLORS["ERROR"]
+                )
+            )
             return None
 
     def _do_search(self, query, page=1):
@@ -535,22 +580,36 @@ class ShodanClient:
                 debug("Executing Shodan API search", query=query, page=page)
                 # Use page parameter for pagination
                 response = self.client.search(query, page=page)
-                
+
                 if response and "matches" in response:
-                    debug("Raw response", total=response.get("total"), matches_count=len(response.get("matches", [])))
+                    debug(
+                        "Raw response",
+                        total=response.get("total"),
+                        matches_count=len(response.get("matches", [])),
+                    )
                     response["matches"] = [
-                        match for match in response["matches"]
-                        if match.get("ip_str", "").count(":") == 0  # IPv6 地址包含多个冒号
+                        match
+                        for match in response["matches"]
+                        if match.get("ip_str", "").count(":")
+                        == 0  # IPv6 地址包含多个冒号
                     ]
                     response["total"] = len(response["matches"])
-                    debug("Filtered response", total=response.get("total"), matches_count=len(response.get("matches", [])))
+                    debug(
+                        "Filtered response",
+                        total=response.get("total"),
+                        matches_count=len(response.get("matches", [])),
+                    )
 
                 if not response or "matches" not in response:
                     debug("Invalid response", response=response)
                     print(CLIStyle.color("No results found or invalid response", 2))
                     return None
 
-                print(CLIStyle.color(f"\nGot {len(response.get('matches', []))} results", 7))
+                print(
+                    CLIStyle.color(
+                        f"\nGot {len(response.get('matches', []))} results", 7
+                    )
+                )
                 return response
 
             except shodan.APIError as e:
@@ -582,7 +641,11 @@ class ShodanClient:
     def show_info(self):
         """Display Shodan API information and configuration"""
         if not self.client:
-            print(CLIStyle.color("Error: API key not configured. Use 'init' command first.", 2))
+            print(
+                CLIStyle.color(
+                    "Error: API key not configured. Use 'init' command first.", 2
+                )
+            )
             return
 
         try:
@@ -641,6 +704,7 @@ class ShodanClient:
         """获取终端宽度"""
         try:
             import shutil
+
             return shutil.get_terminal_size().columns
         except:
             return 80  # 默认宽度
@@ -648,25 +712,30 @@ class ShodanClient:
     def truncate(self, text, width):
         """截断文本并添加省略号"""
         if len(text) > width:
-            return text[:width-3] + "..."
+            return text[: width - 3] + "..."
         return text
 
     def display_results(self, matches, total, limit=None):
         """根据终端宽度动态显示结果"""
-        debug("Displaying results", matches_count=len(matches) if matches else 0, total=total, limit=limit)
-        
+        debug(
+            "Displaying results",
+            matches_count=len(matches) if matches else 0,
+            total=total,
+            limit=limit,
+        )
+
         # 添加输入验证
         if not matches:
             print(CLIStyle.color("没有找到匹配的结果", CLIStyle.COLORS["ERROR"]))
             return
-        
+
         console = Console()
         console.print()
-        
+
         # 计算终端宽度
         term_width = self.get_terminal_width()
         debug("Terminal width", width=term_width)
-        
+
         # 定义列配置
         # (列名, 最小宽度, 优先级[数字越小优先级越高])
         columns = [
@@ -675,46 +744,48 @@ class ShodanClient:
             ("URL", 30, 1),
             ("Organization", 30, 2),
             ("Location", 25, 3),
-            ("Timestamp (UTC+8)", 19, 4)
+            ("Timestamp (UTC+8)", 19, 4),
         ]
-        
+
         # 创建表格
         results_table = Table(
             box=box.ROUNDED,
             header_style="bold cyan",
             border_style="cyan",
             show_lines=True,
-            padding=(0, 1)
+            padding=(0, 1),
         )
-        
+
         # 计算基础边框和padding占用的宽度
         border_width = 4  # 左右边框各2个字符
         padding_width = len(columns) * 2  # 每列左右padding各1个字符
         available_width = term_width - border_width - padding_width
-        
+
         # 根据可用宽度决定显示哪些列
         current_width = 0
         added_columns = []
-        
+
         # 按优先级添加列
         for priority in range(1, 5):
             for col_name, min_width, col_priority in columns:
                 if col_priority == priority:
                     if current_width + min_width <= available_width:
-                        results_table.add_column(col_name, style="bold green", width=min_width)
+                        results_table.add_column(
+                            col_name, style="bold green", width=min_width
+                        )
                         current_width += min_width
                         added_columns.append(col_name)
-        
+
         # 添加数据行
         for match in matches:
             if not isinstance(match, dict):
                 continue
-            
+
             row_data = []
             for col_name, min_width, _ in columns:
                 if col_name not in added_columns:
                     continue
-                
+
                 if col_name == "IP":
                     row_data.append(match.get("ip_str", "N/A"))
                 elif col_name == "Port":
@@ -744,20 +815,22 @@ class ShodanClient:
                     timestamp = match.get("timestamp")
                     if timestamp:
                         try:
-                            ts = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                            ts = datetime.fromisoformat(
+                                timestamp.replace("Z", "+00:00")
+                            )
                             ts = ts.astimezone(timezone(timedelta(hours=8)))
                             row_data.append(ts.strftime("%Y-%m-%d %H:%M:%S"))
                         except:
                             row_data.append("N/A")
                     else:
                         row_data.append("N/A")
-            
+
             results_table.add_row(*row_data)
-        
+
         # 显示表格和统计信息
         console.print(results_table)
         console.print()
-        
+
         # 显示查询信息和统计
         total_matches = len(matches)
         if limit and limit > 0:
@@ -773,19 +846,22 @@ class ShodanClient:
 
 def main():
     script_name = os.path.basename(sys.argv[0])
-    
+
     # Define examples and notes
     examples = [
         ("Initialize API key", "init YOUR_API_KEY"),
-        ("Basic search", "search \"apache country:cn\""),
-        ("Cache control", "search \"nginx port:443\" --no-cache"),
-        ("Complex query", "search 'http.favicon.hash:\"-620522584\" country:\"cn\"' --delete-cache"),
+        ("Basic search", 'search "apache country:cn"'),
+        ("Cache control", 'search "nginx port:443" --no-cache'),
+        (
+            "Complex query",
+            'search \'http.favicon.hash:"-620522584" country:"cn"\' --delete-cache',
+        ),
         ("Show API info", "info"),
         ("Calculate favicon hash", "hash /path/to/favicon.ico"),
         ("Calculate favicon hash from URL", "hash https://example.com/favicon.ico"),
-        ("Debug mode", "search \"nginx\" --log")
+        ("Debug mode", 'search "nginx" --log'),
     ]
-    
+
     notes = [
         "Will automatically use API key from ~/.config/shodan/api_key if available",
         "Custom config is stored in ~/.shodan/config.json",
@@ -793,13 +869,13 @@ def main():
         "Use --no-cache to skip cache, --delete-cache to refresh cache",
         "For complex searches, enclose the entire query in quotes",
         "Use 'hash' command to calculate favicon hash for Shodan searches",
-        "Use --log to enable debug mode for troubleshooting"
+        "Use --log to enable debug mode for troubleshooting",
     ]
 
     parser = ColoredArgumentParser(
-        description=CLIStyle.color('Shodan CLI Tool', CLIStyle.COLORS["TITLE"]),
+        description=CLIStyle.color("Shodan CLI Tool", CLIStyle.COLORS["TITLE"]),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=create_example_text(script_name, examples, notes)
+        epilog=create_example_text(script_name, examples, notes),
     )
 
     # 添加全局参数
@@ -815,7 +891,9 @@ def main():
     search_parser = subparsers.add_parser(
         "search",
         help="Search Shodan",
-        description=CLIStyle.color("Search Shodan for specific terms", CLIStyle.COLORS["TITLE"]),
+        description=CLIStyle.color(
+            "Search Shodan for specific terms", CLIStyle.COLORS["TITLE"]
+        ),
         epilog=f"""
 {CLIStyle.color("Examples:", CLIStyle.COLORS["SUB_TITLE"])}
   {CLIStyle.color("# Basic search", CLIStyle.COLORS["EXAMPLE"])}
@@ -859,9 +937,11 @@ def main():
 
     # hash command
     hash_parser = subparsers.add_parser(
-        "hash", 
+        "hash",
         help="Calculate favicon hash for Shodan searches",
-        description=CLIStyle.color("Calculate favicon hash for Shodan searches", CLIStyle.COLORS["TITLE"]),
+        description=CLIStyle.color(
+            "Calculate favicon hash for Shodan searches", CLIStyle.COLORS["TITLE"]
+        ),
         epilog=f"""
 {CLIStyle.color("Examples:", CLIStyle.COLORS["SUB_TITLE"])}
   {CLIStyle.color("# Calculate hash from local file", CLIStyle.COLORS["EXAMPLE"])}
@@ -881,8 +961,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     hash_parser.add_argument(
-        "path_or_url", 
-        help="Path to local favicon file or URL (can be website URL)"
+        "path_or_url", help="Path to local favicon file or URL (can be website URL)"
     )
 
     args = parser.parse_args()
@@ -890,7 +969,7 @@ def main():
     # 设置全局调试模式
     global DEBUG_MODE
     DEBUG_MODE = args.log
-    
+
     if DEBUG_MODE:
         print(CLIStyle.color("Debug mode enabled", CLIStyle.COLORS["CONTENT"]))
 
@@ -905,8 +984,14 @@ def main():
 
     elif args.command == "search":
         query = " ".join(args.query)
-        debug("Search query", query=query, page=args.page, no_cache=args.no_cache, delete_cache=args.delete_cache)
-        
+        debug(
+            "Search query",
+            query=query,
+            page=args.page,
+            no_cache=args.no_cache,
+            delete_cache=args.delete_cache,
+        )
+
         results = client.search(
             query,
             page=args.page,
@@ -922,7 +1007,7 @@ def main():
 
         matches = results.get("matches", [])
         debug("Matches count", count=len(matches) if matches else 0)
-        
+
         if not matches:
             print(CLIStyle.color("No matches found", CLIStyle.COLORS["ERROR"]))
             return
@@ -938,14 +1023,23 @@ def main():
         try:
             client.show_info()
         except Exception as e:
-            print(CLIStyle.color(f"Error displaying info: {str(e)}", CLIStyle.COLORS["ERROR"]))
+            print(
+                CLIStyle.color(
+                    f"Error displaying info: {str(e)}", CLIStyle.COLORS["ERROR"]
+                )
+            )
             return
 
     elif args.command == "hash":
         try:
             calculate_favicon_hash(args.path_or_url)
         except Exception as e:
-            print(CLIStyle.color(f"Error calculating favicon hash: {str(e)}", CLIStyle.COLORS["ERROR"]))
+            print(
+                CLIStyle.color(
+                    f"Error calculating favicon hash: {str(e)}",
+                    CLIStyle.COLORS["ERROR"],
+                )
+            )
             return
 
 
@@ -954,181 +1048,306 @@ def calculate_favicon_hash(path_or_url):
     try:
         debug("Calculating favicon hash", path_or_url=path_or_url)
         # Determine if input is a URL or file path
-        is_url = path_or_url.lower().startswith(('http://', 'https://'))
+        is_url = path_or_url.lower().startswith(("http://", "https://"))
         favicon_source = path_or_url  # 默认使用输入路径作为来源
-        
+
         if is_url:
-            print(CLIStyle.color(f"Downloading from URL: {path_or_url}", CLIStyle.COLORS["CONTENT"]))
+            print(
+                CLIStyle.color(
+                    f"Downloading from URL: {path_or_url}", CLIStyle.COLORS["CONTENT"]
+                )
+            )
             try:
                 # First check if the URL directly points to a favicon
                 response = requests.get(path_or_url, timeout=10)
                 if response.status_code != 200:
                     debug("HTTP error", status_code=response.status_code)
-                    print(CLIStyle.color(f"Error: HTTP status code {response.status_code}", CLIStyle.COLORS["ERROR"]))
+                    print(
+                        CLIStyle.color(
+                            f"Error: HTTP status code {response.status_code}",
+                            CLIStyle.COLORS["ERROR"],
+                        )
+                    )
                     return
-                
+
                 # Check if the content is a valid favicon
-                content_type = response.headers.get('Content-Type', '').lower()
+                content_type = response.headers.get("Content-Type", "").lower()
                 content = response.content
                 is_favicon = _is_valid_favicon_content(content_type, content)
-                debug("Content validation", content_type=content_type, is_favicon=is_favicon, content_length=len(content))
-                
+                debug(
+                    "Content validation",
+                    content_type=content_type,
+                    is_favicon=is_favicon,
+                    content_length=len(content),
+                )
+
                 # If not a direct favicon URL, try to find favicon at the website
                 if not is_favicon:
                     base_url = _get_base_url(path_or_url)
-                    print(CLIStyle.color(f"URL is not a direct favicon. Trying to find favicon at: {base_url}", CLIStyle.COLORS["CONTENT"]))
-                    
+                    print(
+                        CLIStyle.color(
+                            f"URL is not a direct favicon. Trying to find favicon at: {base_url}",
+                            CLIStyle.COLORS["CONTENT"],
+                        )
+                    )
+
                     # Try standard favicon locations
                     favicon_paths = [
-                        '/favicon.ico', 
-                        '/favicon.png', 
-                        '/assets/favicon.ico', 
-                        '/images/favicon.ico',
-                        '/static/favicon.ico',
-                        '/public/favicon.ico'
+                        "/favicon.ico",
+                        "/favicon.png",
+                        "/assets/favicon.ico",
+                        "/images/favicon.ico",
+                        "/static/favicon.ico",
+                        "/public/favicon.ico",
                     ]
-                    
+
                     favicon_found = False
                     for path in favicon_paths:
                         try:
                             favicon_url = urllib.parse.urljoin(base_url, path)
-                            print(CLIStyle.color(f"Trying: {favicon_url}", CLIStyle.COLORS["CONTENT"]))
+                            print(
+                                CLIStyle.color(
+                                    f"Trying: {favicon_url}", CLIStyle.COLORS["CONTENT"]
+                                )
+                            )
                             favicon_response = requests.get(favicon_url, timeout=10)
-                            
+
                             if favicon_response.status_code == 200:
-                                favicon_content_type = favicon_response.headers.get('Content-Type', '').lower()
-                                if _is_valid_favicon_content(favicon_content_type, favicon_response.content):
+                                favicon_content_type = favicon_response.headers.get(
+                                    "Content-Type", ""
+                                ).lower()
+                                if _is_valid_favicon_content(
+                                    favicon_content_type, favicon_response.content
+                                ):
                                     content = favicon_response.content
                                     favicon_found = True
                                     favicon_source = favicon_url  # 更新favicon来源
-                                    print(CLIStyle.color(f"Found valid favicon at: {favicon_url}", CLIStyle.COLORS["CONTENT"]))
+                                    print(
+                                        CLIStyle.color(
+                                            f"Found valid favicon at: {favicon_url}",
+                                            CLIStyle.COLORS["CONTENT"],
+                                        )
+                                    )
                                     break
                         except Exception as e:
-                            print(CLIStyle.color(f"Error trying {path}: {str(e)}", CLIStyle.COLORS["ERROR"]))
+                            print(
+                                CLIStyle.color(
+                                    f"Error trying {path}: {str(e)}",
+                                    CLIStyle.COLORS["ERROR"],
+                                )
+                            )
                             continue
-                    
+
                     # If still not found, try to parse HTML to find favicon link
                     if not favicon_found:
                         try:
-                            print(CLIStyle.color("Searching for favicon link in HTML...", CLIStyle.COLORS["CONTENT"]))
-                            soup = BeautifulSoup(response.content, 'html.parser')
-                            
+                            print(
+                                CLIStyle.color(
+                                    "Searching for favicon link in HTML...",
+                                    CLIStyle.COLORS["CONTENT"],
+                                )
+                            )
+                            soup = BeautifulSoup(response.content, "html.parser")
+
                             # Look for favicon in link tags
                             favicon_links = []
-                            for link in soup.find_all('link'):
-                                rel = link.get('rel', [])
+                            for link in soup.find_all("link"):
+                                rel = link.get("rel", [])
                                 if isinstance(rel, str):
                                     rel = [rel]
-                                
-                                if any(r.lower() in ['icon', 'shortcut icon'] for r in rel):
-                                    href = link.get('href')
+
+                                if any(
+                                    r.lower() in ["icon", "shortcut icon"] for r in rel
+                                ):
+                                    href = link.get("href")
                                     if href:
                                         favicon_links.append(href)
-                            
+
                             # Try each found favicon link
                             for href in favicon_links:
                                 try:
                                     # Handle relative URLs
-                                    if not href.startswith(('http://', 'https://')):
+                                    if not href.startswith(("http://", "https://")):
                                         href = urllib.parse.urljoin(base_url, href)
-                                    
-                                    print(CLIStyle.color(f"Trying HTML link: {href}", CLIStyle.COLORS["CONTENT"]))
+
+                                    print(
+                                        CLIStyle.color(
+                                            f"Trying HTML link: {href}",
+                                            CLIStyle.COLORS["CONTENT"],
+                                        )
+                                    )
                                     favicon_response = requests.get(href, timeout=10)
-                                    
+
                                     if favicon_response.status_code == 200:
-                                        favicon_content_type = favicon_response.headers.get('Content-Type', '').lower()
-                                        if _is_valid_favicon_content(favicon_content_type, favicon_response.content):
+                                        favicon_content_type = (
+                                            favicon_response.headers.get(
+                                                "Content-Type", ""
+                                            ).lower()
+                                        )
+                                        if _is_valid_favicon_content(
+                                            favicon_content_type,
+                                            favicon_response.content,
+                                        ):
                                             content = favicon_response.content
                                             favicon_found = True
                                             favicon_source = href  # 更新favicon来源
-                                            print(CLIStyle.color(f"Found valid favicon at: {href}", CLIStyle.COLORS["CONTENT"]))
+                                            print(
+                                                CLIStyle.color(
+                                                    f"Found valid favicon at: {href}",
+                                                    CLIStyle.COLORS["CONTENT"],
+                                                )
+                                            )
                                             break
                                 except Exception as e:
-                                    print(CLIStyle.color(f"Error trying HTML link {href}: {str(e)}", CLIStyle.COLORS["ERROR"]))
+                                    print(
+                                        CLIStyle.color(
+                                            f"Error trying HTML link {href}: {str(e)}",
+                                            CLIStyle.COLORS["ERROR"],
+                                        )
+                                    )
                                     continue
                         except ImportError:
-                            print(CLIStyle.color("BeautifulSoup not installed. Skipping HTML parsing.", CLIStyle.COLORS["ERROR"]))
+                            print(
+                                CLIStyle.color(
+                                    "BeautifulSoup not installed. Skipping HTML parsing.",
+                                    CLIStyle.COLORS["ERROR"],
+                                )
+                            )
                         except Exception as e:
-                            print(CLIStyle.color(f"Error parsing HTML: {str(e)}", CLIStyle.COLORS["ERROR"]))
-                    
+                            print(
+                                CLIStyle.color(
+                                    f"Error parsing HTML: {str(e)}",
+                                    CLIStyle.COLORS["ERROR"],
+                                )
+                            )
+
                     if not favicon_found:
-                        print(CLIStyle.color("Error: Could not find a valid favicon at the URL or standard locations", CLIStyle.COLORS["ERROR"]))
-                        print(CLIStyle.color("Please provide a direct link to a favicon file (.ico, .png)", CLIStyle.COLORS["ERROR"]))
+                        print(
+                            CLIStyle.color(
+                                "Error: Could not find a valid favicon at the URL or standard locations",
+                                CLIStyle.COLORS["ERROR"],
+                            )
+                        )
+                        print(
+                            CLIStyle.color(
+                                "Please provide a direct link to a favicon file (.ico, .png)",
+                                CLIStyle.COLORS["ERROR"],
+                            )
+                        )
                         return
             except Exception as e:
-                print(CLIStyle.color(f"Error downloading favicon: {str(e)}", CLIStyle.COLORS["ERROR"]))
+                print(
+                    CLIStyle.color(
+                        f"Error downloading favicon: {str(e)}", CLIStyle.COLORS["ERROR"]
+                    )
+                )
                 return
         else:
             # Local file
             if not os.path.exists(path_or_url):
-                print(CLIStyle.color(f"Error: File not found: {path_or_url}", CLIStyle.COLORS["ERROR"]))
+                print(
+                    CLIStyle.color(
+                        f"Error: File not found: {path_or_url}",
+                        CLIStyle.COLORS["ERROR"],
+                    )
+                )
                 return
-                
-            print(CLIStyle.color(f"Reading favicon from file: {path_or_url}", CLIStyle.COLORS["CONTENT"]))
-            with open(path_or_url, 'rb') as f:
+
+            print(
+                CLIStyle.color(
+                    f"Reading favicon from file: {path_or_url}",
+                    CLIStyle.COLORS["CONTENT"],
+                )
+            )
+            with open(path_or_url, "rb") as f:
                 content = f.read()
-            
+
             # Check if the file is a valid favicon
             if not _is_valid_favicon_file(path_or_url, content):
-                print(CLIStyle.color("Error: The file does not appear to be a valid favicon", CLIStyle.COLORS["ERROR"]))
-                print(CLIStyle.color("Please provide a valid favicon file (.ico, .png)", CLIStyle.COLORS["ERROR"]))
+                print(
+                    CLIStyle.color(
+                        "Error: The file does not appear to be a valid favicon",
+                        CLIStyle.COLORS["ERROR"],
+                    )
+                )
+                print(
+                    CLIStyle.color(
+                        "Please provide a valid favicon file (.ico, .png)",
+                        CLIStyle.COLORS["ERROR"],
+                    )
+                )
                 return
-        
+
         # 在计算哈希值之前显示favicon来源
-        print(CLIStyle.color(f"Using favicon from: {favicon_source}", CLIStyle.COLORS["CONTENT"]))
-        
+        print(
+            CLIStyle.color(
+                f"Using favicon from: {favicon_source}", CLIStyle.COLORS["CONTENT"]
+            )
+        )
+
         # Calculate hash using Shodan's updated method
         print(CLIStyle.color("Calculating favicon hash...", CLIStyle.COLORS["CONTENT"]))
         b64_content = base64.encodebytes(content)
         hash_value = mmh3.hash(b64_content)
-        
+
         # Display results - simplified output without panel
         console = Console()
 
-        console.print(f"[bold red]Favicon Hash:[/bold red] [bold green]{hash_value}[/bold green]")
         console.print(
-            "[bold cyan]Example Shodan search query:[/bold cyan]", 
-            f"[yellow]http.favicon.hash:\"{hash_value}\"[/yellow]"
+            f"[bold red]Favicon Hash:[/bold red] [bold green]{hash_value}[/bold green]"
         )
-        
+        console.print(
+            "[bold cyan]Example Shodan search query:[/bold cyan]",
+            f'[yellow]http.favicon.hash:"{hash_value}"[/yellow]',
+        )
+
     except Exception as e:
         debug("Error in calculate_favicon_hash", error=str(e))
-        print(CLIStyle.color(f"Error calculating hash: {str(e)}", CLIStyle.COLORS["ERROR"]))
+        print(
+            CLIStyle.color(
+                f"Error calculating hash: {str(e)}", CLIStyle.COLORS["ERROR"]
+            )
+        )
         return
+
 
 def _is_valid_favicon_content(content_type, content):
     """Check if content appears to be a valid favicon"""
     # Check content type
-    valid_types = ['image/x-icon', 'image/vnd.microsoft.icon', 'image/png', 'image/ico']
+    valid_types = ["image/x-icon", "image/vnd.microsoft.icon", "image/png", "image/ico"]
     content_type_valid = any(valid_type in content_type for valid_type in valid_types)
-    
+
     # Check file signatures
-    is_ico = content.startswith(b'\x00\x00\x01\x00')  # ICO file signature
-    is_png = content.startswith(b'\x89PNG\r\n\x1a\n')  # PNG file signature
-    
+    is_ico = content.startswith(b"\x00\x00\x01\x00")  # ICO file signature
+    is_png = content.startswith(b"\x89PNG\r\n\x1a\n")  # PNG file signature
+
     # A valid favicon should have either a correct content type or a valid file signature
     # Also check minimum size to avoid empty files
     if (content_type_valid or is_ico or is_png) and len(content) > 16:
         return True
-    
+
     return False
+
 
 def _is_valid_favicon_file(file_path, content):
     """Check if file appears to be a valid favicon"""
     # Check file extension
-    valid_extensions = ['.ico', '.png']
-    has_valid_extension = any(file_path.lower().endswith(ext) for ext in valid_extensions)
-    
+    valid_extensions = [".ico", ".png"]
+    has_valid_extension = any(
+        file_path.lower().endswith(ext) for ext in valid_extensions
+    )
+
     # Check file signatures
-    is_ico = content.startswith(b'\x00\x00\x01\x00')  # ICO file signature
-    is_png = content.startswith(b'\x89PNG\r\n\x1a\n')  # PNG file signature
-    
+    is_ico = content.startswith(b"\x00\x00\x01\x00")  # ICO file signature
+    is_png = content.startswith(b"\x89PNG\r\n\x1a\n")  # PNG file signature
+
     # A valid favicon file should have both a valid extension and a valid file signature
     # Also check minimum size to avoid empty files
     if has_valid_extension and (is_ico or is_png) and len(content) > 16:
         return True
-    
+
     return False
+
 
 def _get_base_url(url):
     """Extract base URL from a given URL"""
@@ -1146,6 +1365,7 @@ if __name__ == "__main__":
     except Exception as e:
         if DEBUG_MODE:
             import traceback
+
             traceback.print_exc()
         print(CLIStyle.color(f"\nError: {str(e)}", CLIStyle.COLORS["ERROR"]))
         sys.exit(1)
