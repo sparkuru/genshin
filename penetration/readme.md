@@ -172,6 +172,15 @@ $1$kR3ue7JZ$7GxELDupr5Ohp6cjZ3Bu//:service
 
 Official document here：[Tool Documentation](https://www.kali.org/tools/john/)，install in kali：`sudo apt install john`，app's dictionary file in `/usr/share/john/password.lst`，get third-party dictionary in [danielmiessler/SecLists](https://github.com/danielmiessler/SecLists.git)
 
+### install
+
+1. 在 kali 下通过 `sudo apt install john` 可以直接安装
+2. 或者手动编译
+	1. `wget https://github.com/openwall/john/archive/refs/tags/1.9.0.zip`
+	2. `7z x 1.9.0.zip`
+	3. `cd 1.9.0/src`，`make generic`
+	4. 然后在 `../run` 下找到 `john`
+
 ### usage
 
 >   拿到 /etc/passwd 和 /etc/shadow，john 批量破解
