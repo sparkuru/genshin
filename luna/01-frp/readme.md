@@ -164,4 +164,3 @@
 
 1. [frp 项目的 github](https://github.com/fatedier/frp)
 2. [南京大学镜像站](https://mirrors.nju.edu.cn/github-release/fatedier/frp/)
-3. [wsgidav](https://github.com/mar10/wsgidav)

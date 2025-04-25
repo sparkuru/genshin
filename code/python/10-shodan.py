@@ -20,41 +20,41 @@ import requests
 import urllib.parse
 from bs4 import BeautifulSoup
 
-# 全局日志级别
+# Global debug level
 DEBUG_MODE = False
 
 
 def clean_path(path):
-    """清理路径，只保留文件名"""
+    """Clean path, keep only filename"""
     return os.path.basename(path)
 
 
 def color(text, color_code=0):
-    """为调试信息添加颜色"""
+    """Add color to debug info"""
     color_table = {
-        0: "{}",  # 无色
-        1: "\033[1;30m{}\033[0m",  # 黑色加粗
-        2: "\033[1;31m{}\033[0m",  # 红色加粗
-        3: "\033[1;32m{}\033[0m",  # 绿色加粗
-        4: "\033[1;33m{}\033[0m",  # 黄色加粗
-        5: "\033[1;34m{}\033[0m",  # 蓝色加粗
-        6: "\033[1;35m{}\033[0m",  # 紫色加粗
-        7: "\033[1;36m{}\033[0m",  # 青色加粗
-        8: "\033[1;37m{}\033[0m",  # 白色加粗
+        0: "{}",  # No color
+        1: "\033[1;30m{}\033[0m",  # Black bold
+        2: "\033[1;31m{}\033[0m",  # Red bold
+        3: "\033[1;32m{}\033[0m",  # Green bold
+        4: "\033[1;33m{}\033[0m",  # Yellow bold
+        5: "\033[1;34m{}\033[0m",  # Blue bold
+        6: "\033[1;35m{}\033[0m",  # Purple bold
+        7: "\033[1;36m{}\033[0m",  # Cyan bold
+        8: "\033[1;37m{}\033[0m",  # White bold
     }
     return color_table[color_code].format(text)
 
 
 def debug(*args, file=None, append=True, **kwargs):
     """
-    打印传入的参数值，并显示其在源码的文件和行号
+    Print the arguments with their file and line number
     ```python
     debug(
-        'Hello',    # 要打印的参数 1
-        'World',    # 要打印的参数 2
-        file='debug.log',  # 输出文件路径，默认为 None（输出到控制台）
-        append=False,  # 是否追加到文件，默认为 True
-        **kwargs  # 要打印的键值对参数
+        'Hello',    # Parameter 1
+        'World',    # Parameter 2
+        file='debug.log',  # Output file path, default is None (output to console)
+        append=False,  # Whether to append to file, default is True
+        **kwargs  # Key-value parameters
     )
 
     return = None
@@ -88,38 +88,38 @@ def debug(*args, file=None, append=True, **kwargs):
         print(output, end="")
 
 
-# CLI 帮助样式模板
+# CLI help style template
 class CLIStyle:
-    """CLI 工具统一样式配置"""
+    """CLI tool unified style config"""
 
     COLORS = {
-        "TITLE": 7,  # 青色 - 主标题
-        "SUB_TITLE": 2,  # 红色 - 子标题
-        "CONTENT": 3,  # 绿色 - 普通内容
-        "EXAMPLE": 7,  # 青色 - 示例
-        "WARNING": 4,  # 黄色 - 警告
-        "ERROR": 2,  # 红色 - 错误
+        "TITLE": 7,     # Cyan - Main title
+        "SUB_TITLE": 2, # Red - Subtitle
+        "CONTENT": 3,   # Green - Normal content
+        "EXAMPLE": 7,   # Cyan - Example
+        "WARNING": 4,   # Yellow - Warning
+        "ERROR": 2,     # Red - Error
     }
 
     @staticmethod
     def color(text: str = "", color: int = COLORS["CONTENT"]) -> str:
-        """统一的颜色处理函数"""
+        """Unified color processing function"""
         color_table = {
-            0: "{}",  # 无色
-            1: "\033[1;30m{}\033[0m",  # 黑色加粗
-            2: "\033[1;31m{}\033[0m",  # 红色加粗
-            3: "\033[1;32m{}\033[0m",  # 绿色加粗
-            4: "\033[1;33m{}\033[0m",  # 黄色加粗
-            5: "\033[1;34m{}\033[0m",  # 蓝色加粗
-            6: "\033[1;35m{}\033[0m",  # 紫色加粗
-            7: "\033[1;36m{}\033[0m",  # 青色加粗
-            8: "\033[1;37m{}\033[0m",  # 白色加粗
+            0: "{}",  # No color
+            1: "\033[1;30m{}\033[0m",  # Black bold
+            2: "\033[1;31m{}\033[0m",  # Red bold
+            3: "\033[1;32m{}\033[0m",  # Green bold
+            4: "\033[1;33m{}\033[0m",  # Yellow bold
+            5: "\033[1;34m{}\033[0m",  # Blue bold
+            6: "\033[1;35m{}\033[0m",  # Purple bold
+            7: "\033[1;36m{}\033[0m",  # Cyan bold
+            8: "\033[1;37m{}\033[0m",  # White bold
         }
         return color_table[color].format(text)
 
 
 class ColoredArgumentParser(argparse.ArgumentParser):
-    """统一的命令行参数解析器"""
+    """Unified command line argument parser"""
 
     def _format_action_invocation(self, action):
         if not action.option_strings:
@@ -149,16 +149,16 @@ class ColoredArgumentParser(argparse.ArgumentParser):
     def format_help(self):
         formatter = self._get_formatter()
 
-        # 添加描述
+        # Add description
         if self.description:
             formatter.add_text(
                 CLIStyle.color(self.description, CLIStyle.COLORS["TITLE"])
             )
 
-        # 添加用法
+        # Add usage
         formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
 
-        # 添加参数组
+        # Add parameter groups
         formatter.add_text(
             CLIStyle.color("\nOptional Arguments:", CLIStyle.COLORS["TITLE"])
         )
@@ -167,7 +167,7 @@ class ColoredArgumentParser(argparse.ArgumentParser):
             formatter.add_arguments(action_group._group_actions)
             formatter.end_section()
 
-        # 添加示例和注释
+        # Add examples and notes
         if self.epilog:
             formatter.add_text(self.epilog)
 
@@ -175,7 +175,7 @@ class ColoredArgumentParser(argparse.ArgumentParser):
 
 
 def create_example_text(script_name: str, examples: list, notes: list = None) -> str:
-    """创建统一的示例文本"""
+    """Create unified example text"""
     text = f"\n{CLIStyle.color('Examples:', CLIStyle.COLORS['SUB_TITLE'])}"
 
     for desc, cmd in examples:
@@ -223,7 +223,7 @@ def show_loading_animation():
 
 
 def truncate(text, width):
-    """截断文本并添加省略号"""
+    """Truncate text and add ellipsis"""
     if len(text) > width:
         return text[: width - 3] + "..."
     return text
@@ -538,11 +538,11 @@ class ShodanClient:
                     is_searching = False
                     loading_thread.join()
 
-            # 在处理结果之前添加更严格的验证
+            # Add stricter validation before processing results
             if not results or not isinstance(results, dict):
                 debug("Invalid results format", results=results)
                 print(
-                    CLIStyle.color("搜索返回了无效的结果格式", CLIStyle.COLORS["ERROR"])
+                    CLIStyle.color("Search returned invalid result format", CLIStyle.COLORS["ERROR"])
                 )
                 return None
 
@@ -551,12 +551,12 @@ class ShodanClient:
                 debug("Invalid matches format", matches=matches)
                 print(
                     CLIStyle.color(
-                        "搜索返回了无效的匹配结果格式", CLIStyle.COLORS["ERROR"]
+                        "Search returned invalid matches format", CLIStyle.COLORS["ERROR"]
                     )
                 )
                 return None
 
-            # 确保 total 字段存在且有效
+            # Ensure total field exists and is valid
             total = results.get("total", 0)
             if not isinstance(total, (int, float)):
                 total = len(matches)
@@ -568,7 +568,7 @@ class ShodanClient:
             debug("Search error", error=str(e))
             print(
                 CLIStyle.color(
-                    f"\n搜索过程中发生错误: {str(e)}", CLIStyle.COLORS["ERROR"]
+                    f"\nError occurred during search: {str(e)}", CLIStyle.COLORS["ERROR"]
                 )
             )
             return None
@@ -591,7 +591,7 @@ class ShodanClient:
                         match
                         for match in response["matches"]
                         if match.get("ip_str", "").count(":")
-                        == 0  # IPv6 地址包含多个冒号
+                        == 0  # IPv6 addresses contain multiple colons
                     ]
                     response["total"] = len(response["matches"])
                     debug(
@@ -701,22 +701,49 @@ class ShodanClient:
             return
 
     def get_terminal_width(self):
-        """获取终端宽度"""
+        """Get terminal width"""
         try:
             import shutil
 
             return shutil.get_terminal_size().columns
         except:
-            return 80  # 默认宽度
+            return 80  # Default width
 
     def truncate(self, text, width):
-        """截断文本并添加省略号"""
+        """Truncate text and add ellipsis"""
         if len(text) > width:
             return text[: width - 3] + "..."
         return text
 
+    def display_raw_results(self, matches):
+        """Display results in raw format, one IP:Port per line"""
+        debug("Displaying raw results", matches_count=len(matches) if matches else 0)
+        
+        if not matches:
+            print(CLIStyle.color("No matching results found", CLIStyle.COLORS["ERROR"]))
+            return
+        
+        for match in matches:
+            if not isinstance(match, dict):
+                continue
+                
+            ip = match.get("ip_str", "")
+            port = match.get("port", "")
+            
+            if not ip or not port:
+                continue
+                
+            hostnames = match.get("hostnames", [])
+            hostname_str = " ".join(hostnames) if hostnames else ""
+            
+            output = f"{ip} {port}"
+            if hostname_str:
+                output += f" {hostname_str}"
+                
+            print(output)
+
     def display_results(self, matches, total, limit=None):
-        """根据终端宽度动态显示结果"""
+        """Display results dynamically based on terminal width"""
         debug(
             "Displaying results",
             matches_count=len(matches) if matches else 0,
@@ -724,20 +751,20 @@ class ShodanClient:
             limit=limit,
         )
 
-        # 添加输入验证
+        # Add input validation
         if not matches:
-            print(CLIStyle.color("没有找到匹配的结果", CLIStyle.COLORS["ERROR"]))
+            print(CLIStyle.color("No matching results found", CLIStyle.COLORS["ERROR"]))
             return
 
         console = Console()
         console.print()
 
-        # 计算终端宽度
+        # Calculate terminal width
         term_width = self.get_terminal_width()
         debug("Terminal width", width=term_width)
 
-        # 定义列配置
-        # (列名, 最小宽度, 优先级[数字越小优先级越高])
+        # Define column configurations
+        # (column name, min width, priority[smaller number = higher priority])
         columns = [
             ("IP", 15, 1),
             ("Port", 6, 1),
@@ -747,7 +774,7 @@ class ShodanClient:
             ("Timestamp (UTC+8)", 19, 4),
         ]
 
-        # 创建表格
+        # Create table
         results_table = Table(
             box=box.ROUNDED,
             header_style="bold cyan",
@@ -756,16 +783,16 @@ class ShodanClient:
             padding=(0, 1),
         )
 
-        # 计算基础边框和padding占用的宽度
-        border_width = 4  # 左右边框各2个字符
-        padding_width = len(columns) * 2  # 每列左右padding各1个字符
+        # Calculate basic border and padding width
+        border_width = 4  # Left and right borders 2 characters each
+        padding_width = len(columns) * 2  # Each column has left and right padding of 1 character
         available_width = term_width - border_width - padding_width
 
-        # 根据可用宽度决定显示哪些列
+        # Decide which columns to display based on available width
         current_width = 0
         added_columns = []
 
-        # 按优先级添加列
+        # Add columns by priority
         for priority in range(1, 5):
             for col_name, min_width, col_priority in columns:
                 if col_priority == priority:
@@ -776,7 +803,7 @@ class ShodanClient:
                         current_width += min_width
                         added_columns.append(col_name)
 
-        # 添加数据行
+        # Add data rows
         for match in matches:
             if not isinstance(match, dict):
                 continue
@@ -797,7 +824,7 @@ class ShodanClient:
                     row_data.append(f"{protocol}://{ip}:{port}")
                 elif col_name == "Organization":
                     org = match.get("org")
-                    # 确保 org 不为 None
+                    # Ensure org is not None
                     if org is None:
                         row_data.append("N/A")
                     else:
@@ -827,11 +854,11 @@ class ShodanClient:
 
             results_table.add_row(*row_data)
 
-        # 显示表格和统计信息
+        # Display table and statistics
         console.print(results_table)
         console.print()
 
-        # 显示查询信息和统计
+        # Display query info and statistics
         total_matches = len(matches)
         if limit and limit > 0:
             console.print(
@@ -856,6 +883,7 @@ def main():
             "Complex query",
             'search \'http.favicon.hash:"-620522584" country:"cn"\' --delete-cache',
         ),
+        ("Raw output format", 'search "apache" --raw'),
         ("Show API info", "info"),
         ("Calculate favicon hash", "hash /path/to/favicon.ico"),
         ("Calculate favicon hash from URL", "hash https://example.com/favicon.ico"),
@@ -867,6 +895,7 @@ def main():
         "Custom config is stored in ~/.shodan/config.json",
         "Search results are cached in ~/.shodan/result/",
         "Use --no-cache to skip cache, --delete-cache to refresh cache",
+        "Use --raw for simple 'ip port' output format",
         "For complex searches, enclose the entire query in quotes",
         "Use 'hash' command to calculate favicon hash for Shodan searches",
         "Use --log to enable debug mode for troubleshooting",
@@ -878,7 +907,7 @@ def main():
         epilog=create_example_text(script_name, examples, notes),
     )
 
-    # 添加全局参数
+    # Add global parameters
     parser.add_argument("--log", action="store_true", help="Enable debug logging")
 
     subparsers = parser.add_subparsers(dest="command", help="Commands")
@@ -913,6 +942,9 @@ def main():
 
   {CLIStyle.color("# Limit results", CLIStyle.COLORS["EXAMPLE"])}
   {script_name} search "nginx" --limit 10
+  
+  {CLIStyle.color("# Raw output format", CLIStyle.COLORS["EXAMPLE"])}
+  {script_name} search "apache" --raw
 """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -930,6 +962,9 @@ def main():
     )
     search_parser.add_argument(
         "--limit", type=int, help="Limit the number of results to display"
+    )
+    search_parser.add_argument(
+        "--raw", action="store_true", help="Display results in raw format (IP Port)"
     )
 
     # info command
@@ -966,7 +1001,7 @@ def main():
 
     args = parser.parse_args()
 
-    # 设置全局调试模式
+    # Set global debug mode
     global DEBUG_MODE
     DEBUG_MODE = args.log
 
@@ -990,6 +1025,7 @@ def main():
             page=args.page,
             no_cache=args.no_cache,
             delete_cache=args.delete_cache,
+            raw=args.raw,
         )
 
         results = client.search(
@@ -1017,7 +1053,11 @@ def main():
         if args.limit and args.limit > 0:
             matches = matches[: args.limit]
 
-        client.display_results(matches, results.get("total", 0), args.limit)
+        # Use raw format or table format to display results
+        if args.raw:
+            client.display_raw_results(matches)
+        else:
+            client.display_results(matches, results.get("total", 0), args.limit)
 
     elif args.command == "info":
         try:
@@ -1049,7 +1089,7 @@ def calculate_favicon_hash(path_or_url):
         debug("Calculating favicon hash", path_or_url=path_or_url)
         # Determine if input is a URL or file path
         is_url = path_or_url.lower().startswith(("http://", "https://"))
-        favicon_source = path_or_url  # 默认使用输入路径作为来源
+        favicon_source = path_or_url  # Default to using input path as source
 
         if is_url:
             print(
@@ -1121,7 +1161,7 @@ def calculate_favicon_hash(path_or_url):
                                 ):
                                     content = favicon_response.content
                                     favicon_found = True
-                                    favicon_source = favicon_url  # 更新favicon来源
+                                    favicon_source = favicon_url  # Update favicon source
                                     print(
                                         CLIStyle.color(
                                             f"Found valid favicon at: {favicon_url}",
@@ -1190,7 +1230,7 @@ def calculate_favicon_hash(path_or_url):
                                         ):
                                             content = favicon_response.content
                                             favicon_found = True
-                                            favicon_source = href  # 更新favicon来源
+                                            favicon_source = href  # Update favicon source
                                             print(
                                                 CLIStyle.color(
                                                     f"Found valid favicon at: {href}",
@@ -1278,7 +1318,7 @@ def calculate_favicon_hash(path_or_url):
                 )
                 return
 
-        # 在计算哈希值之前显示favicon来源
+        # Display favicon source before calculating hash
         print(
             CLIStyle.color(
                 f"Using favicon from: {favicon_source}", CLIStyle.COLORS["CONTENT"]

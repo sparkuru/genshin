@@ -99,7 +99,7 @@ EOF
 sudo -u wkyuu pip install \
 	datetime argparse colorama cryptography getpass4 rich readchar \
 	ipython \
-	netifaces wsgidav \
+	ifaddr \
 	ropgadget pwntools \
 	scapy shodan \
 	ollama

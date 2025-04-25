@@ -13,7 +13,7 @@ import threading
 import socket
 import time
 import atexit
-from typing import List, Dict, Any, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 from urllib.parse import unquote, quote
 import ifaddr
 import signal
@@ -21,18 +21,19 @@ import signal
 # Global variables and constants
 DEBUG_MODE = False
 CLI_COLORS = {
-    "TITLE": 7,     # Cyan - Main title
-    "SUB_TITLE": 2, # Red - Subtitle
-    "CONTENT": 3,   # Green - Normal content
-    "EXAMPLE": 7,   # Cyan - Example
-    "WARNING": 4,   # Yellow - Warning
-    "ERROR": 2,     # Red - Error
-    "SUCCESS": 3,   # Green - Success
+    "TITLE": 7,  # Cyan - Main title
+    "SUB_TITLE": 2,  # Red - Subtitle
+    "CONTENT": 3,  # Green - Normal content
+    "EXAMPLE": 7,  # Cyan - Example
+    "WARNING": 4,  # Yellow - Warning
+    "ERROR": 2,  # Red - Error
+    "SUCCESS": 3,  # Green - Success
 }
 
 # Global server instance for signal handling
 SERVER_INSTANCE = None
 EXIT_EVENT = threading.Event()
+
 
 # Utility functions
 def color(text: str, color_code: int = 3) -> str:
@@ -43,12 +44,12 @@ def color(text: str, color_code: int = 3) -> str:
         "Hello World",     # Text to color
         CLI_COLORS["TITLE"]    # Color code, default is green
     )
-    
+
     return = "\033[1;32m{}\033[0m".format(text)
     ```
     """
     color_table = {
-        0: "{}",                   # No color
+        0: "{}",  # No color
         1: "\033[1;30m{}\033[0m",  # Bold black
         2: "\033[1;31m{}\033[0m",  # Bold red
         3: "\033[1;32m{}\033[0m",  # Bold green
@@ -59,6 +60,7 @@ def color(text: str, color_code: int = 3) -> str:
         8: "\033[1;37m{}\033[0m",  # Bold white
     }
     return color_table[color_code].format(text)
+
 
 def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> None:
     """
@@ -83,7 +85,7 @@ def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> N
 
     frame = inspect.currentframe().f_back
     info = inspect.getframeinfo(frame)
-    
+
     file_name = os.path.basename(info.filename)
     output = f"{color(file_name, 3)}: {color(str(info.lineno), 4)} {color('|', 7)} "
 
@@ -104,6 +106,7 @@ def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> N
     else:
         print(output, end="")
 
+
 def emergency_exit():
     """
     Force process termination with extreme prejudice
@@ -113,6 +116,7 @@ def emergency_exit():
     # On Windows, use os._exit which doesn't clean up resources but ensures termination
     os._exit(0)
 
+
 def force_exit_after(seconds: int = 2):
     """
     Schedule a forced exit after specified seconds
@@ -120,6 +124,7 @@ def force_exit_after(seconds: int = 2):
     debug(f"Scheduling forced exit in {seconds} seconds")
     time.sleep(seconds)
     emergency_exit()
+
 
 def divider(title: str = "", width: int = 80, char: str = "-") -> str:
     """
@@ -130,25 +135,26 @@ def divider(title: str = "", width: int = 80, char: str = "-") -> str:
         80,              # Total divider width, default is 80
         "-"              # Divider character, default is "-"
     )
-    
+
     return = "---- Section Title ----"  # Formatted divider
     ```
     """
     if not title:
         return char * width
-    
+
     side_width = (width - len(title) - 2) // 2
     if side_width <= 0:
         return title
-    
+
     return f"{char * side_width} {title} {char * side_width}"
+
 
 def get_all_ips() -> List[str]:
     """
     Get all local non-loopback IPv4 addresses
     ```python
     get_all_ips()
-    
+
     return = ["192.168.1.100", "10.0.0.5"]  # List of all local IPv4 addresses
     ```
     """
@@ -161,6 +167,7 @@ def get_all_ips() -> List[str]:
                     ips.append(ip.ip)
     return ips
 
+
 def confirm_action(prompt: str) -> bool:
     """
     Request user confirmation for an action
@@ -168,12 +175,13 @@ def confirm_action(prompt: str) -> bool:
     confirm_action(
         "Do you want to proceed?"  # Confirmation prompt
     )
-    
+
     return = True  # Returns True if user confirms, False otherwise
     ```
     """
     response = input(f"{prompt} (y/n): ").lower().strip()
-    return response == 'y' or response == 'yes'
+    return response == "y" or response == "yes"
+
 
 def signal_handler(sig, frame):
     """
@@ -183,14 +191,14 @@ def signal_handler(sig, frame):
         signal.SIGINT,  # Signal received
         frame           # Current stack frame
     )
-    
+
     return = None
     ```
     """
     print(color("\nShutting down server...", CLI_COLORS["WARNING"]))
     # Immediately start a thread that will force exit after a short delay
     threading.Thread(target=force_exit_after, args=(1,), daemon=True).start()
-    
+
     # Try to clean up, but don't rely on it
     try:
         global SERVER_INSTANCE, EXIT_EVENT
@@ -198,11 +206,12 @@ def signal_handler(sig, frame):
         if SERVER_INSTANCE:
             debug("Signal handler shutting down server")
             SERVER_INSTANCE.running = False
-    except:
-        pass
-    
+    except Exception as e:
+        debug("Error in signal handler", error=str(e))
+
     # Don't wait for the delayed exit - try to exit now
     emergency_exit()
+
 
 # Class definitions
 class ColoredArgumentParser(argparse.ArgumentParser):
@@ -256,9 +265,10 @@ class ColoredArgumentParser(argparse.ArgumentParser):
 
         return formatter.format_help()
 
+
 class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     """Enhanced HTTP request handler with file upload and download support"""
-    
+
     def do_PUT(self) -> None:
         """Handle PUT requests for file uploads"""
         path = self.translate_path(self.path)
@@ -271,7 +281,7 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             length = int(self.headers["Content-Length"])
             with open(path, "wb") as f:
                 f.write(self.rfile.read(length))
-            
+
             self.send_response(201)
             self.end_headers()
             debug("File uploaded via PUT", path=path)
@@ -284,7 +294,7 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         path = unquote(path)
         path = path.lstrip("/")
         return os.path.join(os.getcwd(), path)
-        
+
     def log_message(self, format, *args):
         """Override to reduce console noise"""
         if DEBUG_MODE:
@@ -297,7 +307,7 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         except OSError:
             self.send_error(404, "No permission to list directory")
             return None
-            
+
         file_list.sort(key=lambda a: a.lower())
         r = []
         displaypath = unquote(self.path)
@@ -314,7 +324,9 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         r.append("h1 { color: #333; }")
         r.append("hr { border: 1px solid #ddd; }")
         r.append("form { margin: 20px 0; }")
-        r.append("input[type=submit] { padding: 5px 15px; background: #4CAF50; color: white; border: none; cursor: pointer; }")
+        r.append(
+            "input[type=submit] { padding: 5px 15px; background: #4CAF50; color: white; border: none; cursor: pointer; }"
+        )
         r.append("ul { list-style: none; padding: 0; }")
         r.append("li { margin: 5px 0; }")
         r.append("a { text-decoration: none; color: #2196F3; }")
@@ -331,7 +343,7 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         for name in file_list:
             fullname = os.path.join(path, name)
             displayname = linkname = name
-            
+
             # Display file size and modification date
             file_size = ""
             file_date = ""
@@ -339,16 +351,18 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 file_size = os.path.getsize(fullname)
                 if file_size < 1024:
                     file_size = f"{file_size} B"
-                elif file_size < 1024*1024:
-                    file_size = f"{file_size/1024:.1f} KB"
+                elif file_size < 1024 * 1024:
+                    file_size = f"{file_size / 1024:.1f} KB"
                 else:
-                    file_size = f"{file_size/(1024*1024):.1f} MB"
-                
-                file_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(os.path.getmtime(fullname)))
+                    file_size = f"{file_size / (1024 * 1024):.1f} MB"
+
+                file_date = time.strftime(
+                    "%Y-%m-%d %H:%M:%S", time.localtime(os.path.getmtime(fullname))
+                )
                 file_info = f" - {file_size}, {file_date}"
             else:
                 file_info = ""
-            
+
             if os.path.isdir(fullname):
                 displayname = name + "/"
                 linkname = name + "/"
@@ -356,18 +370,18 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             if os.path.islink(fullname):
                 displayname = name + "@"
                 file_info = " - Symlink"
-                
+
             r.append(
                 f'<li><a href="{quote(linkname)}">{html.escape(displayname)}</a>{file_info}</li>'
             )
-        
+
         r.append("</ul>\n<hr>\n</body>\n</html>")
         encoded = "\n".join(r).encode(enc, "surrogateescape")
-        
+
         f = io.BytesIO()
         f.write(encoded)
         f.seek(0)
-        
+
         self.send_response(200)
         self.send_header("Content-type", f"text/html; charset={enc}")
         self.send_header("Content-Length", str(len(encoded)))
@@ -390,29 +404,29 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             if fileitem.filename:
                 fn = os.path.basename(fileitem.filename)
                 path = self.translate_path(fn)
-                
+
                 # Check if file already exists
                 file_exists = os.path.exists(path)
                 if file_exists:
                     debug("File already exists", path=path)
-                
+
                 with open(path, "wb") as f:
                     f.write(fileitem.file.read())
-                
+
                 debug("File uploaded via POST", path=path, size=os.path.getsize(path))
-                
+
                 self.send_response(200)
                 self.send_header("Content-type", "text/html; charset=utf-8")
                 self.end_headers()
-                
+
                 status = "replaced" if file_exists else "uploaded"
                 self.wfile.write(
                     f'<html><body style="font-family: Arial, sans-serif; margin: 20px;">'
                     f'<h2 style="color: green;">File successfully {status}!</h2>'
-                    f'<p>File: {html.escape(fn)}</p>'
-                    f'<p>Size: {os.path.getsize(path)} bytes</p>'
+                    f"<p>File: {html.escape(fn)}</p>"
+                    f"<p>Size: {os.path.getsize(path)} bytes</p>"
                     f'<p><a href="/" style="color: #2196F3;">Return to index</a></p>'
-                    f'</body></html>'.encode("utf-8")
+                    f"</body></html>".encode("utf-8")
                 )
             else:
                 debug("No file in upload")
@@ -421,28 +435,31 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             debug("POST error", error=str(e))
             self.send_error(500, str(e))
 
+
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     """Threaded TCP server supporting multiple client connections"""
+
     allow_reuse_address = True
     daemon_threads = True
-    
+
     def __init__(self, server_address, RequestHandlerClass):
         super().__init__(server_address, RequestHandlerClass)
         self.running = True
         # Set a short timeout to avoid blocking in handle_request
         self.timeout = 0.1
-    
+
     def shutdown(self) -> None:
         """Safely shutdown the server"""
         debug("Server shutdown method called")
         self.running = False
-        
+
         try:
             super().shutdown()
         except:
             debug("Error in server shutdown")
-        
+
         debug("Server shutdown completed")
+
 
 def run_server(server: ThreadedTCPServer) -> None:
     """
@@ -451,7 +468,7 @@ def run_server(server: ThreadedTCPServer) -> None:
     run_server(
         server  # ThreadedTCPServer instance
     )
-    
+
     return = None
     ```
     """
@@ -469,7 +486,10 @@ def run_server(server: ThreadedTCPServer) -> None:
     finally:
         debug("Server thread exiting")
 
-def create_example_text(script_name: str, examples: List[Tuple[str, str]], notes: Optional[List[str]] = None) -> str:
+
+def create_example_text(
+    script_name: str, examples: List[Tuple[str, str]], notes: Optional[List[str]] = None
+) -> str:
     """
     Create unified example text
     ```python
@@ -481,7 +501,7 @@ def create_example_text(script_name: str, examples: List[Tuple[str, str]], notes
         ],
         ["Note 1", "Note 2"]     # Optional notes list
     )
-    
+
     return = "formatted text with examples and notes"
     ```
     """
@@ -499,6 +519,7 @@ def create_example_text(script_name: str, examples: List[Tuple[str, str]], notes
 
     return text
 
+
 def safe_port_check(port: int) -> bool:
     """
     Check if port is available
@@ -506,7 +527,7 @@ def safe_port_check(port: int) -> bool:
     safe_port_check(
         8080  # Port number to check
     )
-    
+
     return = True  # Returns True if port is available, False otherwise
     ```
     """
@@ -517,6 +538,7 @@ def safe_port_check(port: int) -> bool:
     except:
         return False
 
+
 def display_server_info(ips: List[str], port: int) -> None:
     """
     Display server access information
@@ -525,7 +547,7 @@ def display_server_info(ips: List[str], port: int) -> None:
         ["192.168.1.100", "10.0.0.5"],  # IP address list
         8080                            # Port number
     )
-    
+
     return = None
     ```
     """
@@ -543,17 +565,18 @@ def display_server_info(ips: List[str], port: int) -> None:
     print(divider("", 60, "="))
     print(f"Press {color('Ctrl+C', CLI_COLORS['WARNING'])} to stop server\n")
 
+
 def main() -> None:
     """Main function to handle command line arguments and start server"""
     # Register emergency exit for atexit
     atexit.register(lambda: print(color("Server fully stopped", CLI_COLORS["SUCCESS"])))
-    
+
     # Register signal handler for graceful shutdown
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    
+
     script_name = os.path.basename(sys.argv[0])
-    
+
     # Define examples and notes
     examples = [
         ("Basic usage", ""),
@@ -561,56 +584,57 @@ def main() -> None:
         ("Debug mode", "--debug"),
         ("Quick start with preview", "--port 8000 --preview"),
     ]
-    
+
     notes = [
         "Files will be served from the current directory",
         "Uploads are allowed by default",
         "Use a browser to access the server and view/upload files",
         "Debug mode shows detailed logs for troubleshooting",
     ]
-    
+
     parser = ColoredArgumentParser(
         description=color("Fast HTTP File Server", CLI_COLORS["TITLE"]),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=create_example_text(script_name, examples, notes),
     )
-    
+
     parser.add_argument(
-        "-p", "--port", 
-        type=int, 
-        default=1024, 
-        help="Specify server port (default: 1024)"
+        "-p",
+        "--port",
+        type=int,
+        default=1024,
+        help="Specify server port (default: 1024)",
     )
+    parser.add_argument("-d", "--debug", action="store_true", help="Enable debug mode")
     parser.add_argument(
-        "-d", "--debug", 
-        action="store_true", 
-        help="Enable debug mode"
+        "--preview",
+        action="store_true",
+        help="Open server URL in browser after starting",
     )
-    parser.add_argument(
-        "--preview", 
-        action="store_true", 
-        help="Open server URL in browser after starting"
-    )
-    
+
     args = parser.parse_args()
-    
+
     # Set global debug mode
     global DEBUG_MODE
     DEBUG_MODE = args.debug
-    
+
     if DEBUG_MODE:
         print(color("Debug mode enabled", CLI_COLORS["WARNING"]))
         debug("Starting server", port=args.port)
-    
+
     # Check if port is available
     if not safe_port_check(args.port):
         print(color(f"Error: Port {args.port} is already in use!", CLI_COLORS["ERROR"]))
         port_suggestion = args.port + 1
         while not safe_port_check(port_suggestion) and port_suggestion < args.port + 10:
             port_suggestion += 1
-        
+
         if safe_port_check(port_suggestion):
-            print(color(f"Try using port {port_suggestion} instead.", CLI_COLORS["CONTENT"]))
+            print(
+                color(
+                    f"Try using port {port_suggestion} instead.", CLI_COLORS["CONTENT"]
+                )
+            )
             if confirm_action("Would you like to use this port instead?"):
                 args.port = port_suggestion
             else:
@@ -619,30 +643,35 @@ def main() -> None:
         else:
             print(color("Server startup aborted", CLI_COLORS["ERROR"]))
             return
-    
+
     # Get all available IP addresses
     ips = get_all_ips()
     debug("Available IPs", ips=ips)
-    
+
     try:
         # Display server information
         display_server_info(ips, args.port)
-        
+
         # Create server
         global SERVER_INSTANCE
-        SERVER_INSTANCE = ThreadedTCPServer(("0.0.0.0", args.port), EnhancedHTTPRequestHandler)
-        
+        SERVER_INSTANCE = ThreadedTCPServer(
+            ("0.0.0.0", args.port), EnhancedHTTPRequestHandler
+        )
+
         # Run server in a new thread
-        server_thread = threading.Thread(target=run_server, args=(SERVER_INSTANCE,), daemon=True)
+        server_thread = threading.Thread(
+            target=run_server, args=(SERVER_INSTANCE,), daemon=True
+        )
         server_thread.start()
-        
+
         # If needed, automatically open browser
         if args.preview:
             import webbrowser
+
             url = f"http://localhost:{args.port}"
             print(color(f"Opening browser at {url}", CLI_COLORS["CONTENT"]))
             webbrowser.open(url)
-        
+
         # The main thread now just waits - signal handler will handle Ctrl+C
         # We use a shorter sleep interval for better responsiveness
         try:
@@ -652,14 +681,16 @@ def main() -> None:
             # Direct handling of keyboard interrupt
             print(color("\nShutting down server directly...", CLI_COLORS["WARNING"]))
             emergency_exit()
-    
+
     except Exception as e:
         debug("Server error", error=str(e))
         print(color(f"Error: {str(e)}", CLI_COLORS["ERROR"]))
         if DEBUG_MODE:
             import traceback
+
             traceback.print_exc()
         emergency_exit()
+
 
 if __name__ == "__main__":
     main()

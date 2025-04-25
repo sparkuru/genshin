@@ -10,6 +10,6 @@ brew install curl net-tools openvpn rsync proxychains-ng jq tcp-traceroute \
 	ghidra rizin radare2 patchelf \
 	nmap hydra john telnet
 
-pip install setuptools setuptools_rust datetime argparse ipython getpass4 colorama cryptography wsgidav \
+pip install setuptools setuptools_rust datetime argparse ipython getpass4 colorama cryptography ifaddr \
   virtualenv ropgadget pwntools shodan \
   ollama readchar rich

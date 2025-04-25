@@ -373,14 +373,32 @@ cmd() {
 }
 
 tmp() {
+    DEFAULT_DIR='/tmp/tmp'
+    while getopts "ch" opt; do
+        case ${opt} in
+            c )
+                target_dir=$2
+                target_dir_path="$DEFAULT_DIR/$target_dir"
+                mkdir -p $target_dir_path
+                echo "create dir: ${GREEN}$target_dir_path${NC}"
+                return
+                ;;
+            h )
+                echo "Usage: ${GREEN}tmp [-c] [dir]${NC}"
+                echo "  ${GREEN}tmp [dir]${NC}: create dir and cd"
+                echo "  ${GREEN}tmp -c [dir]${NC}: create dir but not cd"
+                echo "  ${GREEN}tmp -h${NC}: help"
+                return
+                ;;
+        esac
+    done
+
     if [ $# -eq 0 ]; then
-        mkdir -p '/tmp/tmp'
-        cd /tmp/tmp
+        mkdir -p $DEFAULT_DIR
+        cd $DEFAULT_DIR
     elif [ $# -eq 1 ]; then
-        mkdir -p /tmp/tmp/$1
-        cd /tmp/tmp/$1
-    else
-        echo "usage: tmp [dir]"
+        mkdir -p $DEFAULT_DIR/$1
+        cd $DEFAULT_DIR/$1
     fi
 }
 
