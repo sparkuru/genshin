@@ -9,4 +9,9 @@
 ## 紫光 sprd
 
 1. SPD_Driver_R4.20.4201：https://androiddatahost.com/dsa6h
-2. 
+
+
+
+## 疑难杂症
+
+1. 第三方inf不包含数字签名信息，https://blog.csdn.net/sinat_25683437/article/details/125301565

@@ -8,4 +8,4 @@
      3.   `systemctl start ssh && systemctl enable ssh`
 4.   vim
      1.   `sudo apt-get install -y vim fzf ripgrep`
-     2.   `curl -fLo /tmp/unix-install-vim.sh https://raw.githubusercontent.com/shi9uma/vim/main/diy/unix-install-vim.sh && chmod +x /tmp/unix-install-vim.sh && /tmp/unix-install-vim.sh`
+     2.   `curl -fLo /tmp/unix-install-vim.sh https://raw.githubusercontent.com/shi9uma/genshin/main/mtf/unix-install-vim.sh && chmod +x /tmp/unix-install-vim.sh && /tmp/unix-install-vim.sh`

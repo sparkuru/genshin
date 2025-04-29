@@ -63,6 +63,13 @@ sudo apt-get remove docker docker-engine docker.io containerd runc
 sudo apt-get update
 ```
 
+## 数据迁移
+
+如果没有映射 docker 到本机，有两种方法来做数据迁移：
+
+1. 手动复制出 docker 中的数据，在新机器上再挂载上
+2. 直接打包 docker 及其 volume
+
 ## docker-compose
 
 `dockerfile` 模板：

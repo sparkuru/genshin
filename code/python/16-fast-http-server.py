@@ -568,16 +568,11 @@ def display_server_info(ips: List[str], port: int) -> None:
 
 def main() -> None:
     """Main function to handle command line arguments and start server"""
-    # Register emergency exit for atexit
-    atexit.register(lambda: print(color("Server fully stopped", CLI_COLORS["SUCCESS"])))
-
-    # Register signal handler for graceful shutdown
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
     script_name = os.path.basename(sys.argv[0])
 
-    # Define examples and notes
     examples = [
         ("Basic usage", ""),
         ("Custom port", "--port 8080"),
@@ -651,6 +646,11 @@ def main() -> None:
     try:
         # Display server information
         display_server_info(ips, args.port)
+
+        # Register atexit handler before starting server
+        atexit.register(
+            lambda: print(color("Server fully stopped", CLI_COLORS["SUCCESS"]))
+        )
 
         # Create server
         global SERVER_INSTANCE
