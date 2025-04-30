@@ -1,0 +1,345 @@
+server {
+    listen                     80;
+
+    server_name                test.majo.im;
+    server_name                magic.majo.im;
+
+    server_name                pan.majo.im;
+    server_name                bit.majo.im;
+    server_name                live.majo.im;
+    server_name                ftp.majo.im;
+    server_name                md.majo.im;
+    server_name                doc.majo.im;
+    server_name                refer.majo.im;
+    server_name                crypto.majo.im;
+    server_name                exp.majo.im;
+    server_name                sh.majo.im;
+    server_name                paste.majo.im;
+    server_name                draw.majo.im;
+    server_name                chat.majo.im;
+    server_name                qq.majo.im;
+
+    return                     301 https://$host$request_uri;
+}
+
+ ssl_certificate               /home/wkyuu/.acme.sh/majo.im_ecc/fullchain.cer;
+ ssl_certificate_key           /home/wkyuu/.acme.sh/majo.im_ecc/majo.im.key;
+
+server {
+    listen                     443 ssl ;
+    server_name                test.majo.im ;
+    return                     404;
+}
+
+server {
+    listen                     443 ssl ;
+    server_name                pan.majo.im ;
+    client_max_body_size       2G ;
+    location / {
+        proxy_pass             http://127.0.0.1:9421 ;
+        proxy_redirect         http://127.0.0.1:9421 https://pan.majo.im;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+        proxy_set_header       X-Forwarded-Protocol $scheme;
+        proxy_set_header       X-Forwarded-Host $http_host;
+        proxy_set_header       REMOTE-HOST $remote_addr;
+        proxy_http_version     1.1;
+        add_header             Access-Control-Allow-Origin * always;
+        add_header             Access-Control-Allow-Headers *;
+        add_header             Access-Control-Allow-Methods "GET, POST, PUT, OPTIONS";
+        add_header             Content-Security-Policy "default-src https: data:; img-src https: data:; script-src https: 'unsafe-inline' 'unsafe-eval'; style-src https: 'unsafe-inline';";
+    }
+}
+
+server {
+    listen                     443 ssl ;
+    server_name                bit.majo.im ;
+    client_max_body_size       1G;
+    location / {
+        proxy_pass             http://127.0.0.1:9422 ;
+        proxy_redirect         http://127.0.0.1:9422 https://bit.majo.im ;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       Upgrade $http_upgrade;
+        proxy_set_header       Connection $connection_upgrade;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+        proxy_set_header       X-Forwarded-Protocol $scheme;
+        proxy_set_header       X-Forwarded-Host $http_host;
+        proxy_set_header       REMOTE-HOST $remote_addr;
+    }
+}
+
+server {
+    listen                     443 ssl ;
+    server_name                live.majo.im ;
+    location / {
+        proxy_pass             http://127.0.0.1:9424;
+        proxy_redirect         http://127.0.0.1:9424 https://live.majo.im;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+        proxy_set_header       X-Forwarded-Protocol $scheme;
+        proxy_set_header       X-Forwarded-Host $http_host;
+        proxy_set_header       REMOTE-HOST $remote_addr;
+        proxy_set_header       Upgrade $http_upgrade;
+        proxy_set_header       Connection $connection_upgrade;
+        proxy_set_header       Range $http_range;
+        proxy_set_header       If-Range $http_if_range;
+        client_max_body_size   20m;
+        proxy_http_version     1.1;
+        add_header             Access-Control-Allow-Origin * always;
+        add_header             Access-Control-Allow-Headers *;
+    }
+}
+
+server {
+    listen                     443 ssl ;
+    server_name                ftp.majo.im ;
+    client_max_body_size       2G ;
+    location / {
+        proxy_pass             http://127.0.0.1:9425 ;
+        proxy_redirect         http://127.0.0.1:9425 https://ftp.majo.im ;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+        proxy_set_header       X-Forwarded-Protocol $scheme;
+        proxy_set_header       X-Forwarded-Host $http_host;
+        proxy_set_header       REMOTE-HOST $remote_addr;
+        proxy_http_version     1.1;
+        add_header             Access-Control-Allow-Origin * always;
+        add_header             Access-Control-Allow-Headers *;
+        add_header             Access-Control-Allow-Methods "GET, POST, PUT, OPTIONS";
+        add_header             Content-Security-Policy "default-src https:; img-src https: data:; script-src https: 'unsafe-inline' 'unsafe-eval'; style-src https: 'unsafe-inline';";
+    }
+}
+
+server {
+    listen                     443 ssl;
+    server_name                md.majo.im ;
+    client_max_body_size       100M ;
+    location / {
+        proxy_pass             http://127.0.0.1:9426 ;
+        #                      proxy_redirect http://127.0.0.1:9426 https://md.majo.im;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+    }
+
+    location /socket.io/ {
+        proxy_pass             http://127.0.0.1:9426/socket.io/;
+        #                      proxy_redirect http://127.0.0.1:9426 https://md.majo.im;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+        proxy_set_header       Upgrade $http_upgrade;
+        proxy_set_header       Connection $connection_upgrade;
+    }
+}
+
+server {
+    listen                     443 ssl ;
+    server_name                doc.majo.im ;
+    location / {
+        proxy_pass             http://127.0.0.1:9427 ;
+        #                      proxy_redirect http://127.0.0.1:9427 https://doc.majo.im ;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+        proxy_set_header       X-Forwarded-Protocol $scheme;
+        proxy_set_header       X-Forwarded-Host $http_host;
+        proxy_set_header       REMOTE-HOST $remote_addr;
+    }
+}
+
+server {
+    listen                     443 ssl ;
+    server_name                refer.majo.im ;
+    location / {
+        proxy_pass             http://127.0.0.1:9428 ;
+        proxy_redirect         http://127.0.0.1:9428 https://refer.majo.im ;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+        proxy_set_header       X-Forwarded-Protocol $scheme;
+        proxy_set_header       X-Forwarded-Host $http_host;
+        proxy_set_header       REMOTE-HOST $remote_addr;
+    }
+}
+
+server {
+    listen                     443 ssl ;
+    server_name                magic.majo.im ;
+    location / {
+        proxy_pass             http://127.0.0.1:9428 ;
+        proxy_redirect         http://127.0.0.1:9428 https://magic.majo.im ;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+        proxy_set_header       X-Forwarded-Protocol $scheme;
+        proxy_set_header       X-Forwarded-Host $http_host;
+        proxy_set_header       REMOTE-HOST $remote_addr;
+    }
+}
+
+server {
+    listen                     443 ssl ;
+    server_name                crypto.majo.im ;
+    location / {
+        proxy_pass             http://127.0.0.1:9429 ;
+        proxy_redirect         http://127.0.0.1:9429 https://crypto.majo.im;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+        proxy_set_header       X-Forwarded-Protocol $scheme;
+        proxy_set_header       X-Forwarded-Host $http_host;
+        proxy_set_header       REMOTE-HOST $remote_addr;
+        proxy_http_version     1.1;
+        add_header             Access-Control-Allow-Origin * always;
+        add_header             Access-Control-Allow-Headers *;
+        add_header             Access-Control-Allow-Methods "GET, POST, PUT, OPTIONS";
+    }
+}
+
+server {
+    listen                     443 ssl ;
+    server_name                exp.majo.im ;
+    location / {
+        proxy_pass             http://127.0.0.1:9430 ;
+        proxy_redirect         http://127.0.0.1:9430 https://exp.majo.im ;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+        proxy_set_header       X-Forwarded-Protocol $scheme;
+        proxy_set_header       X-Forwarded-Host $http_host;
+        proxy_set_header       REMOTE-HOST $remote_addr;
+        proxy_http_version     1.1;
+        add_header             Access-Control-Allow-Origin * always;
+        add_header             Access-Control-Allow-Headers *;
+        add_header             Access-Control-Allow-Methods "GET, POST, PUT, OPTIONS";
+        add_header             Content-Security-Policy "default-src https:; img-src https: data:; script-src https: 'unsafe-inline' 'unsafe-eval'; style-src https: 'unsafe-inline';";
+    }
+}
+
+server {
+    listen                     443 ssl ;
+    server_name                sh.majo.im ;
+    location / {
+        proxy_pass             http://127.0.0.1:9431 ;
+        proxy_redirect         http://127.0.0.1:9431 https://sh.majo.im;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+        proxy_set_header       X-Forwarded-Protocol $scheme;
+        proxy_set_header       X-Forwarded-Host $http_host;
+        proxy_set_header       REMOTE-HOST $remote_addr;
+        proxy_http_version     1.1;
+        add_header             Access-Control-Allow-Origin * always;
+        add_header             Access-Control-Allow-Headers *;
+        add_header             Access-Control-Allow-Methods "GET, POST, PUT, OPTIONS";
+        add_header             Content-Security-Policy "default-src https:; img-src https: data:; script-src https: 'unsafe-inline' 'unsafe-eval'; style-src https: 'unsafe-inline';";
+    }
+}
+
+server {
+    listen                     443 ssl ;
+    server_name                paste.majo.im ;
+    location / {
+        proxy_pass             http://127.0.0.1:9432 ;
+        proxy_redirect         http://127.0.0.1:9432 https://paste.majo.im;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+        proxy_set_header       X-Forwarded-Protocol $scheme;
+        proxy_set_header       X-Forwarded-Host $http_host;
+        proxy_set_header       REMOTE-HOST $remote_addr;
+        proxy_http_version     1.1;
+        add_header             Access-Control-Allow-Origin * always;
+        add_header             Access-Control-Allow-Headers *;
+        add_header             Access-Control-Allow-Methods "GET, POST, PUT, OPTIONS";
+        add_header             Content-Security-Policy "default-src https:; img-src https: data:; script-src https: 'unsafe-inline' 'unsafe-eval'; style-src https: 'unsafe-inline';";
+    }
+}
+
+server {
+    listen                     443 ssl ;
+    server_name                draw.majo.im ;
+    location / {
+        proxy_pass             http://127.0.0.1:9433 ;
+        proxy_redirect         http://127.0.0.1:9433 https://draw.majo.im;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+        proxy_set_header       X-Forwarded-Protocol $scheme;
+        proxy_set_header       X-Forwarded-Host $http_host;
+        proxy_set_header       REMOTE-HOST $remote_addr;
+        proxy_http_version     1.1;
+        add_header             Access-Control-Allow-Origin * always;
+        add_header             Access-Control-Allow-Headers *;
+        add_header             Access-Control-Allow-Methods "GET, POST, PUT, OPTIONS";
+        add_header             Content-Security-Policy "default-src https:; img-src https: data:; script-src https: 'unsafe-inline' 'unsafe-eval'; style-src https: 'unsafe-inline';";
+    }
+}
+
+server {
+    listen                     443 ssl ;
+    server_name                chat.majo.im ;
+    location / {
+        proxy_pass             http://127.0.0.1:9434 ;
+        proxy_redirect         http://127.0.0.1:9434 https://chat.majo.im;
+        proxy_set_header       Host $host;
+        proxy_set_header       X-Real-IP $remote_addr;
+        proxy_set_header       X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header       X-Forwarded-Proto $scheme;
+        proxy_set_header       X-Forwarded-Protocol $scheme;
+        proxy_set_header       X-Forwarded-Host $http_host;
+        proxy_set_header       REMOTE-HOST $remote_addr;
+        proxy_http_version     1.1;
+        add_header             Access-Control-Allow-Origin * always;
+        add_header             Access-Control-Allow-Headers *;
+        add_header             Access-Control-Allow-Methods "GET, POST, PUT, OPTIONS";
+        add_header             Content-Security-Policy "default-src https:; img-src https: data:; script-src https: 'unsafe-inline' 'unsafe-eval'; style-src https: 'unsafe-inline';";
+    }
+}
+
+server {
+    listen                     443 ssl;
+    root                       /home/www/phpmyadmin;
+    server_name                sql.majo.im;
+    index                      index.php;
+
+    location / {
+        #                      uncomment to resolve CORS
+        add_header             'Access-Control-Allow-Origin' '*';
+        add_header             'Access-Control-Allow-Credentials' 'true';
+        add_header             'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+        add_header             'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+    }
+
+    client_max_body_size       64m;
+    error_page                 404 /404.php;
+    error_page                 500 502 503 504 /50x.html;
+    location /50x.html {
+        root                   /usr/share/nginx/html;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass           unix:/run/php/php-fpm.sock;
+        fastcgi_param          SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include                fastcgi_params;
+    }
+}

@@ -30,12 +30,11 @@ CLI_COLORS = {
     "SUCCESS": 3,  # Green - Success
 }
 
-# Global server instance for signal handling
 SERVER_INSTANCE = None
+DEFAULT_PORT = 9999
 EXIT_EVENT = threading.Event()
 
 
-# Utility functions
 def color(text: str, color_code: int = 3) -> str:
     """
     Add color to text
@@ -597,8 +596,8 @@ def main() -> None:
         "-p",
         "--port",
         type=int,
-        default=1024,
-        help="Specify server port (default: 1024)",
+        default=DEFAULT_PORT,
+        help=f"Specify server port (default: {DEFAULT_PORT})",
     )
     parser.add_argument("-d", "--debug", action="store_true", help="Enable debug mode")
     parser.add_argument(

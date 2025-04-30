@@ -14,7 +14,10 @@ cyan='\033[96m'
 nc='\033[0m'
 #endregion
 
-workdir=$(cd $(dirname $0); pwd)
+workdir=$(
+    cd $(dirname $0)
+    pwd
+)
 
 current_dir=$workdir
 target_dir_name="03-genshin"
@@ -85,22 +88,23 @@ do_decrypt_loop() {
 echo -e "workdir: ${green}${workdir}${nc}"
 echo -e "genshin_dir_path: ${green}${genshin_dir_path}${nc}"
 case "$1" in
-    enc)
-        do_encrypt
-        # do_encrypt_loop
-        ;;
-    dec)
-        do_decrypt
-        # do_decrypt_loop
-        ;;
-    show)
-        echo -e "encrypt_script_path: ${green}${encrypt_script_path}${nc}"
-        echo -e "salt_path: ${green}${salt_path}${nc}"
-        echo -e "src_file_path: ${green}${src_file_path}${nc}"
-        echo -e "target_file_path: ${green}${target_file_path}${nc}"
-        echo -e "src_file_dir: ${green}${src_file_dir}${nc}"
-        echo -e "target_file_dir: ${green}${target_file_dir}${nc}"
-        ;;
-    *)
-        echo "usage: $0 {enc|dec|show}"
+enc)
+    do_encrypt
+    # do_encrypt_loop
+    ;;
+dec)
+    do_decrypt
+    # do_decrypt_loop
+    ;;
+show)
+    echo -e "encrypt_script_path: ${green}${encrypt_script_path}${nc}"
+    echo -e "salt_path: ${green}${salt_path}${nc}"
+    echo -e "src_file_path: ${green}${src_file_path}${nc}"
+    echo -e "target_file_path: ${green}${target_file_path}${nc}"
+    echo -e "src_file_dir: ${green}${src_file_dir}${nc}"
+    echo -e "target_file_dir: ${green}${target_file_dir}${nc}"
+    ;;
+*)
+    echo "usage: $0 {enc|dec|show}"
+    ;;
 esac

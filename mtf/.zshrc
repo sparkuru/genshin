@@ -608,6 +608,19 @@ fast_http_server() {
     python3 $fast_http_server_path "$@"
 }
 
+encrypt() {
+    this_script_path="code/python/02-ez-encrypt.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        encrypt_path="$local_repo_path/$this_script_path"
+    else
+        encrypt_path="$HOME/.genshin/ez-encrypt.py"
+        if [[ ! -f $encrypt_path ]]; then
+            _curl $encrypt_path $github_url_base/$this_script_path
+        fi
+    fi
+    python3 $encrypt_path "$@"
+}
+
 # export
 ## proxy
 proxy_ip_file="$HOME/.proxy-ip"

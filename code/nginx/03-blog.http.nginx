@@ -1,0 +1,70 @@
+server {
+    listen                80;
+
+    server_name           majo.im;
+    server_name           www.majo.im;
+
+    if ($host = 'majo.im') {
+        return            301 https://www.$host$request_uri;
+    }
+
+    return                301 https://$host$request_uri;
+}
+
+ ssl_certificate          /home/wkyuu/.acme.sh/majo.im_ecc/fullchain.cer;
+ ssl_certificate_key      /home/wkyuu/.acme.sh/majo.im_ecc/majo.im.key;
+
+server {
+    listen                443 ssl;
+
+    root                  /home/www/typecho;
+    server_name           majo.im;
+    server_name           www.majo.im;
+
+    if ($host = 'majo.im') {
+        return            301 https://www.$host$request_uri;
+    }
+
+    location /majo {
+        alias             /home/www/majo;
+        index             index.html;
+    }
+
+    location / {
+        add_header        'Access-Control-Allow-Origin' '*';
+        add_header        'Access-Control-Allow-Credentials' 'true';
+        add_header        'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+        add_header        'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+
+        try_files         $uri $uri/ = 404;
+        index             index.php index.html;
+
+        if (-f $request_filename/index.html) {
+            rewrite       (.*) $1/index.html break;
+        }
+
+        if (-f $request_filename/index.php) {
+            rewrite       (.*) $1/index.php;
+        }
+
+        if (!-f $request_filename) {
+            rewrite       (.*) /index.php;
+        }
+    }
+
+    client_max_body_size  64m;
+    error_page            404 /404.php;
+    error_page            500 502 503 504 /50x.html;
+    location /50x.html {
+        root              /usr/share/nginx/html;
+    }
+    location = /admin {
+        return            301 $scheme://$host$request_uri/;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass      unix:/run/php/php-fpm.sock;
+        fastcgi_param     SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include           fastcgi_params;
+    }
+}
