@@ -12,9 +12,10 @@ UseDNS no
 
 SyslogFacility AUTHPRIV
 PermitRootLogin yes
-PasswordAuthentication no
 PubkeyAuthentication yes
 KbdInteractiveAuthentication no
+ChallengeResponseAuthentication no
+PasswordAuthentication no
 
 PrintMotd no
 AcceptEnv LANG LC_*
