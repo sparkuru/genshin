@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pip install shodan rich mmh3
+# pip install shodan rich mmh3 bs4
 
 import os
 import sys

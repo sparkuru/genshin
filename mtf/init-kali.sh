@@ -97,7 +97,7 @@ trusted-host = https://mirrors.ustc.edu.cn
 EOF
 
 sudo -u wkyuu pip install \
-	datetime argparse colorama cryptography getpass4 rich readchar \
+	datetime argparse colorama cryptography getpass4 rich bs4 readchar \
 	ipython \
 	ifaddr \
 	ropgadget pwntools \

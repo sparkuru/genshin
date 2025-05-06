@@ -11,6 +11,8 @@
 
 `socat -d -d TCP-LISTEN:8888,reuseaddr,fork SYSTEM:"cat /etc/dropbear/authorized_keys"`
 
+查看 `/etc/inittab`，找 defaultinit
+
 ## refer
 
 1. https://hadess.io/the-art-of-linux-persistence/
