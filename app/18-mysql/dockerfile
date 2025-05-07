@@ -1,30 +1,4 @@
-FROM mcr.microsoft.com/vscode/devcontainers/python:3.10-bookworm
+FROM mysql:5.7.44
 
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PYTHONUNBUFFERED=1
-
-ENV WORKDIR="/opt/test"
-
-RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.ustc.edu.cn/ubuntu/|g' /etc/apt/sources.list && \
-    sed -i 's|http://security.ubuntu.com/ubuntu/|http://mirrors.ustc.edu.cn/ubuntu/|g' /etc/apt/sources.list
-
-RUN apt-get update && apt-get install -y \
-    net-tools curl wget \
-    gnupg2 \
-    software-properties-common \
-    build-essential \
-    vim
-
-RUN add-apt-repository ppa:deadsnakes/ppa && \
-    apt-get update && \
-    apt-get install -y python3.10 python3.10-dev python3.10-distutils python3.10-venv && \
-    curl https://bootstrap.pypa.io/get-pip.py | python3.10
-
-RUN rm -rf /var/lib/apt/lists/*
-
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
-RUN ln -s /usr/bin/python3.10 /usr/bin/python
-
-RUN pip install --ignore-installed pyserial flask eventlet flask_socketio
-
-RUN mkdir -p $WORKDIR/log $WORKDIR/server $WORKDIR/client
+# 将初始化脚本复制到容器的初始化目录
+COPY ./init/init.sql /docker-entrypoint-initdb.d/
