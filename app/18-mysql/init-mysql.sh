@@ -1,7 +1,7 @@
 #/usr/bin/env zsh
 
 index=18
-app_name=redroid
+app_name=mysql
 url=https://raw.githubusercontent.com/shi9uma/genshin/main/app/$index-$app_name/$app_name.yml
 
 create_dir() {

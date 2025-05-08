@@ -1,6 +1,6 @@
 #/usr/bin/env zsh
 
-index=19
+index=16
 app_name=chromium
 url=https://raw.githubusercontent.com/shi9uma/genshin/main/app/$index-$app_name/$app_name.yml
 

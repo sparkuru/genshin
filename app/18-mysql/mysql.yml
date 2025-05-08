@@ -1,21 +1,17 @@
 version: "3.8"
 
 services:
-  genshin_mysql_db:
-    build:
-      context: .
-      dockerfile: dockerfile # 确保这里是小写的 "dockerfile"
-    container_name: genshin_mysql_db
+  mysql:
+    image: mysql
+    container_name: mysql
     environment:
-      MYSQL_ROOT_PASSWORD: "yourstrongrootpassword" # 请务必修改为强密码
+      MYSQL_ROOT_PASSWORD: "yourstrongrootpassword"
       TZ: Asia/Shanghai
     volumes:
-      - ./mysql_data:/var/lib/mysql # 将当前目录下的 mysql_data 文件夹映射到容器内
-    ports:
-      - "3306:3306" # 映射 MySQL 默认端口
+      - ./data:/var/lib/mysql
+      - /var/run/mysqld/mysqld.sock:/var/run/mysqld/mysqld.sock
+    network_mode: "host"
     restart: unless-stopped
 
-volumes:
-  # genshin_mysql_data: # 如果使用绑定挂载，可以移除或注释掉具名卷的定义
-
-# sudo docker-compose -f docker-compose.yml up -d
+# docker build -t mysql .
+# docker-compose -f $PWD/mysql.yml up -d
