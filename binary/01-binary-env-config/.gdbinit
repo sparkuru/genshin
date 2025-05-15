@@ -1,5 +1,5 @@
-source /home/app/pwnenv/pwndbg/repo/gdbinit.py
-source /home/app/pwnenv/pwndbg/plugins/splitmind/gdbinit.py
+source /home/wkyuu/cargo/bin/pwnenv/pwndbg/repo/gdbinit.py
+source /home/wkyuu/cargo/bin/pwnenv/pwndbg/plugins/splitmind/gdbinit.py
 
 # splitmind
 # reference to https://github.com/NoneShell/OwnConfigs/blob/main/.gdbinit
