@@ -10,7 +10,7 @@ services:
     - TZ=Asia/Shanghai
     volumes:
     - ./synapse/data:/data
-    restart: unless-stopped
+    restart: always
 
   element:
     image: vectorim/element-web:latest
@@ -21,7 +21,7 @@ services:
     - TZ=Asia/Shanghai
     volumes:
     - ./element/config.json:/app/config.json
-    restart: unless-stopped
+    restart: always
 
   synapse-admin:
     image: awesometechnologies/synapse-admin:latest
@@ -30,6 +30,6 @@ services:
     - PUID=1000
     - PGID=1000
     - TZ=Asia/Shanghai
-    restart: unless-stopped
+    restart: always
 
 # docker-compose -f $PWD/matrix.yml up -d

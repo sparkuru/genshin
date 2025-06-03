@@ -13,6 +13,6 @@ services:
     - ./data:/app/backend/data
     ports:
     - 8080:8080
-    restart: unless-stopped
+    restart: always
 
 # docker-compose -f $PWD/openwebui.yml up -d

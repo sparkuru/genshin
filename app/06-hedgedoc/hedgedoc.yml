@@ -22,6 +22,6 @@ services:
     - ./config:/config
     ports:
     - 9426:3000
-    restart: unless-stopped
+    restart: always
 
 # docker-compose -f $PWD/hedgedoc.yml up -d

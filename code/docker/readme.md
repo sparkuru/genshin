@@ -125,7 +125,7 @@ services:
       - /host:/docker
     ports:
       - 80:80	# host:docker
-    restart: unless-stopped
+    restart: always
 
 # sudo docker-compose -f docker-compose.yml up -d
 ```

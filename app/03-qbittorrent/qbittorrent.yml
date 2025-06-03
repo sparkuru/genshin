@@ -17,6 +17,6 @@ services:
     - 9422:9422
     - 9423:9423
     - 9423:9423/udp
-    restart: unless-stopped
+    restart: always
 
 # docker-compose -f $PWD/qbittorrent.yml up -d

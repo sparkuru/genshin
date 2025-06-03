@@ -11,6 +11,6 @@ services:
     - ./data:/root/.synctv
     ports:
     - 9424:8080
-    restart: unless-stopped
+    restart: always
 
 # docker-compose -f $PWD/synctv.yml up -d

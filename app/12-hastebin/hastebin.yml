@@ -9,13 +9,13 @@ services:
     - STORAGE_HOST=hastebinredis
     ports:
     - 9432:7777
-    restart: unless-stopped
+    restart: always
   hastebinredis:
     image: redis
     container_name: hastebinredis
     entrypoint: redis-server --appendonly yes
     volumes:
     - ./data:/data
-    restart: unless-stopped
+    restart: always
 
 # docker-compose -f $PWD/hastebin.yml up -d

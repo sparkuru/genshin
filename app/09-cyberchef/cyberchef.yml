@@ -8,6 +8,6 @@ services:
     - TZ=Asia/Shanghai
     ports:
     - 9429:80
-    restart: unless-stopped
+    restart: always
 
 # docker-compose -f $PWD/cyberchef.yml up -d

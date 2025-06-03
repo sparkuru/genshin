@@ -19,7 +19,7 @@ services:
     ports:
     - 80:8080
     - 443:8443
-    restart: unless-stopped
+    restart: always
 
 # LETS_ENCRYPT_ENABLED=${LETS_ENCRYPT_ENABLED:-false}
 # PUBLIC_DNS=${PUBLIC_DNS:-'draw.example.com'}

@@ -8,6 +8,6 @@ services:
     - TZ=Asia/Shanghai
     ports:
     - 9430:4000
-    restart: unless-stopped
+    restart: always
 
 # docker-compose -f $PWD/gtfobins.yml up -d

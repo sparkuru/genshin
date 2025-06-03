@@ -14,6 +14,6 @@ services:
     - ./storage:/home/storage
     ports:
     - 9425:8080
-    restart: unless-stopped
+    restart: always
 
 # docker-compose -f $PWD/transfersh.yml up -d

@@ -8,6 +8,6 @@ services:
     - ./root:/root
     ports:
     - 9420:9876
-    restart: unless-stopped
+    restart: always
 
 # docker-compose -f $PWD/ddns-go.yml up -d
