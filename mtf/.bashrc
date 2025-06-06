@@ -54,10 +54,96 @@ if [ -n "$force_color_prompt" ]; then
     fi
 fi
 
-# Configure prompt
+# Configure git-aware prompt
+configure_git_prompt() {
+    git_prompt() {
+        command -v git >/dev/null 2>&1 || return
+        
+        local git_status branch repo_name
+        if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            branch=$(git symbolic-ref --short HEAD 2>/dev/null || git describe --tags --always 2>/dev/null)
+            
+            repo_name=$(basename -s .git $(git config --get remote.origin.url 2>/dev/null) 2>/dev/null || basename $(git rev-parse --show-toplevel 2>/dev/null))
+            
+            git_status=$(git status --porcelain 2>/dev/null)
+            
+            local status_color='\[\033[0;32m\]' 
+            local status_text="clean"
+            
+            if [[ -n "$git_status" ]]; then
+                local added_count=$(echo "$git_status" | grep -c "^A\|^??\|^ A")
+                local modified_count=$(echo "$git_status" | grep -c "^M\|^ M")
+                local deleted_count=$(echo "$git_status" | grep -c "^D\|^ D")
+                
+                status_color='\[\033[0;31m\]'
+                status_text="commit"
+                if [[ $added_count -gt 0 || $modified_count -gt 0 || $deleted_count -gt 0 ]]; then
+                    local details=""
+                    [[ $added_count -gt 0 ]] && details+="+$added_count"
+                    [[ $modified_count -gt 0 ]] && details+="~$modified_count"
+                    [[ $deleted_count -gt 0 ]] && details+="-$deleted_count"
+                    status_text+="[$details]"
+                fi
+            elif git rev-list --count --left-right @{upstream}...HEAD 2>/dev/null | grep -q -v "^0[[:space:]]0$"; then
+                local ahead_behind=$(git rev-list --count --left-right @{upstream}...HEAD 2>/dev/null)
+                local behind=$(echo "$ahead_behind" | awk '{print $1}')
+                local ahead=$(echo "$ahead_behind" | awk '{print $2}')
+                
+                status_color='\[\033[0;33m\]'
+                status_text="sync"
+                
+                if [[ $ahead -gt 0 && $behind -gt 0 ]]; then
+                    status_text+="[↓$behind↑$ahead]"
+                elif [[ $ahead -gt 0 ]]; then
+                    status_text+="[↑$ahead]"
+                elif [[ $behind -gt 0 ]]; then
+                    status_text+="[↓$behind]"
+                fi
+            fi
+            
+            printf -- "-(git/%s/%s)-%s(%s)\\[\\033[0m\\]" "$repo_name" "$branch" "$status_color" "$status_text"
+        else
+            echo ""
+        fi
+    }
+    
+    __update_ps1() {
+        local git_info=$(git_prompt)
+        
+        case "$PROMPT_ALTERNATIVE" in
+            twoline)
+                PS1='\[\033[0;32m\]┌──${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(\[\033[01;32m\]\u(.ᗜ ᴗ ᗜ.)\h\[\033[0;32m\])-[\[\033[0m\]\w\[\033[0;32m\]]'"$git_info"'\n\[\033[0;32m\]└─\[\033[01;34m\]\$\[\033[0m\] '
+                ;;
+            oneline)
+                PS1='${debian_chroot:+($debian_chroot)}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))}\[\033[01;32m\]\u(.ᗜ ᴗ ᗜ.)\h\[\033[0m\]:\[\033[01;34m\]\w\[\033[0m\]'"$git_info"'\$ '
+                ;;
+            backtrack)
+                PS1='${debian_chroot:+($debian_chroot)}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))}\[\033[01;31m\]\u(.ᗜ ᴗ ᗜ.)\h\[\033[0m\]:\[\033[01;34m\]\w\[\033[0m\]'"$git_info"'\$ '
+                ;;
+            *)
+                PS1='\[\033[01;32m\]\u(.ᗜ ᴗ ᗜ.)\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]'"$git_info"'\$ '
+                ;;
+        esac
+    }
+    
+    PROMPT_COMMAND="__update_ps1${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+}
+
+# The following block is surrounded by two delimiters.
+# These delimiters must not be modified. Thanks.
+# START KALI CONFIG VARIABLES
+PROMPT_ALTERNATIVE=twoline
+NEWLINE_BEFORE_PROMPT=yes
+# STOP KALI CONFIG VARIABLES
+
+# Define prompt symbol globally
+prompt_symbol="(.ᗜ ᴗ ᗜ.)"
+
 if [ "$color_prompt" = yes ]; then
-    # Use a more advanced prompt similar to zsh
-    PS1='\[\033[01;32m\]\u\[\033[00m\]@\[\033[01;32m\]\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+    # override default virtualenv indicator in prompt
+    VIRTUAL_ENV_DISABLE_PROMPT=1
+
+    configure_git_prompt
 else
     PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
 fi
@@ -71,6 +157,19 @@ xterm*|rxvt*|Eterm|aterm|kterm|gnome*|alacritty)
 *)
     ;;
 esac
+
+# Add a newline before prompt if configured
+add_newline_before_prompt() {
+    if [ "$NEWLINE_BEFORE_PROMPT" = yes ]; then
+        if [ -z "$_NEW_LINE_BEFORE_PROMPT" ]; then
+            _NEW_LINE_BEFORE_PROMPT=1
+        else
+            echo ""
+        fi
+    fi
+}
+
+PROMPT_COMMAND="add_newline_before_prompt${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
 
 # enable color support of ls and also add handy aliases
 if [ -x /usr/bin/dircolors ]; then
@@ -98,9 +197,12 @@ fi
 # |                       custom script                         |
 # ==============================================================
 
+# repo
 github_url_base="https://raw.githubusercontent.com/shi9uma/genshin/main"
+# local
+leader_path_name="cargo"
 
-# color
+# color, usage: ${RED}xxx${NC}
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -131,14 +233,32 @@ cmd() {
 }
 
 tmp() {
+    DEFAULT_DIR='/tmp/tmp'
+    while getopts "ch" opt; do
+        case ${opt} in
+            c )
+                target_dir=$2
+                target_dir_path="$DEFAULT_DIR/$target_dir"
+                mkdir -p $target_dir_path
+                echo -e "create dir: ${GREEN}$target_dir_path${NC}"
+                return
+                ;;
+            h )
+                echo -e "Usage: ${GREEN}tmp [-c] [dir]${NC}"
+                echo -e "  ${GREEN}tmp [dir]${NC}: create dir and cd"
+                echo -e "  ${GREEN}tmp -c [dir]${NC}: create dir but not cd"
+                echo -e "  ${GREEN}tmp -h${NC}: help"
+                return
+                ;;
+        esac
+    done
+
     if [ $# -eq 0 ]; then
-        mkdir -p '/tmp/tmp'
-        cd /tmp/tmp
+        mkdir -p $DEFAULT_DIR
+        cd $DEFAULT_DIR
     elif [ $# -eq 1 ]; then
-        mkdir -p /tmp/tmp/$1
-        cd /tmp/tmp/$1
-    else
-        echo "usage: tmp [dir]"
+        mkdir -p $DEFAULT_DIR/$1
+        cd $DEFAULT_DIR/$1
     fi
 }
 
@@ -169,50 +289,7 @@ clean_docker() {
 }
 
 _curl() {
-    curl -fLo $1 --create-dirs $2
-}
-
-password() {
-    rename_path="$HOME/.genshin/password-generator.py"
-    if [[ ! -f $rename_path ]]; then
-        _curl $rename_path $github_url_base/code/python/08-password-generator.py
-    fi
-    python3 $rename_path "$@"
-}
-
-cx() {
-    ip_status_path="$HOME/.genshin/ip-status.py"
-    if [[ ! -f $ip_status_path ]]; then
-        _curl $ip_status_path $github_url_base/code/python/09-ip-status.py
-    fi
-    python3 $ip_status_path "$@"
-}
-
-lcd() {
-    lcd_path="$HOME/.genshin/lcd.py"
-    if [[ ! -f $lcd_path ]]; then
-        _curl $lcd_path $github_url_base/code/python/13-lcd.py
-    fi
-    if [[ "$1" == "cd" && ! -z "$2" ]]; then
-        target_dir=$(python $lcd_path -pn "$2")
-        cd "$target_dir"
-    elif [[ "$1" == "l" ]]; then
-        python3 $lcd_path -l
-    elif [[ "$1" == "d" && ! -z "$2" ]]; then
-        python3 $lcd_path -d -n "$2"
-    elif [[ "$1" == "a" && ! -z "$2" ]]; then
-        python3 $lcd_path -a "$2"
-    else
-        python3 $lcd_path "$@"
-    fi
-}
-
-rename() {
-    rename_path="$HOME/.genshin/interact-rename.py"
-    if [[ ! -f $rename_path ]]; then
-        _curl $rename_path $github_url_base/code/python/14-interact-rename.py
-    fi
-    python3 $rename_path "$@"
+    curl --create-dirs -fLo $1 $2
 }
 
 w2u() {
@@ -221,44 +298,17 @@ w2u() {
     echo "$unix_path"
 }
 
-sd() {
-    sd_path="$HOME/.genshin/sd.py"
-    if [[ ! -f $sd_path ]]; then
-        _curl $sd_path $github_url_base/code/python/10-shodan.py
-    fi
-    python3 $sd_path "$@"
-}
-
-unblob() {
-    unblob_path="$HOME/.genshin/unblob.sh"
-    if [[ ! -f $unblob_path ]]; then
-        _curl $unblob_path $github_url_base/code/shellscript/04-unblob.sh
-        chmod +x $unblob_path
-    fi
-    cp $unblob_path .
-    eval $PWD/unblob.sh $1
-}
-
-call_bridge() {
-    call_bridge_path="$HOME/.genshin/call-bridge.sh"
-    if [[ ! -f $call_bridge_path ]]; then
-        _curl $call_bridge_path $github_url_base/code/shellscript/07-call-bridge.sh
-        chmod +x $call_bridge_path
-    fi
-    eval "$call_bridge_path $@"
-}
-
 update_bashrc() {
     bashrc_path="$HOME/.bashrc"
     _curl $bashrc_path $github_url_base/mtf/.bashrc
 }
 
-find_genshin() {
+find_path() {
     current_dir=$(pwd)
 	if [ $# -eq 1 ]; then
 		target_dir_name=$1
 	else
-		target_dir_name="genshin"
+		target_dir_name="$leader_path_name"
 	fi
 
     while [[ "$current_dir" != "/" ]]; do
@@ -274,19 +324,6 @@ find_genshin() {
     return 1
 }
 
-# 从zshrc添加的新函数
-ollama() {
-    ollama_dir_path="$HOME/.ollama"
-    if [[ ! -d $ollama_dir_path ]]; then
-        mkdir -p $ollama_dir_path
-    fi
-    ollama_path="$ollama_dir_path/cli-ollama.py"
-    if [[ ! -f $ollama_path ]]; then
-        _curl $ollama_path $github_url_base/code/python/17-cli-ollama.py
-    fi
-    python3 $ollama_path "$@"
-}
-
 exp() {
     if [[ ! -f "/usr/bin/dolphin" ]]; then
         echo -e "${RED}dolphin not found, try ${GREEN}sudo apt install dolphin-emu${NC}"
@@ -300,28 +337,172 @@ exp() {
     return 0
 }
 
-## file, dir
-if [[ -f "/home/game/minecraft/tool/rcon.py" ]]; then
-    alias mc="python /home/game/minecraft/tool/rcon.py"
+# Script-based functions
+local_repo_path="$HOME/$leader_path_name/repo/04-flyMe2theStar/03-genshin"
+
+call_bridge() {
+    this_script_path="code/shellscript/07-call-bridge.sh"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        call_bridge_path="$local_repo_path/$this_script_path"
+    else
+        call_bridge_path="$HOME/.genshin/call-bridge.sh"
+        if [[ ! -f $call_bridge_path ]]; then
+            _curl $call_bridge_path $github_url_base/$this_script_path
+            chmod +x $call_bridge_path
+        fi
+    fi
+    eval "$call_bridge_path $@"
+}
+
+password() {
+    this_script_path="code/python/08-password-generator.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        rename_path="$local_repo_path/$this_script_path"
+    else
+        rename_path="$HOME/.genshin/password-generator.py"
+        if [[ ! -f $rename_path ]]; then
+            _curl $rename_path $github_url_base/$this_script_path
+        fi
+    fi
+    python3 $rename_path "$@"
+}
+
+cx() {
+    this_script_path="code/python/09-ip-status.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        ip_status_path="$local_repo_path/$this_script_path"
+    else
+        ip_status_path="$HOME/.genshin/ip-status.py"
+        if [[ ! -f $ip_status_path ]]; then
+            _curl $ip_status_path $github_url_base/$this_script_path
+        fi
+    fi
+    python3 $ip_status_path "$@"
+}
+
+lcd() {
+    this_script_path="code/python/13-lcd.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        lcd_path="$local_repo_path/$this_script_path"
+    else
+        lcd_path="$HOME/.genshin/lcd.py"
+        if [[ ! -f $lcd_path ]]; then
+            _curl $lcd_path $github_url_base/$this_script_path
+        fi
+    fi
+    if [[ "$1" == "cd" && ! -z "$2" ]]; then
+        target_dir=$(python $lcd_path -g "$2")
+        cd "$target_dir"
+    elif [[ "$1" == "l" ]]; then
+        python3 $lcd_path -l
+    elif [[ "$1" == "d" && ! -z "$2" ]]; then
+        python3 $lcd_path -d -n "$2"
+    elif [[ "$1" == "a" && ! -z "$2" ]]; then
+        python3 $lcd_path -a "$2"
+    else
+        python3 $lcd_path "$@"
+    fi
+}
+
+rename() {
+    this_script_path="code/python/14-interact-rename.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        rename_path="$local_repo_path/$this_script_path"
+    else
+        rename_path="$HOME/.genshin/interact-rename.py"
+        if [[ ! -f $rename_path ]]; then
+            _curl $rename_path $github_url_base/$this_script_path
+        fi
+    fi
+    python3 $rename_path "$@"
+}
+
+unblob() {
+    this_script_path="code/shellscript/04-unblob.sh"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        unblob_path="$local_repo_path/$this_script_path"
+    else
+        unblob_path="$HOME/.genshin/unblob.sh"
+        if [[ ! -f $unblob_path ]]; then
+            _curl $unblob_path $github_url_base/$this_script_path
+            chmod +x $unblob_path
+        fi
+    fi
+    eval $unblob_path "$@"
+}
+
+ollama() {
+    this_script_path="code/python/17-cli-ollama.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        ollama_path="$local_repo_path/$this_script_path"
+    else
+        ollama_path="$HOME/.ollama/cli-ollama.py"
+        if [[ ! -f $ollama_path ]]; then
+            mkdir -p "$HOME/.ollama"
+            _curl $ollama_path $github_url_base/$this_script_path
+        fi
+    fi
+    python3 $ollama_path "$@"
+}
+
+sd() {
+    this_script_path="code/python/10-shodan.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        sd_path="$local_repo_path/$this_script_path"
+    else
+        sd_path="$HOME/.genshin/sd.py"
+        if [[ ! -f $sd_path ]]; then
+            _curl $sd_path $github_url_base/$this_script_path
+        fi
+    fi
+    python3 $sd_path "$@"
+}
+
+fast_http_server() {
+    this_script_path="code/python/16-fast-http-server.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        fast_http_server_path="$local_repo_path/$this_script_path"
+    else
+        fast_http_server_path="$HOME/.genshin/fast-http-server.py"
+        if [[ ! -f $fast_http_server_path ]]; then
+            _curl $fast_http_server_path $github_url_base/$this_script_path
+        fi
+    fi
+    python3 $fast_http_server_path "$@"
+}
+
+encrypt() {
+    this_script_path="code/python/02-ez-encrypt.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        encrypt_path="$local_repo_path/$this_script_path"
+    else
+        encrypt_path="$HOME/.genshin/ez-encrypt.py"
+        if [[ ! -f $encrypt_path ]]; then
+            _curl $encrypt_path $github_url_base/$this_script_path
+        fi
+    fi
+    python3 $encrypt_path "$@"
+}
+
+# Conditional aliases
+if [[ -f "$HOME/$leader_path_name/game/minecraft/tool/rcon.py" ]]; then
+    alias mc="python $HOME/$leader_path_name/game/minecraft/tool/rcon.py"
 fi
 
-# 从zshrc添加的目录别名
-leader_path_name="cargo"
 if [[ -d "$HOME/$leader_path_name" ]]; then
     alias home="cd $HOME/$leader_path_name"
 fi
+
 if [[ -d "$HOME/$leader_path_name/app" ]]; then
     alias app="cd $HOME/$leader_path_name/app"
 fi
+
 if [[ -d "$HOME/$leader_path_name/repo" ]]; then
     alias repo="cd $HOME/$leader_path_name/repo"
 fi
-# 保留原有的repo别名
-if [[ ! -d "$HOME/$leader_path_name/repo" && -d "$HOME/repo" ]]; then
-    alias repo="cd $HOME/repo"
-fi
 
-## export
+# Export settings
+## proxy
 proxy_ip_file="$HOME/.proxy-ip"
 if [[ -f $proxy_ip_file ]]; then
     if [[ $(cat $proxy_ip_file) == "no proxy" ]]; then
@@ -344,14 +525,29 @@ else
     fi
 fi
 
-### vim
+## vim
 export FZF_DEFAULT_COMMAND="rg --files"
 export FZF_DEFAULT_OPTS="-m --height 40% --reverse --border --ansi --preview '(highlight -O ansi {} || cat {}) 2> /dev/null | head -500'"
 
-### binary
+## app
 os_type=$(uname -o)
 export_path=$PATH
 case $os_type in
+    "GNU/Linux")
+        linux_paths=(
+            "$HOME/.bin"
+            "$HOME/.local/bin"
+            "$HOME/.cargo/bin"
+            "/usr/lib/nodejs/bin"
+        )
+
+        export_path=$PATH
+        for path in "${linux_paths[@]}"; do
+            if [[ -d "$path" ]]; then
+                export_path="$path:$export_path"
+            fi
+        done
+        ;;
     "Darwin")
         export CLICOLOR=1
         export LSCOLORS=ExGxBxDxCxEgEdxbxgxcxd
@@ -373,39 +569,12 @@ case $os_type in
             fi
         done
         
-        # alias python="/opt/homebrew/bin/python3"
-        # alias pip="/opt/homebrew/bin/pip3"
-
         alias typora="/Applications/Typora.app/Contents/MacOS/Typora"
         alias code="/Applications/VisualStudioCode.app/Contents/MacOS/Electron"
         alias bandizip="/Applications/Bandizip.app/Contents/MacOS/Bandizip"
         ;;
-    "GNU/Linux")
-        linux_paths=(
-            "$HOME/.bin"
-            "$HOME/.local/bin"
-            "$HOME/.cargo/bin"
-            "/usr/lib/nodejs/bin"
-        )
-
-        export_path=$PATH
-        for path in "${linux_paths[@]}"; do
-            if [[ -d "$path" ]]; then
-                export_path="$path:$export_path"
-            fi
-        done
-        
-        alias python="env -u PYTHONHOME -u PYTHONPATH python"
-        alias pip="env -u PYTHONHOME -u PYTHONPATH pip"
-        ;;
 esac
 export PATH=$export_path
-
-if [[ -z "$DONT_FASTFETCH" || $DONT_FASTFETCH -ne 1 ]]; then
-    if [ -f /usr/bin/fastfetch ]; then
-        fastfetch
-    fi
-fi
 
 # anchor
 # ==============================================================
