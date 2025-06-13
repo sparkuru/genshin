@@ -4,8 +4,7 @@ if [ $# -ne 1 ]; then
 fi
 
 if [ "$(id -u)" -ne 0 ]; then
-    echo "run script with sudo"
-    exit 1
+    echo "run script with sudo for first time"
 fi
 
 # color, usage: ${RED}xxx${NC}
@@ -39,6 +38,8 @@ install_vim() {
     ln -s $vim_dir/autoload $local_vim_root/autoload
     ln -s $vim_dir/colors $local_vim_root/colors
 
+    echo "${CYAN}\$USER = $USER${NC}"
+
     mkdir -p $local_vim_tmp_dir
     chown -R $USER:$USER $local_vim_root
 
@@ -62,3 +63,9 @@ remove_vim() {
     rm -rf $local_vim_root
     rm -rf $home_vimrc
 }
+
+if [ $1 = "install" ]; then
+    install_vim
+elif [ $1 = "remove" ]; then
+    remove_vim
+fi

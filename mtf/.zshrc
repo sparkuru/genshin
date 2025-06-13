@@ -709,6 +709,10 @@ if [[ -d "$HOME/$leader_path_name/repo" ]]; then
     alias repo="cd $HOME/$leader_path_name/repo"
 fi
 
+if [[ -d "$HOME/$leader_path_name/repo/04-flyMe2theStar/03-genshin" ]]; then
+    export genshin="$HOME/$leader_path_name/repo/04-flyMe2theStar/03-genshin"
+fi
+
 ## alias_anchor
 alias l="ls -ah"
 alias ll="ls -alh"
