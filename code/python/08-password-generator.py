@@ -368,7 +368,7 @@ def main() -> int:
 
     notes = [
         "If no key is provided, current timestamp will be used",
-        "An example key combination can be: '<ip/domain:[port]>/<username>', like '192.168.1.100:3306/root'",
+        "An example key combination can be: '<ip/domain[:port]>/<username>', like '192.168.1.100:3306/root'",
         "Salt file will be created if it doesn't exist",
         "Use --log to enable debug mode for troubleshooting",
         "Use --charset_append to add additional characters to the default character set",
