@@ -27,7 +27,7 @@ app=(
 )
 
 app_length=${#app[@]}
-url_base=https://raw.githubusercontent.com/shi9uma/genshin/main/app
+url_base=https://raw.githubusercontent.com/sparkuru/genshin/main/app
 work_dir=$(dirname $0)
 
 for index in $(seq -f "%02g" 1 $app_length); do

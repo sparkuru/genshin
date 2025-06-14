@@ -90,7 +90,7 @@ get src here：[pwndbg/pwndbg](https://github.com/pwndbg/pwndbg.git)
      4.   使用时需要先开 tmux；python exp 中需要如下语句：`context.terminal = ['tmux', 'splitw', '-h']`
 
 
-完整的 `~/.gdbinit` 文件如下，参考了 [NoneShell/OwnConfigs](https://github.com/NoneShell/OwnConfigs/blob/main/.gdbinit) 的配置，一键 `curl -o ~/.gdbinit https://raw.githubusercontent.com/shi9uma/genshin/main/pwn/07_blog7_environment_configuration/.gdbinit`：
+完整的 `~/.gdbinit` 文件如下，参考了 [NoneShell/OwnConfigs](https://github.com/NoneShell/OwnConfigs/blob/main/.gdbinit) 的配置，一键 `curl -o ~/.gdbinit https://raw.githubusercontent.com/sparkuru/genshin/main/pwn/07_blog7_environment_configuration/.gdbinit`：
 
 ```ini
 source /home/app/pwnenv/pwndbg/repo/gdbinit.py

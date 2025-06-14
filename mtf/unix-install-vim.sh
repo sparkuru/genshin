@@ -45,7 +45,7 @@ install_vim() {
 
     _curl \
         $home_vimrc \
-        https://raw.githubusercontent.com/shi9uma/vim/main/diy/unix-vimrc
+        https://raw.githubusercontent.com/sparkuru/vim/main/diy/unix-vimrc
     _curl \
         $local_vim_root/autoload/plug.vim \
         https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim

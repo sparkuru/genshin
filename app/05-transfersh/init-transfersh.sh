@@ -2,7 +2,7 @@
 
 index=05
 app_name=transfersh
-url=https://raw.githubusercontent.com/shi9uma/genshin/main/app/$index-$app_name/$app_name.yml
+url=https://raw.githubusercontent.com/sparkuru/genshin/main/app/$index-$app_name/$app_name.yml
 UID=1000
 GID=1000
 

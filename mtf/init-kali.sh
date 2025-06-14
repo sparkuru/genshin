@@ -6,7 +6,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 PROXY_POINT="http://198.18.0.1:1080"
-GITHUB_URL_BASE="https://raw.githubusercontent.com/shi9uma/genshin/main"
+GITHUB_URL_BASE="https://raw.githubusercontent.com/sparkuru/genshin/main"
 export all_proxy="$PROXY_POINT"
 
 # init zsh
@@ -116,7 +116,7 @@ git config --global pull.rebase true
 git config -l
 
 # vim
-curl -fLo /tmp/tmp/unix-install-vim.sh https://raw.githubusercontent.com/shi9uma/vim/main/diy/unix-install-vim.sh
+curl -fLo /tmp/tmp/unix-install-vim.sh https://raw.githubusercontent.com/sparkuru/vim/main/diy/unix-install-vim.sh
 chmod +x /tmp/tmp/unix-install-vim.sh
 /tmp/tmp/unix-install-vim.sh
 

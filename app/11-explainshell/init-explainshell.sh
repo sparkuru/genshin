@@ -2,7 +2,7 @@
 
 index=11
 app_name=explainshell
-url=https://raw.githubusercontent.com/shi9uma/genshin/main/app/$index-$app_name/$app_name.yml
+url=https://raw.githubusercontent.com/sparkuru/genshin/main/app/$index-$app_name/$app_name.yml
 
 create_dir() {
     if [ ! -d $1 ]; then

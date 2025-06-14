@@ -337,7 +337,7 @@ fi
 # ----------------------------------------- custom script ----------------------------------------- #
 
 # repo
-github_url_base="https://raw.githubusercontent.com/shi9uma/genshin/main"
+github_url_base="https://raw.githubusercontent.com/sparkuru/genshin/main"
 # local
 leader_path_name="cargo"
 
