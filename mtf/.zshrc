@@ -422,6 +422,8 @@ clean_history() {
 clean_docker() {
     docker rm `docker ps -a | grep Exited | awk '{ print $1 }'` > /dev/null 2>&1
     docker rmi `docker images | grep -i \<none\> | awk '{ print $3 }'` > /dev/null 2>&1
+    docker volume prune > /dev/null 2>&1
+    docker network prune > /dev/null 2>&1
 
     docker images; echo ""
     docker ps -a
@@ -711,6 +713,7 @@ fi
 
 if [[ -d "$HOME/$leader_path_name/repo/04-flyMe2theStar/03-genshin" ]]; then
     export genshin="$HOME/$leader_path_name/repo/04-flyMe2theStar/03-genshin"
+    alias genshin="cd $genshin"
 fi
 
 ## alias_anchor
@@ -732,7 +735,7 @@ alias x="curl"
 alias xi="curl -I"
 alias reg="grep -ir"
 alias zshrc="source ~/.zshrc"
-alias f="fastfetch"
 alias transfer="sd search http.favicon.hash:-620522584"
 alias random="cat /dev/urandom|head|base64|md5sum|cut -d \" \" -f 1"
+alias p="ipython3"
 ## end_alias_anchor

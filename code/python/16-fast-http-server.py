@@ -13,6 +13,7 @@ import threading
 import socket
 import time
 import atexit
+import subprocess
 from typing import List, Optional, Tuple
 from urllib.parse import unquote, quote
 import ifaddr
@@ -20,45 +21,42 @@ import signal
 
 # Global variables and constants
 DEBUG_MODE = False
-CLI_COLORS = {
-    "TITLE": 7,  # Cyan - Main title
-    "SUB_TITLE": 2,  # Red - Subtitle
-    "CONTENT": 3,  # Green - Normal content
-    "EXAMPLE": 7,  # Cyan - Example
-    "WARNING": 4,  # Yellow - Warning
-    "ERROR": 2,  # Red - Error
-    "SUCCESS": 3,  # Green - Success
-}
-
 SERVER_INSTANCE = None
 DEFAULT_PORT = 9999
 EXIT_EVENT = threading.Event()
 
 
-def color(text: str, color_code: int = 3) -> str:
-    """
-    Add color to text
-    ```python
-    color(
-        "Hello World",     # Text to color
-        CLI_COLORS["TITLE"]    # Color code, default is green
-    )
-
-    return = "\033[1;32m{}\033[0m".format(text)
-    ```
-    """
-    color_table = {
-        0: "{}",  # No color
-        1: "\033[1;30m{}\033[0m",  # Bold black
-        2: "\033[1;31m{}\033[0m",  # Bold red
-        3: "\033[1;32m{}\033[0m",  # Bold green
-        4: "\033[1;33m{}\033[0m",  # Bold yellow
-        5: "\033[1;34m{}\033[0m",  # Bold blue
-        6: "\033[1;35m{}\033[0m",  # Bold purple
-        7: "\033[1;36m{}\033[0m",  # Bold cyan
-        8: "\033[1;37m{}\033[0m",  # Bold white
+# CLI Style class
+class CLIStyle:
+    """CLI tool unified style config"""
+    
+    COLORS = {
+        "TITLE": 7,     # Cyan - Main title
+        "SUB_TITLE": 2, # Red - Subtitle
+        "CONTENT": 3,   # Green - Normal content
+        "EXAMPLE": 7,   # Cyan - Example
+        "WARNING": 4,   # Yellow - Warning
+        "ERROR": 2,     # Red - Error
+        "SUCCESS": 3,   # Green - Success
     }
-    return color_table[color_code].format(text)
+    
+    @staticmethod
+    def color(text: str = "", color: int = None) -> str:
+        """Unified color processing function"""
+        if color is None:
+            color = CLIStyle.COLORS["CONTENT"]
+        color_table = {
+            0: "{}",  # No color
+            1: "\033[1;30m{}\033[0m",  # Bold black
+            2: "\033[1;31m{}\033[0m",  # Bold red
+            3: "\033[1;32m{}\033[0m",  # Bold green
+            4: "\033[1;33m{}\033[0m",  # Bold yellow
+            5: "\033[1;34m{}\033[0m",  # Bold blue
+            6: "\033[1;35m{}\033[0m",  # Bold purple
+            7: "\033[1;36m{}\033[0m",  # Bold cyan
+            8: "\033[1;37m{}\033[0m",  # Bold white
+        }
+        return color_table[color].format(text)
 
 
 def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> None:
@@ -86,14 +84,14 @@ def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> N
     info = inspect.getframeinfo(frame)
 
     file_name = os.path.basename(info.filename)
-    output = f"{color(file_name, 3)}: {color(str(info.lineno), 4)} {color('|', 7)} "
+    output = f"{CLIStyle.color(file_name, CLIStyle.COLORS['SUCCESS'])}: {CLIStyle.color(str(info.lineno), CLIStyle.COLORS['WARNING'])} {CLIStyle.color('|', CLIStyle.COLORS['TITLE'])} "
 
     for i, arg in enumerate(args):
         arg_str = str(arg)
-        output += f"{color(arg_str, 2)} "
+        output += f"{CLIStyle.color(arg_str, CLIStyle.COLORS['SUB_TITLE'])} "
 
     for k, v in kwargs.items():
-        output += f"{color(k + '=', 6)}{color(str(v), 2)} "
+        output += f"{CLIStyle.color(k + '=', 6)}{CLIStyle.color(str(v), CLIStyle.COLORS['SUB_TITLE'])} "
 
     output += "\n"
 
@@ -107,19 +105,15 @@ def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> N
 
 
 def emergency_exit():
-    """
-    Force process termination with extreme prejudice
-    """
+    """Force process termination with extreme prejudice"""
     debug("Emergency exit called")
-    print(color("Server stopped", CLI_COLORS["SUCCESS"]))
+    print(CLIStyle.color("Server stopped", CLIStyle.COLORS["SUCCESS"]))
     # On Windows, use os._exit which doesn't clean up resources but ensures termination
     os._exit(0)
 
 
 def force_exit_after(seconds: int = 2):
-    """
-    Schedule a forced exit after specified seconds
-    """
+    """Schedule a forced exit after specified seconds"""
     debug(f"Scheduling forced exit in {seconds} seconds")
     time.sleep(seconds)
     emergency_exit()
@@ -194,7 +188,7 @@ def signal_handler(sig, frame):
     return = None
     ```
     """
-    print(color("\nShutting down server...", CLI_COLORS["WARNING"]))
+    print(CLIStyle.color("\nShutting down server...", CLIStyle.COLORS["WARNING"]))
     # Immediately start a thread that will force exit after a short delay
     threading.Thread(target=force_exit_after, args=(1,), daemon=True).start()
 
@@ -212,7 +206,141 @@ def signal_handler(sig, frame):
     emergency_exit()
 
 
-# Class definitions
+def get_process_using_port(port: int) -> Optional[Tuple[str, str]]:
+    """
+    Find process occupying specified port
+    ```python
+    get_process_using_port(
+        8080  # Port number
+    )
+
+    return = ("1234", "python server.py")  # Returns (process_id, process_command) or None
+    ```
+    """
+    try:
+        # Priority: use lsof command
+        try:
+            result = subprocess.run(
+                ["lsof", "-i", f":{port}", "-t"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                pid = result.stdout.strip().split('\n')[0]
+                # Get process command
+                cmd_result = subprocess.run(
+                    ["ps", "-p", pid, "-o", "comm="],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if cmd_result.returncode == 0:
+                    command = cmd_result.stdout.strip()
+                    return (pid, command)
+                return (pid, "unknown")
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        # Backup plan: use netstat
+        try:
+            result = subprocess.run(
+                ["netstat", "-tlnp"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if f":{port} " in line and "LISTEN" in line:
+                        parts = line.split()
+                        if len(parts) > 6 and "/" in parts[6]:
+                            pid_info = parts[6].split("/")
+                            if len(pid_info) >= 2:
+                                return (pid_info[0], pid_info[1])
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        # Last resort: use ss command
+        try:
+            result = subprocess.run(
+                ["ss", "-tlnp", f"sport = :{port}"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                for line in result.stdout.split('\n'):
+                    if f":{port} " in line:
+                        if "users:" in line:
+                            # Parse ss output format
+                            users_part = line.split("users:")[1]
+                            if "pid=" in users_part:
+                                pid = users_part.split("pid=")[1].split(",")[0].split(")")[0]
+                                if "\"" in users_part:
+                                    command = users_part.split("\"")[1]
+                                    return (pid, command)
+                                return (pid, "unknown")
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+            
+    except Exception as e:
+        debug("Error finding process using port", error=str(e))
+    
+    return None
+
+
+def kill_process_by_pid(pid: str) -> bool:
+    """
+    Force terminate process by specified PID
+    ```python
+    kill_process_by_pid(
+        "1234"  # Process ID
+    )
+
+    return = True  # Returns whether process termination was successful
+    ```
+    """
+    try:
+        # First attempt graceful termination
+        result = subprocess.run(
+            ["kill", pid],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        # Wait a moment to see if process ends
+        time.sleep(1)
+        
+        # Check if process still exists
+        check_result = subprocess.run(
+            ["kill", "-0", pid],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        if check_result.returncode != 0:
+            # Process no longer exists
+            return True
+        
+        # If process still exists, force terminate
+        force_result = subprocess.run(
+            ["kill", "-9", pid],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        return force_result.returncode == 0
+        
+    except Exception as e:
+        debug("Error killing process", pid=pid, error=str(e))
+        return False
+
+
+# Custom argument parser for consistent CLI style
 class ColoredArgumentParser(argparse.ArgumentParser):
     """Unified command line argument parser"""
 
@@ -225,7 +353,7 @@ class ColoredArgumentParser(argparse.ArgumentParser):
             if action.nargs == 0:
                 parts.extend(
                     map(
-                        lambda x: color(x, CLI_COLORS["SUB_TITLE"]),
+                        lambda x: CLIStyle.color(x, CLIStyle.COLORS["SUB_TITLE"]),
                         action.option_strings,
                     )
                 )
@@ -234,9 +362,9 @@ class ColoredArgumentParser(argparse.ArgumentParser):
                 args_string = self._format_args(action, default)
                 for option_string in action.option_strings:
                     parts.append(
-                        color(
+                        CLIStyle.color(
                             f"{option_string} {args_string}",
-                            CLI_COLORS["SUB_TITLE"],
+                            CLIStyle.COLORS["SUB_TITLE"],
                         )
                     )
             return ", ".join(parts)
@@ -246,13 +374,13 @@ class ColoredArgumentParser(argparse.ArgumentParser):
 
         # Add description
         if self.description:
-            formatter.add_text(color(self.description, CLI_COLORS["TITLE"]))
+            formatter.add_text(CLIStyle.color(self.description, CLIStyle.COLORS["TITLE"]))
 
         # Add usage
         formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
 
         # Add argument groups
-        formatter.add_text(color("\nOptional Arguments:", CLI_COLORS["TITLE"]))
+        formatter.add_text(CLIStyle.color("\nOptional Arguments:", CLIStyle.COLORS["TITLE"]))
         for action_group in self._action_groups:
             formatter.start_section(action_group.title)
             formatter.add_arguments(action_group._group_actions)
@@ -504,17 +632,17 @@ def create_example_text(
     return = "formatted text with examples and notes"
     ```
     """
-    text = f"\n{color('Examples:', CLI_COLORS['SUB_TITLE'])}"
+    text = f"\n{CLIStyle.color('Examples:', CLIStyle.COLORS['SUB_TITLE'])}"
 
     for desc, cmd in examples:
-        text += f"\n  {color(f'# {desc}', CLI_COLORS['EXAMPLE'])}"
-        text += f"\n  {color(f'{script_name} {cmd}', CLI_COLORS['CONTENT'])}"
+        text += f"\n  {CLIStyle.color(f'# {desc}', CLIStyle.COLORS['EXAMPLE'])}"
+        text += f"\n  {CLIStyle.color(f'{script_name} {cmd}', CLIStyle.COLORS['CONTENT'])}"
         text += "\n"
 
     if notes:
-        text += f"\n{color('Notes:', CLI_COLORS['SUB_TITLE'])}"
+        text += f"\n{CLIStyle.color('Notes:', CLIStyle.COLORS['SUB_TITLE'])}"
         for note in notes:
-            text += f"\n  {color(f'- {note}', CLI_COLORS['CONTENT'])}"
+            text += f"\n  {CLIStyle.color(f'- {note}', CLIStyle.COLORS['CONTENT'])}"
 
     return text
 
@@ -551,18 +679,18 @@ def display_server_info(ips: List[str], port: int) -> None:
     ```
     """
     print(divider("Server Information", 60, "="))
-    print(f"Server started at port: {color(str(port), CLI_COLORS['CONTENT'])}")
+    print(f"Server started at port: {CLIStyle.color(str(port), CLIStyle.COLORS['CONTENT'])}")
     if ips:
         print("Available URLs:")
         for ip in ips:
             url = f"http://{ip}:{port}"
-            print(f"  {color(url, CLI_COLORS['CONTENT'])}")
-        print(f"  {color(f'http://localhost:{port}', CLI_COLORS['CONTENT'])}")
+            print(f"  {CLIStyle.color(url, CLIStyle.COLORS['CONTENT'])}")
+        print(f"  {CLIStyle.color(f'http://localhost:{port}', CLIStyle.COLORS['CONTENT'])}")
     else:
-        print(f"{color('No network interfaces found. Try:', CLI_COLORS['WARNING'])}")
-        print(f"  {color(f'http://localhost:{port}', CLI_COLORS['CONTENT'])}")
+        print(f"{CLIStyle.color('No network interfaces found. Try:', CLIStyle.COLORS['WARNING'])}")
+        print(f"  {CLIStyle.color(f'http://localhost:{port}', CLIStyle.COLORS['CONTENT'])}")
     print(divider("", 60, "="))
-    print(f"Press {color('Ctrl+C', CLI_COLORS['WARNING'])} to stop server\n")
+    print(f"Press {CLIStyle.color('Ctrl+C', CLIStyle.COLORS['WARNING'])} to stop server\n")
 
 
 def main() -> None:
@@ -584,10 +712,11 @@ def main() -> None:
         "Uploads are allowed by default",
         "Use a browser to access the server and view/upload files",
         "Debug mode shows detailed logs for troubleshooting",
+        "When port is occupied, you can choose to force close the process or use alternative port",
     ]
 
     parser = ColoredArgumentParser(
-        description=color("Fast HTTP File Server", CLI_COLORS["TITLE"]),
+        description=CLIStyle.color("Fast HTTP File Server", CLIStyle.COLORS["TITLE"]),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=create_example_text(script_name, examples, notes),
     )
@@ -613,30 +742,65 @@ def main() -> None:
     DEBUG_MODE = args.debug
 
     if DEBUG_MODE:
-        print(color("Debug mode enabled", CLI_COLORS["WARNING"]))
+        print(CLIStyle.color("Debug mode enabled", CLIStyle.COLORS["WARNING"]))
         debug("Starting server", port=args.port)
 
     # Check if port is available
     if not safe_port_check(args.port):
-        print(color(f"Error: Port {args.port} is already in use!", CLI_COLORS["ERROR"]))
-        port_suggestion = args.port + 1
-        while not safe_port_check(port_suggestion) and port_suggestion < args.port + 10:
-            port_suggestion += 1
-
-        if safe_port_check(port_suggestion):
-            print(
-                color(
-                    f"Try using port {port_suggestion} instead.", CLI_COLORS["CONTENT"]
-                )
-            )
-            if confirm_action("Would you like to use this port instead?"):
-                args.port = port_suggestion
+        print(CLIStyle.color(f"Error: Port {args.port} is already in use!", CLIStyle.COLORS["ERROR"]))
+        
+        # Find process occupying the port
+        process_info = get_process_using_port(args.port)
+        if process_info:
+            pid, command = process_info
+            print(CLIStyle.color(f"Occupying process: PID {pid} - {command}", CLIStyle.COLORS["WARNING"]))
+            
+            # Ask whether to force close the occupying process
+            if confirm_action("Force close the process occupying this port?"):
+                print(CLIStyle.color("Attempting to close process...", CLIStyle.COLORS["CONTENT"]))
+                if kill_process_by_pid(pid):
+                    print(CLIStyle.color(f"Process {pid} successfully closed", CLIStyle.COLORS["SUCCESS"]))
+                    
+                    # Wait a moment to ensure port is released
+                    time.sleep(1)
+                    
+                    # Check port again
+                    if safe_port_check(args.port):
+                        print(CLIStyle.color(f"Port {args.port} is now available", CLIStyle.COLORS["SUCCESS"]))
+                    else:
+                        print(CLIStyle.color("Port still occupied, may need more time to release", CLIStyle.COLORS["WARNING"]))
+                        time.sleep(2)
+                        if not safe_port_check(args.port):
+                            print(CLIStyle.color("Port release failed, will suggest using alternative port", CLIStyle.COLORS["ERROR"]))
+                        else:
+                            print(CLIStyle.color(f"Port {args.port} is now available", CLIStyle.COLORS["SUCCESS"]))
+                else:
+                    print(CLIStyle.color(f"Unable to close process {pid}, may lack permissions", CLIStyle.COLORS["ERROR"]))
             else:
-                print(color("Server startup aborted", CLI_COLORS["ERROR"]))
-                return
+                print(CLIStyle.color("User chose not to close the occupying process", CLIStyle.COLORS["CONTENT"]))
         else:
-            print(color("Server startup aborted", CLI_COLORS["ERROR"]))
-            return
+            print(CLIStyle.color("Unable to determine process occupying the port", CLIStyle.COLORS["WARNING"]))
+        
+        # If port is still unavailable, suggest using alternative port
+        if not safe_port_check(args.port):
+            port_suggestion = args.port + 1
+            while not safe_port_check(port_suggestion) and port_suggestion < args.port + 10:
+                port_suggestion += 1
+
+            if safe_port_check(port_suggestion):
+                print(
+                    CLIStyle.color(
+                        f"Suggest using port {port_suggestion} instead", CLIStyle.COLORS["CONTENT"]
+                    )
+                )
+                if confirm_action("Would you like to use the suggested port?"):
+                    args.port = port_suggestion
+                else:
+                    print(CLIStyle.color("Server startup cancelled", CLIStyle.COLORS["ERROR"]))
+                    return
+            else:
+                print(CLIStyle.color("Server startup cancelled", CLIStyle.COLORS["ERROR"]))
+                return
 
     # Get all available IP addresses
     ips = get_all_ips()
@@ -648,7 +812,7 @@ def main() -> None:
 
         # Register atexit handler before starting server
         atexit.register(
-            lambda: print(color("Server fully stopped", CLI_COLORS["SUCCESS"]))
+            lambda: print(CLIStyle.color("Server fully stopped", CLIStyle.COLORS["SUCCESS"]))
         )
 
         # Create server
@@ -668,7 +832,7 @@ def main() -> None:
             import webbrowser
 
             url = f"http://localhost:{args.port}"
-            print(color(f"Opening browser at {url}", CLI_COLORS["CONTENT"]))
+            print(CLIStyle.color(f"Opening browser at {url}", CLIStyle.COLORS["CONTENT"]))
             webbrowser.open(url)
 
         # The main thread now just waits - signal handler will handle Ctrl+C
@@ -678,12 +842,12 @@ def main() -> None:
                 time.sleep(0.05)
         except KeyboardInterrupt:
             # Direct handling of keyboard interrupt
-            print(color("\nShutting down server directly...", CLI_COLORS["WARNING"]))
+            print(CLIStyle.color("\nShutting down server directly...", CLIStyle.COLORS["WARNING"]))
             emergency_exit()
 
     except Exception as e:
         debug("Server error", error=str(e))
-        print(color(f"Error: {str(e)}", CLI_COLORS["ERROR"]))
+        print(CLIStyle.color(f"Error: {str(e)}", CLIStyle.COLORS["ERROR"]))
         if DEBUG_MODE:
             import traceback
 
