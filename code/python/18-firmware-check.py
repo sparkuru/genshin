@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # pip install argparse
-# refer thanks: https://github.com/craigz28/firmwalker.git
+# refer thanks to: https://github.com/craigz28/firmwalker.git
 
 import os
 import sys
@@ -14,6 +14,53 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 import argparse
+
+# patterns
+password_patterns = ["passwd", "shadow", "*.psk"]
+ssl_patterns = ["*.crt", "*.pem", "*.cer", "*.p7b", "*.p12", "*.key"]
+ssh_patterns = ["*ssh*", "*rsa*", "*dsa*", "authorized_keys", "known_hosts"]
+config_patterns = ["*.conf", "*.cfg", "*.ini", "*.xml"]
+db_patterns = ["*.db", "*.sqlite", "*.sql"]
+script_patterns = ["*.sh", "*.py", "*.pl", "*.php"]
+binary_patterns = ["*.bin"]
+important_binaries = [
+    "ssh",
+    "sshd",
+    "scp",
+    "sftp",
+    "tftp",
+    "dropbear",
+    "busybox",
+    "telnet",
+    "telnetd",
+    "openssl",
+]
+webserver_patterns = ["httpd", "nginx", "apache", "lighttpd", "thttpd"]
+sensitive_patterns = [
+    "upgrade",
+    "admin",
+    "root",
+    "password",
+    "passwd",
+    "pwd",
+    "dropbear",
+    "ssl",
+    "private key",
+    "telnet",
+    "secret",
+    "pgp",
+    "gpg",
+    "token",
+    "api key",
+    "oauth",
+]
+ip_regex = [
+    r"\b(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b"
+]
+url_regex = [r'(http|https)://[^/"]+']
+email_regex = [r"([[:alnum:]_.-]+@[[:alnum:]_.-]+?\.[[:alpha:].]{2,6})"]
+important_dirs = ["etc/ssl", "etc", "var", "tmp"]
+
 
 # Global debug level
 DEBUG_MODE = False
@@ -678,7 +725,7 @@ class FirmwareSecurityScanner:
         debug("Initializing default scanners")
 
         # Password files scanner
-        password_patterns = ["passwd", "shadow", "*.psk"]
+
         self.add_scanner(
             FilePatternScanner(
                 "Password Files", password_patterns, "Search for password related files"
@@ -686,7 +733,7 @@ class FirmwareSecurityScanner:
         )
 
         # SSL files scanner
-        ssl_patterns = ["*.crt", "*.pem", "*.cer", "*.p7b", "*.p12", "*.key"]
+
         self.add_scanner(
             FilePatternScanner(
                 "SSL Files", ssl_patterns, "Search for SSL related files"
@@ -694,7 +741,7 @@ class FirmwareSecurityScanner:
         )
 
         # SSH files scanner
-        ssh_patterns = ["*ssh*", "*rsa*", "*dsa*", "authorized_keys", "known_hosts"]
+
         self.add_scanner(
             FilePatternScanner(
                 "SSH Files", ssh_patterns, "Search for SSH related files"
@@ -702,7 +749,6 @@ class FirmwareSecurityScanner:
         )
 
         # Configuration files scanner
-        config_patterns = ["*.conf", "*.cfg", "*.ini", "*.xml"]
         self.add_scanner(
             FilePatternScanner(
                 "Config Files", config_patterns, "Search for configuration files"
@@ -710,7 +756,6 @@ class FirmwareSecurityScanner:
         )
 
         # Database files scanner
-        db_patterns = ["*.db", "*.sqlite", "*.sql"]
         self.add_scanner(
             FilePatternScanner(
                 "Database Files", db_patterns, "Search for database files"
@@ -718,7 +763,6 @@ class FirmwareSecurityScanner:
         )
 
         # Script files scanner
-        script_patterns = ["*.sh", "*.py", "*.pl", "*.php"]
         self.add_scanner(
             FilePatternScanner(
                 "Script Files", script_patterns, "Search for script files"
@@ -726,24 +770,12 @@ class FirmwareSecurityScanner:
         )
 
         # Binary files scanner
-        binary_patterns = ["*.bin"]
         self.add_scanner(
             FilePatternScanner("Binary Files", binary_patterns, "Search for .bin files")
         )
 
         # Important binaries scanner
-        important_binaries = [
-            "ssh",
-            "sshd",
-            "scp",
-            "sftp",
-            "tftp",
-            "dropbear",
-            "busybox",
-            "telnet",
-            "telnetd",
-            "openssl",
-        ]
+
         self.add_scanner(
             FilePatternScanner(
                 "Important Binaries",
@@ -753,7 +785,6 @@ class FirmwareSecurityScanner:
         )
 
         # Web servers scanner
-        webserver_patterns = ["httpd", "nginx", "apache", "lighttpd", "thttpd"]
         self.add_scanner(
             FilePatternScanner(
                 "Web Servers", webserver_patterns, "Search for web servers"
@@ -761,24 +792,7 @@ class FirmwareSecurityScanner:
         )
 
         # Sensitive keywords scanner
-        sensitive_patterns = [
-            "upgrade",
-            "admin",
-            "root",
-            "password",
-            "passwd",
-            "pwd",
-            "dropbear",
-            "ssl",
-            "private key",
-            "telnet",
-            "secret",
-            "pgp",
-            "gpg",
-            "token",
-            "api key",
-            "oauth",
-        ]
+
         self.add_scanner(
             ContentPatternScanner(
                 "Sensitive Keywords",
@@ -788,19 +802,15 @@ class FirmwareSecurityScanner:
         )
 
         # IP addresses scanner
-        ip_regex = [
-            r"\b(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b"
-        ]
+
         self.add_scanner(
             RegexScanner("IP Addresses", ip_regex, "Search for IP addresses")
         )
 
         # URLs scanner
-        url_regex = [r'(http|https)://[^/"]+']
         self.add_scanner(RegexScanner("URLs", url_regex, "Search for URLs"))
 
         # Email addresses scanner
-        email_regex = [r"([[:alnum:]_.-]+@[[:alnum:]_.-]+?\.[[:alpha:].]{2,6})"]
         self.add_scanner(
             RegexScanner("Email Addresses", email_regex, "Search for email addresses")
         )
@@ -812,7 +822,6 @@ class FirmwareSecurityScanner:
         self.add_scanner(SSLCertificateScanner())
 
         # Directory scanner
-        important_dirs = ["etc/ssl", "etc", "var", "tmp"]
         self.add_scanner(DirectoryScanner(important_dirs))
 
         debug("Default scanners initialized", scanner_count=len(self.scanners))

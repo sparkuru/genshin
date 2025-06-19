@@ -1,0 +1,46 @@
+# refer to https://github.com/metacubex/metacubexd/blob/main/Dockerfile
+
+ARG WEB_PORT=8080
+
+# builder
+FROM docker.io/node:alpine AS builder
+
+ENV HUSKY=0
+ENV TZ=Asia/Shanghai
+ENV WEB_PORT=${WEB_PORT}
+
+RUN apk add --no-cache git curl
+
+RUN mkdir -p /repo /build
+WORKDIR /build
+RUN git clone https://github.com/metacubex/metacubexd.git /repo
+RUN mv /repo/* /build/
+
+RUN corepack enable
+RUN corepack prepare pnpm@latest --activate
+RUN pnpm install
+RUN pnpm build
+
+# caddy
+FROM docker.io/caddy:alpine
+
+WORKDIR /srv
+
+COPY --from=builder /build/dist/. .
+RUN printf ":\${WEB_PORT} {\n\
+    file_server\n\n\
+    root * .\n\n\
+    try_files {path} /index.html\n}" > caddyfile.template
+RUN envsubst < caddyfile.template > caddyfile
+
+RUN printf "#!/bin/sh\n\
+    if [ -z $WEB_PORT ]; then\n\
+        export WEB_PORT=${WEB_PORT}\n\
+    fi\n\
+    envsubst < /srv/caddyfile.template > /srv/caddyfile\n\
+    caddy run --config /srv/caddyfile" > run.sh
+RUN chmod +x run.sh
+
+RUN envsubst < /run.sh > /srv/run.sh
+
+CMD ["./run.sh"]
