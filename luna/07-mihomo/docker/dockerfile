@@ -2,8 +2,11 @@
 
 ARG WEB_PORT=8080
 
+# mihomo
+FROM metacubex/mihomo:latest AS mihomo
+
 # builder
-FROM docker.io/node:alpine AS builder
+FROM docker.io/node:alpine AS web_builder
 
 ENV HUSKY=0
 ENV TZ=Asia/Shanghai
@@ -26,17 +29,25 @@ FROM docker.io/caddy:alpine
 
 WORKDIR /srv
 
-COPY --from=builder /build/dist/. .
+COPY --from=mihomo /mihomo ./mihomo
+COPY --from=web_builder /build/dist/. .
+
+RUN apk add --no-cache envsubst
+
 RUN printf ":\${WEB_PORT} {\n\
     file_server\n\n\
     root * .\n\n\
     try_files {path} /index.html\n}" > caddyfile.template
 RUN envsubst < caddyfile.template > caddyfile
 
-RUN printf "#!/bin/sh\n\
+RUN printf "#!/bin/sh\n\n\
+    /srv/mihomo &\n\n\
+    if [ ! -f /root/.config/mihomo/config.yaml ]; then\n\
+        echo 'place your config.yaml file in /root/.config/mihomo/config.yaml'\n\
+    fi\n\n\
     if [ -z $WEB_PORT ]; then\n\
         export WEB_PORT=${WEB_PORT}\n\
-    fi\n\
+    fi\n\n\
     envsubst < /srv/caddyfile.template > /srv/caddyfile\n\
     caddy run --config /srv/caddyfile" > run.sh
 RUN chmod +x run.sh

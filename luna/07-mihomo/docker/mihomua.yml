@@ -1,0 +1,18 @@
+services:
+  mihomua:
+    image: mihomua:v1
+    container_name: mihomua
+    # network_mode: host
+    environment:
+      - TZ=Asia/Shanghai
+      - WEB_PORT=7894
+    ports:
+      - "1081:1081" # set your port here
+      - "7894:7894"
+    volumes:
+      - ./config:/root/.config/mihomo
+    restart: always
+
+networks:
+  default:
+    name: mihomua-network
