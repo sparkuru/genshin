@@ -7,7 +7,8 @@ services:
       - TZ=Asia/Shanghai
       - WEB_PORT=7894
     ports:
-      - "1081:1081" # set your port here
+      - "1080:1080" # set your port here
+      - "7893:7893" # set your external controller port here
       - "7894:7894"
     volumes:
       - ./config:/root/.config/mihomo
