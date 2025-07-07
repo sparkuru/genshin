@@ -1,0 +1,164 @@
+{
+    "工具集": [
+        {
+            "参考文档": [
+                {
+                    "pwn-exploit": [
+                        "pwn-syntax.py",
+                        "pwn-exp-template.py",
+                        "pwn-bof-template.py",
+                        "pwn-head-template.py"
+                    ]
+                },
+                {
+                    "payload": [
+                        "马.md",
+                        "反弹 shell.md",
+                        "brute.md"
+                    ]
+                },
+                {
+                    "密码本": [
+                        "seclist.tar",
+                        "其他密码本.txt"
+                    ]
+                },
+                "linux 指令常用参考手册.md",
+                "windows cmd 常用参考手册.md"
+            ]
+        },
+        {
+            "软件项": [
+                {
+                    "driver": [
+                        {
+                            "linux": [
+                                "CAN",
+                                "rs232",
+                                "rs485",
+                                "rs422",
+                                "arinc 429",
+                                "1553"
+                            ]
+                        },
+                        {
+                            "windows": [
+                                "CAN",
+                                "rs232",
+                                "rs485",
+                                "rs422",
+                                "arinc 429",
+                                "1553"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "linux": [
+                        {
+                            "vscode": [
+                                "code-amd64.deb",
+                                "vscode-config.tar",
+                                "extension.tar"
+                            ]
+                        },
+                        {
+                            "deb": [
+                                "linux-headers.tar",
+                                "build-essential.tar",
+                                "python-3.11.tar",
+                                "python-venv.tar",
+                                "docker.tar",
+                                "docker-compose.tar",
+                                "tmux.tar",
+                                "gdb.tar",
+                                "zsh.tar"
+                            ]
+                        },
+                        {
+                            "fonts": [
+                                "OTF",
+                                "TTF",
+                                "windows",
+                                "encodings"
+                            ]
+                        },
+                        {
+                            "pip": [
+                                "argparse.whl"
+                            ]
+                        },
+                        {
+                            "third-party": [
+                                "ghidra-public.zip"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "windows": [
+                        "7z-x64.exe",
+                        "fscan.exe",
+                        "geek.exe",
+                        "notepad4-zh-hans.zip",
+                        "snipaste-x64.zip",
+                        "x96dbg.zip"
+                    ]
+                }
+            ]
+        },
+        {
+            "docker": [
+                {
+                    "cyberchef": [
+                        "cyberchef.tar",
+                        "cyberchef.yml"
+                    ]
+                },
+                {
+                    "drawio": [
+                        "drawio.tar",
+                        "drawio.yml"
+                    ]
+                },
+                {
+                    "reference": [
+                        "reference.tar",
+                        "reference.yml"
+                    ]
+                },
+                {
+                    "transfers": [
+                        "transfers.tar",
+                        "transfers.yml"
+                    ]
+                },
+                {
+                    "unblob": [
+                        "unblob.tar",
+                        "unblob.yml",
+                        "unblob.sh"
+                    ]
+                }
+            ]
+        },
+        {
+            "diy": [
+                "unix-install-vim.sh",
+                "windows-vimrc",
+                "zshrc"
+            ]
+        },
+        {
+            "虚拟机": [
+                {
+                    "kali": {}
+                },
+                {
+                    "windows": {}
+                }
+            ]
+        },
+        "README.md"
+    ]
+}
