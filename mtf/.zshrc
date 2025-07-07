@@ -446,22 +446,44 @@ update_zshrc() {
 
 find_path() {
     current_dir=$(pwd)
+
+    while getopts "fh" opt; do
+        case ${opt} in
+            f )
+                fuzzy_match=true
+                ;;
+            h )
+                echo "Usage: ${GREEN}find_path [-f for fuzzy match] [target_path_name]${NC}"
+                return 0
+                ;;
+        esac
+    done
+
+    shift $((OPTIND-1))
+    
 	if [ $# -eq 1 ]; then
 		target_dir_name=$1
-	else
-		target_dir_name="$leader_path_name"
 	fi
 
     while [[ "$current_dir" != "/" ]]; do
         base_name=$(basename "$current_dir")
-        if [[ "$base_name" == "$target_dir_name" ]]; then
-            echo "$current_dir"
-            return 0
+
+        if [[ "$fuzzy_match" == true ]]; then
+            if [[ "$base_name" == *"$target_dir_name"* ]]; then
+                echo "$current_dir"
+                OPTIND=1
+                return 0
+            fi
+        else
+            if [[ "$base_name" == "$target_dir_name" ]]; then
+                echo "$current_dir"
+                return 0
+            fi
         fi
         current_dir=$(dirname "$current_dir")
     done
 
-    echo -e "${RED}Error: $target_dir_name directory not found${nc}"
+    echo -e "${RED}Error: ${GREEN}$target_dir_name${RED} directory not found${NC}"
     return 1
 }
 
