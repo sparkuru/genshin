@@ -91,12 +91,14 @@ if [ -n "$force_color_prompt" ]; then
     fi
 fi
 
-configure_prompt() {
-    # prompt_symbol=[/_\\]
+configure_prompt() {    
+
     prompt_symbol="(.ᗜ ᴗ ᗜ.)"
-    # Skull emoji for root terminal
-    #[ "$EUID" -eq 0 ] && prompt_symbol=💀
-    
+
+    if [ "$is_incognito" ]; then
+        prompt_symbol="%F{red}$prompt_symbol！%F{%(#.red.blue)}"
+    fi
+
     git_prompt() {
         command -v git >/dev/null 2>&1 || return
         
@@ -498,6 +500,24 @@ exp() {
         dolphin "$@" &>/dev/null &
     fi
     return 0
+}
+
+sm() {
+
+    echo "${RED}enter incognito mode, type ${GREEN}'xsm'${RED} to exit incognito mode${NC}"
+    
+    export is_incognito=1
+    source ~/.zshrc
+    fc -p /dev/null 0 0
+
+    xsm() {
+        echo "${RED}exit incognito mode${NC}"
+
+        unset is_incognito
+        source ~/.zshrc
+
+        fc -P
+    }
 }
 
 ## base on custom script, python, shellscript, etc.
