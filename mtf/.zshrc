@@ -504,14 +504,21 @@ exp() {
 
 sm() {
 
-    echo "${RED}enter incognito mode, type ${GREEN}'xsm'${RED} to exit incognito mode${NC}"
-    
     export is_incognito=1
     source ~/.zshrc
     fc -p /dev/null 0 0
 
+    incognito_precmd() {
+        echo "${RED}incognito mode, type ${GREEN}xsm${RED} to exit.${NC}"
+    }
+
+    precmd_functions+=(incognito_precmd)
+
     xsm() {
-        echo "${RED}exit incognito mode${NC}"
+
+        echo "${RED}exit incognito mode.${NC}"
+
+        precmd_functions=(${precmd_functions[@]/incognito_precmd})
 
         unset is_incognito
         source ~/.zshrc
