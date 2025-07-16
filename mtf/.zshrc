@@ -646,17 +646,17 @@ sd() {
     python3 $sd_path "$@"
 }
 
-fast_http_server() {
-    this_script_path="code/python/16-fast-http-server.py"
+hftp() {
+    this_script_path="code/python/16-xftp.py"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        fast_http_server_path="$local_repo_path/$this_script_path"
+        xftp_path="$local_repo_path/$this_script_path"
     else
-        fast_http_server_path="$HOME/.genshin/fast-http-server.py"
-        if [[ ! -f $fast_http_server_path ]]; then
-            _curl $fast_http_server_path $github_url_base/$this_script_path
+        xftp_path="$HOME/.genshin/xftp.py"
+        if [[ ! -f $xftp_path ]]; then
+            _curl $xftp_path $github_url_base/$this_script_path
         fi
     fi
-    python3 $fast_http_server_path "$@"
+    python3 $xftp_path "$@"
 }
 
 encrypt() {
