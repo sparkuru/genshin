@@ -1,10 +1,11 @@
-#/usr/bin/env zsh
+#!/bin/bash
 
 if [ "$(id -u)" -ne 0 ]; then
 	echo "\033[0;31mrerun "$0" with sudo\033[0m"
 	exit 1
 fi
 
+USERNAME="wkyuu"
 PROXY_POINT="http://198.18.0.1:1080"
 GITHUB_URL_BASE="https://raw.githubusercontent.com/sparkuru/genshin/main"
 export all_proxy="$PROXY_POINT"
@@ -32,60 +33,51 @@ deb-src https://mirrors.ustc.edu.cn/kali kali-rolling main non-free non-free-fir
 EOF
 
 apt update
-# apt remove -y libpython3.11-minimal libpython3.11-stdlib python3.11 python3.11-minimal
-apt install -y \
-    ack usbtils antlr3 aria2 asciidoc autoconf automake autopoint \
-	binutils bison build-essential bzip2 \
-	ccache cmake cpio curl \
-	device-tree-compiler \
-	fastjar flex \
-	gawk gettext gcc-multilib g++-multilib gdb-multiarch gperf \
-	haveged help2man \
-	gnupg2 intltool \
-	libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libncurses-dev libpython3-dev \
-	libmpfr-dev libc6-dbg libncurses5-dev libncursesw5-dev libreadline-dev libssl-dev libffi-dev libtool lrzsz \
-    make module-assistant mkisofs msmtp \
-	ninja-build \
-	p7zip p7zip-full \
-	patch pkgconf python2.7 python3-pip \
-    software-properties-common zlib1g-dev
+apt install -y autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd
+apt install -y g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
+apt install -y libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg
+apt install -y git asciidoc pandoc
+apt install -y ack fd-find fzf ripgrep
+apt install -y btop iftop aria2 sshpass telnet
+apt install -y docker-compose virt-manager qemu-system qemu-user-static bridge-utils
+apt install -y fcitx5 fcitx5-chinese-addons
+apt install -y filezilla okteta putty picocom
+apt install -y upx p7zip p7zip-full
+apt install -y gnupg2 patchelf
+apt install -y python3-ropgadget strace
+apt install -y osdlyrics winetricks
+apt install -y genisoimage device-tree-compiler
+apt install -y antlr3 antlr4 swig
+apt install -y debsums msmtp
+apt install -y python-is-python3
 
-if [[ -f "/usr/lib/python3.12/EXTERNALLY-MANAGED" ]]; then
-	mv /usr/lib/python3.12/EXTERNALLY-MANAGED /usr/lib/python3.12/EXTERNALLY-MANAGED.backup
+python_version=$(python3 --version | awk '{print $2}' | awk -F. '{print "python"$1"."$2}')
+if [[ -f "/usr/lib/${python_version}/EXTERNALLY-MANAGED" ]]; then
+	mv /usr/lib/${python_version}/EXTERNALLY-MANAGED /usr/lib/${python_version}/EXTERNALLY-MANAGED.backup
 fi
 
-apt install -y \
-	aptitude \
-	locales iproute2 net-tools iftop curl openvpn rsync proxychains4 jq traceroute \
-	file fd-find xxd btop tmux strace last coreutils \
-	scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip git ntfs-3g \
-	qemu-user-static qemu-system qemu-utils bridge-utils \
-	python3-pip python3-venv python3-shodan python3-ropgadget \
-	fzf ripgrep vim \
-	docker.io docker-compose \
-	gdb gdbserver ghidra rizin radare2 patchelf \
-	nmap hydra john telnet \
-	rkhunter chkrootkit debsums
-
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs npm && \
-npm install -g npm@latest --registry=https://registry.npmmirror.com && \
-npm install cnpm -g --registry=https://registry.npmmirror.com && \
-cnpm install -g pm2
+require_version="20.0.0"
+if [ $(echo -e "$require_version\n$(nodejs -v | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')" | sort -V | head -1) != "$require_version" ]; then
+	curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs npm && \
+	npm install -g npm@latest --registry=https://registry.npmmirror.com && \
+	npm install cnpm -g --registry=https://registry.npmmirror.com && \
+	cnpm install -g pm2
+fi
 
 apt purge needrestart -y
 apt autoremove -y
 
 ln -s /usr/bin/fdfind /usr/bin/fd
-ln -s /usr/bin/python3 /usr/bin/python
 
 # docker
-usermod -aG docker wkyuu
+groups="docker,netdev,libvirt,dialout"
+usermod -aG $groups $USERNAME
 mkdir /etc/systemd/system/docker.service.d
 cat << EOF > /etc/systemd/system/docker.service.d/proxy.conf
 [Service]
-Environment="HTTP_PROXY=http://127.0.0.1:7890"
-Environment="HTTPS_PROXY=http://127.0.0.1:7890"
-Environment="NO_PROXY=localhost,127.0.0.1"
+Environment="HTTP_PROXY=http://198.18.0.1:7890"
+Environment="HTTPS_PROXY=http://198.18.0.1:7890"
+Environment="NO_PROXY=localhost,198.18.0.1"
 EOF
 
 # python
@@ -121,21 +113,12 @@ chmod +x /tmp/tmp/unix-install-vim.sh
 /tmp/tmp/unix-install-vim.sh
 
 # dir
-USER="wkyuu"
-
-HOME_DIR_PATH="/home"
+HOME_DIR_PATH="/home/$USERNAME/cargo"
 APP_DIR_PATH="$HOME_DIR_PATH/app"
-# GAME_DIR_PATH="$HOME_DIR_PATH/game"
 REPO_DIR_PATH="$HOME_DIR_PATH/repo"
 SERVER_DIR_PATH="$HOME_DIR_PATH/server"
 
-mkdir -p $APP_DIR_PATH $GAME_DIR_PATH $REPO_DIR_PATH $SERVER_DIR_PATH
-
-## app
-mkdir -p \
-	$APP_DIR_PATH/carbonyl \
-	$APP_DIR_PATH/frp \
-	$APP_DIR_PATH/java
+mkdir -p $APP_DIR_PATH $REPO_DIR_PATH $SERVER_DIR_PATH
 
 # pwn
 PWN_DIR_PATH="$APP_DIR_PATH/pwn"
@@ -147,4 +130,4 @@ mkdir -p $PWN_DIR_PATH $PWNDBG_DIR_PATH $PWNDBG_REPO_DIR_PATH
 git clone https://github.com/pwndbg/pwndbg.git $PWNDBG_REPO_DIR_PATH
 cd $PWNDBG_REPO_DIR_PATH && chmod +x ./setup.sh && all_proxy="$PROXY_POINT" ./setup.sh
 
-chown -R $USER:$USER $HOME_DIR_PATH
+chown -R $USERNAME:$USERNAME $HOME_DIR_PATH
