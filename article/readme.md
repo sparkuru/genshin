@@ -1,6 +1,9 @@
 # URL tmp
 
-[edit](https://md.majo.im/o_fcUj3dTfuYz2OY_0_3Dw)，[release](https://md.majo.im/s/oTCRzkZDx)
+## dev
+
+1. rust，https://rust-exercises.com/100-exercises-to-learn-rust.pdf
+2. 
 
 ## url
 

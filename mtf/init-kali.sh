@@ -38,18 +38,17 @@ apt install -y g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-a
 apt install -y libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg
 apt install -y git asciidoc pandoc
 apt install -y ack fd-find fzf ripgrep
-apt install -y btop iftop aria2 sshpass telnet
+apt install -y btop iftop inotify-tools aria2 sshpass telnet
 apt install -y docker-compose virt-manager qemu-system qemu-user-static bridge-utils
 apt install -y fcitx5 fcitx5-chinese-addons
 apt install -y filezilla okteta putty picocom
 apt install -y upx p7zip p7zip-full
 apt install -y gnupg2 patchelf
 apt install -y python3-ropgadget strace
-apt install -y osdlyrics winetricks
+apt install -y osdlyrics winetricks k3b
 apt install -y genisoimage device-tree-compiler
 apt install -y antlr3 antlr4 swig
 apt install -y debsums msmtp
-apt install -y python-is-python3
 
 python_version=$(python3 --version | awk '{print $2}' | awk -F. '{print "python"$1"."$2}')
 if [[ -f "/usr/lib/${python_version}/EXTERNALLY-MANAGED" ]]; then
