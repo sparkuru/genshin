@@ -376,7 +376,7 @@ cmd() {
 
 tmp() {
     DEFAULT_DIR='/tmp/tmp'
-    while getopts "ch" opt; do
+    while getopts "cmh" opt; do
         case ${opt} in
             c )
                 target_dir=$2
@@ -385,10 +385,26 @@ tmp() {
                 echo "create dir: ${GREEN}$target_dir_path${NC}"
                 return
                 ;;
+            m )
+                target_name=$2
+                target_path="$DEFAULT_DIR/$(basename $target_name)"
+                if [[ -f "$target_path" ]]; then
+                    echo "${RED}Error: ${GREEN}$target_path${RED} already exists${NC}"
+                    return 1
+                fi
+                mv $2 $target_path
+                if [[ $? -eq 0 ]]; then
+                    echo "move file: ${GREEN}$2${NC} to ${GREEN}$target_path${NC}"
+                else
+                    echo "${RED}Error: ${GREEN}$2${RED} move failed${NC}"
+                fi
+                return
+                ;;
             h )
                 echo "Usage: ${GREEN}tmp [-c] [dir]${NC}"
                 echo "  ${GREEN}tmp [dir]${NC}: create dir and cd"
                 echo "  ${GREEN}tmp -c [dir]${NC}: create dir but not cd"
+                echo "  ${GREEN}tmp -m [file path]${NC}: move file"
                 echo "  ${GREEN}tmp -h${NC}: help"
                 return
                 ;;
