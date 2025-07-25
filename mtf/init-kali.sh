@@ -38,8 +38,8 @@ apt install -y g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-a
 apt install -y libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg
 apt install -y git asciidoc pandoc
 apt install -y ack fd-find fzf ripgrep
-apt install -y btop iftop inotify-tools aria2 sshpass telnet
-apt install -y docker-compose virt-manager qemu-system qemu-user-static bridge-utils
+apt install -y btop iftop inotify-tools aria2 sshpass telnet network-manager-openvpn
+apt install -y docker-compose virt-manager qemu-system qemu-user bridge-utils
 apt install -y fcitx5 fcitx5-chinese-addons
 apt install -y filezilla okteta putty picocom
 apt install -y upx p7zip p7zip-full
@@ -49,6 +49,7 @@ apt install -y osdlyrics winetricks k3b
 apt install -y genisoimage device-tree-compiler
 apt install -y antlr3 antlr4 swig
 apt install -y debsums msmtp
+apt install -y fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
 
 python_version=$(python3 --version | awk '{print $2}' | awk -F. '{print "python"$1"."$2}')
 if [[ -f "/usr/lib/${python_version}/EXTERNALLY-MANAGED" ]]; then
@@ -68,15 +69,35 @@ apt autoremove -y
 
 ln -s /usr/bin/fdfind /usr/bin/fd
 
+# fonts
+curl -fLo $HOME/.config/fontconfig/fonts.conf $GITHUB_URL_BASE/mtf/fonts.conf
+fc-cache -f
+
 # docker
-groups="docker,netdev,libvirt,dialout"
+groups="docker,netdev,libvirt,dialout,plugdev"
 usermod -aG $groups $USERNAME
+
 mkdir /etc/systemd/system/docker.service.d
 cat << EOF > /etc/systemd/system/docker.service.d/proxy.conf
 [Service]
 Environment="HTTP_PROXY=http://198.18.0.1:7890"
 Environment="HTTPS_PROXY=http://198.18.0.1:7890"
 Environment="NO_PROXY=localhost,198.18.0.1"
+EOF
+mkdir /etc/docker/
+cat << EOF > /etc/docker/daemon.json
+{
+    "default-address-pools" : [
+        {
+          "base" : "10.172.0.0/12",
+          "size" : 20
+        },
+        {
+          "base" : "10.168.0.0/16",
+          "size" : 24
+        }
+    ]
+}
 EOF
 
 # python
@@ -111,22 +132,7 @@ curl -fLo /tmp/tmp/unix-install-vim.sh https://raw.githubusercontent.com/sparkur
 chmod +x /tmp/tmp/unix-install-vim.sh
 /tmp/tmp/unix-install-vim.sh
 
-# dir
-HOME_DIR_PATH="/home/$USERNAME/cargo"
-APP_DIR_PATH="$HOME_DIR_PATH/app"
-REPO_DIR_PATH="$HOME_DIR_PATH/repo"
-SERVER_DIR_PATH="$HOME_DIR_PATH/server"
-
-mkdir -p $APP_DIR_PATH $REPO_DIR_PATH $SERVER_DIR_PATH
-
-# pwn
-PWN_DIR_PATH="$APP_DIR_PATH/pwn"
-PWNDBG_DIR_PATH="$PWN_DIR_PATH/pwndbg"
-PWNDBG_REPO_DIR_PATH="$PWNDBG_REPO_DIR_PATH/repo"
-
-mkdir -p $PWN_DIR_PATH $PWNDBG_DIR_PATH $PWNDBG_REPO_DIR_PATH
-
-git clone https://github.com/pwndbg/pwndbg.git $PWNDBG_REPO_DIR_PATH
-cd $PWNDBG_REPO_DIR_PATH && chmod +x ./setup.sh && all_proxy="$PROXY_POINT" ./setup.sh
-
 chown -R $USERNAME:$USERNAME $HOME_DIR_PATH
+
+# 其他需要安装的软件
+# siyuan-note、百度网盘、wps（12.1.0.17881）、wechat、linuxqq、wemeet、vmware-workstation、mihomua

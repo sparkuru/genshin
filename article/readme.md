@@ -3,7 +3,7 @@
 ## dev
 
 1. rust，https://rust-exercises.com/100-exercises-to-learn-rust.pdf
-2. 
+2. golang，https://github.com/blueprismo/100-golang-exercices.git
 
 ## url
 
