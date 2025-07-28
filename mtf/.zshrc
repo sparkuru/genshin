@@ -688,6 +688,19 @@ encrypt() {
     python3 $encrypt_path "$@"
 }
 
+treec() {
+    this_script_path="code/python/15-tree-creator.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        tree_creator_path="$local_repo_path/$this_script_path"
+    else
+        tree_creator_path="$HOME/.genshin/tree-creator.py"
+        if [[ ! -f $tree_creator_path ]]; then
+            _curl $tree_creator_path $github_url_base/$this_script_path
+        fi
+    fi
+    python3 $tree_creator_path "$@"
+}
+
 # export
 ## proxy
 proxy_ip_file="$HOME/.proxy-ip"
