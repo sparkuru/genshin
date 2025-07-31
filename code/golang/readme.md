@@ -38,23 +38,23 @@ golang
 
 8. 打开 cmd，检查 go 环境配置：`go env`，这里给出几个关键参数
 
-  ```bash
-  set GOCACHE=e:/lang/golang/cache
-  set GOMODCACHE=e:/lang/golang/gopath/pkg/mod	# 这个在指定了 GOPATH 后会自动配置
-  set GOPATH=e:/lang/golang/gopath	# 这个就是安装各种 package 时候的目录，类似于 python 的 lib 目录
-  set GOPROXY=https://proxy.golang.com.cn,direct	# 参考 python pip 安装时指定安装源
-  set GOROOT=e:/lang/golang/goroot	# 即 Go 语言安装目录
-  ```
+    ```bash
+    set GOCACHE=e:/lang/golang/cache
+    set GOMODCACHE=e:/lang/golang/gopath/pkg/mod	# 这个在指定了 GOPATH 后会自动配置
+    set GOPATH=e:/lang/golang/gopath	# 这个就是安装各种 package 时候的目录，类似于 python 的 lib 目录
+    set GOPROXY=https://proxy.golang.com.cn,direct	# 参考 python pip 安装时指定安装源
+    set GOROOT=e:/lang/golang/goroot	# 即 Go 语言安装目录
+    ```
 
 9. 使用 `go env -w GOPROXY="https://proxy.golang.com.cn,direct"`（参考） 的方式来设置 go env 信息
 
-	```bash
-	go env -w GOCACHE=e:/lang/golang/cache
-	go env -w GOMODCACHE=e:/lang/golang/gopath/pkg/mod	# 这个在指定了 GOPATH 后会自动配置
-	go env -w GOPATH=e:/lang/golang/gopath	# 这个就是安装各种 package 时候的目录，类似于 python 的 lib 目录
-	go env -w GOPROXY=https://proxy.golang.com.cn,direct	# 参考 python pip 安装时指定安装源
-	go env -w GOROOT=e:/lang/golang/goroot	# 即 Go 语言安装目录
-	```
+    ```bash
+    go env -w GOCACHE=e:/lang/golang/cache
+    go env -w GOMODCACHE=e:/lang/golang/gopath/pkg/mod	# 这个在指定了 GOPATH 后会自动配置
+    go env -w GOPATH=e:/lang/golang/gopath	# 这个就是安装各种 package 时候的目录，类似于 python 的 lib 目录
+    go env -w GOPROXY=https://proxy.golang.com.cn,direct	# 参考 python pip 安装时指定安装源
+    go env -w GOROOT=e:/lang/golang/goroot	# 即 Go 语言安装目录
+    ```
 
 随意编写一个 `.go` 文件测试：按照配置中的项目存放目录，到 `e:/code/godev` 目录下，首先新建一个文件夹 `HelloWorld`（一般用项目名来命名），进入到这个文件夹，使用 `go mod init sth/project1` 来初始化 `go.mod` 内容。此时在 `e:/code/godev/project1` 目录下应该有 `HelloWorld.go`，`go.mod` 两个文件
 
@@ -65,7 +65,7 @@ package main
 
 import (
     "fmt"
-    )
+)
 
 func main() {
     fmt.Println("Hello, World!")
@@ -82,8 +82,6 @@ go 版本号
 后续还要写相关 project1 项目的内容时，都放在这个目录下，方便管理
 
 在 `e:/code/godev/project1` 目录下，输入 `go run HelloWorld.go`，就能编译运行 go 程序了
-
-
 
 linux 参考
 
