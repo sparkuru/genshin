@@ -46,3 +46,7 @@ tcpdump_4.9.3-4kylin0.1_arm64.deb
 vscode.zip
 ```
 
+## refer
+
+1. https://github.com/tiiuae/aarch64_bin_builder.git
+2. 
