@@ -701,6 +701,30 @@ treec() {
     python3 $tree_creator_path "$@"
 }
 
+tldr() {
+    this_script_path="code/python/19-tldr.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        tldr_path="$local_repo_path/$this_script_path"
+
+        tldr_config_dir_path="$HOME/cargo/repo/25-tldr"
+        if [[ ! -d $tldr_config_dir_path ]]; then
+            tldr_config_dir_path="$HOME/.genshin/tldr"
+        fi
+    else
+        tldr_path="$HOME/.genshin/tldr.py"
+        if [[ ! -f $tldr_path ]]; then
+            _curl $tldr_path $github_url_base/$this_script_path
+        fi
+
+        tldr_config_dir_path="$HOME/.genshin/tldr"
+        if [[ ! -d $tldr_config_dir_path ]]; then
+            mkdir -p $tldr_config_dir_path
+            git clone https://github.com/sparkuru/tldr.git $tldr_config_dir_path
+        fi
+    fi
+    python3 $tldr_path --config-dir $tldr_config_dir_path "$@"
+}
+
 # export
 ## proxy
 proxy_ip_file="$HOME/.proxy-ip"
