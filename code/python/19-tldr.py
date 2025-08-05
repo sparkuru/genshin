@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-# pip install toml
+# pip install toml argparse
+# get *.tldr from https://github.com/sparkuru/tldr.git
 
 import os
 import sys
