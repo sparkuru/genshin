@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  openvpn_server:
+    image: kylemanna/openvpn:latest
+    container_name: openvpn_server
+    environment:
+      - TZ=Asia/Shanghai
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "1194:1194/udp"
+    volumes:
+      - ./data:/etc/openvpn
+    restart: always
+
+# docker build -t openvpn .
+# docker-compose -f $PWD/openvpn.yml up -d
