@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pip install ifaddr colorama
+# pip install ifaddr colorama legacy-cgi
 
 import argparse
 import http.server

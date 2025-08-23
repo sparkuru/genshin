@@ -663,16 +663,16 @@ sd() {
 }
 
 hftp() {
-    this_script_path="code/python/16-xftp.py"
+    this_script_path="code/python/16-hftp.py"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        xftp_path="$local_repo_path/$this_script_path"
+        hftp_path="$local_repo_path/$this_script_path"
     else
-        xftp_path="$HOME/.genshin/xftp.py"
-        if [[ ! -f $xftp_path ]]; then
-            _curl $xftp_path $github_url_base/$this_script_path
+        hftp_path="$HOME/.genshin/hftp.py"
+        if [[ ! -f $hftp_path ]]; then
+            _curl $hftp_path $github_url_base/$this_script_path
         fi
     fi
-    python3 $xftp_path "$@"
+    python3 $hftp_path "$@"
 }
 
 encrypt() {
