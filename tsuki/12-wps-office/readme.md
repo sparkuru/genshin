@@ -3,8 +3,8 @@ download url：https://mirrors.aliyun.com/ubuntukylin/pool/partner/wps-office_12
 ```bash
 #!/bin/bash
 
-path="/opt/kingsoft/wps-office/office6"
-wcsbin="$path/wpscloudsrv"
+wpspath="/opt/kingsoft/wps-office/office6"
+wcsbin="$wpspath/wpscloudsrv"
 
 mv $wcsbin "$wcsbin.shit"
 sudo echo "#!/bin/bash\nexit 0" > $wcsbin
