@@ -725,6 +725,25 @@ tldr() {
     python3 $tldr_path --config-dir $tldr_config_dir_path "$@"
 }
 
+ggit() {
+    commit_comment="u1x:wq"
+    case "$1" in
+        push)
+            git push
+            ;;
+        commit)
+            git_root_dir=$(git rev-parse --show-toplevel)
+            git add $git_root_dir && git commit -m $commit_comment
+            ;;
+        auto)
+            ggit commit && ggit push
+            ;;
+        *)
+            echo "usage: ggit {push|commit|auto}"
+            ;;
+    esac
+}
+
 # export
 ## proxy
 proxy_ip_file="$HOME/.proxy-ip"
