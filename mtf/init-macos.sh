@@ -10,6 +10,7 @@ brew install curl net-tools openvpn rsync proxychains-ng jq tcp-traceroute \
 	ghidra rizin radare2 patchelf \
 	nmap hydra john telnet \
 	scroll-reverser
+	nmap hydra john telnet fd scroll-reverser
 
 pip install setuptools setuptools_rust datetime argparse ipython getpass4 colorama cryptography ifaddr \
   virtualenv ropgadget pwntools shodan \
