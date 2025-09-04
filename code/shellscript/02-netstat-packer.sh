@@ -1,6 +1,9 @@
 #!/bin/sh
 
-workdir="$(cd $(dirname $0); pwd)/netstat"
+workdir="$(
+    cd $(dirname $0)
+    pwd
+)/netstat"
 root_tar_dir_name="$(hostname)-$(date +%m%d-%H%M)"
 root_tar_dir_path="$workdir/$root_tar_dir_name"
 root_tar_file_name="$root_tar_dir_name.tar"
@@ -14,21 +17,21 @@ get_runtime_info() {
     local pid=$1
     local split_line_symbol="\n----------------------------------------\n"
 
-    echo -e "[$pid] proc info: $split_line_symbol" > "$proc_file_path"
+    echo -e "[$pid] proc info: $split_line_symbol" >"$proc_file_path"
 
     redirect_output() {
-        echo "$USER@$(hostname) - [$(date +%Y/%m/%d/%H:%M:%S)] \$ $2" >> "$proc_file_path"
+        echo "$USER@$(hostname) - [$(date +%Y/%m/%d/%H:%M:%S)] \$ $2" >>"$proc_file_path"
         if [[ $1 == "1" ]]; then
-            tr '\0' '\n' < $1 >> "$proc_file_path"
+            tr '\0' '\n' <$1 >>"$proc_file_path"
         elif [[ $1 == "2" ]]; then
-            eval $2 2>&1 >> "$proc_file_path"
+            eval $2 2>&1 >>"$proc_file_path"
         fi
-        echo -e "$split_line_symbol" >> "$proc_file_path"
+        echo -e "$split_line_symbol" >>"$proc_file_path"
     }
 
     redirect_output 1 "/proc/$pid/cmdline"
     redirect_output 1 "/proc/$pid/status"
-    
+
     redirect_output 1 "/proc/$pid/environ"
     redirect_output 1 "/proc/$pid/maps"
     redirect_output 1 "/proc/$pid/stat"
@@ -52,9 +55,9 @@ get_proc_lib_by_pid() {
     local pid=$1
     local maps_path="/proc/$pid/maps"
 
-    grep -E ' r-xp ' $maps_path \
-        | awk '{print $6}' \
-        | while read -r file; do
+    grep -E ' r-xp ' $maps_path |
+        awk '{print $6}' |
+        while read -r file; do
             if [[ $file == *.so* ]]; then
                 echo $file
             fi
@@ -75,8 +78,8 @@ tar_file_by_pid() {
 }
 
 tar_netstat_process() {
-    netstat -antlup 2>/dev/null > "$root_tar_dir_path/netstat.log"
-    for pid in $(netstat -antlup 2>/dev/null | awk '{print $7}' | grep -v '-' | grep -v 'Address' | awk -F/ '{print $1}' | sort | shuf) ; do
+    netstat -antlup 2>/dev/null >"$root_tar_dir_path/netstat.log"
+    for pid in $(netstat -antlup 2>/dev/null | awk '{print $7}' | grep -v '-' | grep -v 'Address' | awk -F/ '{print $1}' | sort | shuf); do
         (cd $root_tar_dir_path && tar_file_by_pid $pid)
     done
 }

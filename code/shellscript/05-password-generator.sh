@@ -22,17 +22,17 @@ while [[ $# -gt 0 ]]; do
     key="$1"
 
     case $key in
-        --length)
+    --length)
         length="$2"
         shift # past argument
         shift # past value
         ;;
-        --key)
+    --key)
         seed="$2"
         shift # past argument
         shift # past value
         ;;
-        *)    # unknown option
+    *)        # unknown option
         shift # past argument
         ;;
     esac
