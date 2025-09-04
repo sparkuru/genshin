@@ -10,7 +10,10 @@ if [ $(id | grep -c "docker") -eq 0 ]; then
     exit 1
 fi
 
-if [ $(which docker 2>&1 > /dev/null; echo $?) -ne 0 ]; then
+if [ $(
+    which docker 2>&1 >/dev/null
+    echo $?
+) -ne 0 ]; then
     echo "docker not found, or place it in /usr/bin/docker"
     exit 1
 fi
@@ -45,12 +48,12 @@ check_dir $rootfs_dir
 
 cp $file_path $input_dir
 docker run \
-  --rm \
-  --pull always \
-  -u $UID:$GID \
-  -v $output_dir:/data/output \
-  -v $input_dir:/data/input \
-  ghcr.io/onekey-sec/unblob:latest "/data/input/$file_name"
+    --rm \
+    --pull always \
+    -u $UID:$GID \
+    -v $output_dir:/data/output \
+    -v $input_dir:/data/input \
+    ghcr.io/onekey-sec/unblob:latest "/data/input/$file_name"
 
 mv $output_dir/"$file_name"_extract/* $rootfs_dir/
 tar cf $file_name-rootfs.tar $file_name-rootfs

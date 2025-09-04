@@ -1,6 +1,23 @@
 #!/bin/bash
 
-workdir=$(cd $(dirname $0); pwd)
+#region
+white='\033[0m'
+green='\033[0;32m'
+blue='\033[0;34m'
+red='\033[31m'
+yellow='\033[33m'
+grey='\e[37m'
+pink='\033[38;5;218m'
+cyan='\033[96m'
+
+# echo -e "${red}xxx${nc}"
+nc='\033[0m'
+#endregion
+
+workdir=$(
+    cd $(dirname $0)
+    pwd
+)
 
 mount_point=(
     "4BCFEC67674D8E07:/media/wkyuu/windows/c"
@@ -13,7 +30,10 @@ gid=$(id -g $USER)
 for mount_point in "${mount_point[@]}"; do
     UUID=$(echo $mount_point | cut -d':' -f1)
     target_dir=$(echo $mount_point | cut -d':' -f2)
-    echo "mount $UUID to $target_dir"
+    if [[ ! -d $target_dir ]]; then
+        mkdir -p $target_dir
+    fi
+    echo -e "mount ${green}$UUID${nc} to ${green}$target_dir${nc}"
     sudo mount -t ntfs -o uid=$uid,gid=$gid -U $UUID $target_dir
 done
 
