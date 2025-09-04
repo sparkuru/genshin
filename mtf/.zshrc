@@ -729,7 +729,7 @@ ggit() {
     commit_comment="u1x:wq"
     case "$1" in
         push)
-            if [ $(git pull; echo $?) -eq 0 ]; then
+            if [ $(git pull -q; echo $?) -eq 0 ]; then
                 git push
             else
                 echo "pulled, but conflict or sth, manual resolve first."
