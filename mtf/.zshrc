@@ -729,7 +729,12 @@ ggit() {
     commit_comment="u1x:wq"
     case "$1" in
         push)
-            git push
+            if [ $(git pull) -eq 0 ]; then
+                git push
+            else
+                echo "pulled, but conflict or sth, manual resolve first."
+                return 1
+            fi
             ;;
         commit)
             git_root_dir=$(git rev-parse --show-toplevel)
