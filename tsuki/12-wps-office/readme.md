@@ -9,4 +9,3 @@ wcsbin="$wpspath/wpscloudsrv"
 mv $wcsbin "$wcsbin.shit"
 sudo echo "#!/bin/bash\nexit 0" > $wcsbin
 ```
-
