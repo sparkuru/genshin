@@ -113,7 +113,8 @@ sudo -u wkyuu pip install \
 	ifaddr \
 	ropgadget pwntools \
 	scapy shodan \
-	ollama
+	ollama \
+	watchdog psutil
 
 # git
 git config --global user.email wkyuu@majo.im
