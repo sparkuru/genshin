@@ -187,7 +187,6 @@ def format_dict(data: dict, indent=0, exclude_keys=None):
             )
             format_dict(value, indent + 4, exclude_keys)
         else:
-            # 根据值的类型使用不同的颜色
             if isinstance(value, bool):
                 value_color = CLIStyle.COLORS["WARNING"]
             elif isinstance(value, (int, float)):
@@ -222,10 +221,9 @@ def check_ip_and_return_str(ip: str) -> str:
 def main():
     script_name = os.path.basename(sys.argv[0])
 
-    # Define examples and notes
     examples = [
-        ("Check local IP", ""),
-        ("Check specific IP", "-i 8.8.8.8"),
+        ("Check your own IP", ""),
+        ("Check specific IP", "8.8.8.8"),
         ("Show curl command", "-c"),
         ("Output as JSON", "-f json"),
     ]
@@ -235,6 +233,7 @@ def main():
         "Includes country/region, city, ISP",
         "Shows geographical location (lat/long)",
         "Displays timezone information",
+        "Use position argument for specific IP lookup",
     ]
 
     ap = ColoredArgumentParser(
@@ -246,9 +245,8 @@ def main():
     )
 
     ap.add_argument(
-        "-i",
-        "--ip",
-        default="",
+        "ip",
+        nargs="?",
         type=str,
         metavar=CLIStyle.color("IP", CLIStyle.COLORS["CONTENT"]),
         help=CLIStyle.color("Specify IP address to lookup", CLIStyle.COLORS["CONTENT"]),
@@ -294,6 +292,8 @@ def main():
 
     if args["ip"]:
         args["ip"] = check_ip_and_return_str(args["ip"])
+    else:
+        args["ip"] = ""
 
     client = IPRSSClient(args)
     client.get_ip_with_location()
