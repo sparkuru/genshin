@@ -368,6 +368,7 @@ def main() -> int:
     # Add command line arguments
     parser.add_argument(
         "-f", "--filepath",
+        default="tree-example.json",
         type=str,
         metavar=CLIStyle.color("PATH", CLIStyle.COLORS["WARNING"]),
         help="Path to JSON file containing tree structure"
