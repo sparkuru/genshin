@@ -108,6 +108,7 @@ def decrypt_file(input_path: str, output_path: str, password: str):
         except (ValueError, Exception) as e:
             if os.path.exists(output_path):
                 os.remove(output_path)
+            print(f"{color('exception occured, might be an invalid key or sth ...', 1)}")
             raise e
 
 
@@ -185,6 +186,12 @@ def get_banner():
     {color(f"python {script_name} enc -i secret_folder -r", 6)}
   Encrypt with custom salt file:
     {color(f"python {script_name} enc -i secret.txt -s my_salt", 6)}
+  Encrypt to specific directory:
+    {color(f"python {script_name} enc -i secret.txt --output-dir ./encrypted", 6)}
+  Encrypt with automatic confirmation:
+    {color(f"python {script_name} enc -i secret.txt --delete --yes", 6)}
+  Encrypt directory to output directory:
+    {color(f"python {script_name} enc -i secret_folder --output-dir ./encrypted -r", 6)}
 """
     return description, epilog
 
@@ -224,6 +231,16 @@ def main():
         action="store_true",
         help="Delete source file after processing",
     )
+    optional_group.add_argument(
+        "--output-dir",
+        help="Specify output directory for processed files",
+    )
+    optional_group.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Automatically confirm all prompts (like apt -y)",
+    )
 
     security_group = parser.add_argument_group(f"{color('Security options', 2)}")
     security_group.add_argument(
@@ -245,6 +262,12 @@ def main():
         f"{color('Invalid input file or directory', 3)}"
     )
 
+    # Validate mutual exclusion of output and output_dir
+    if args["output"] is not None and args["output_dir"] is not None:
+        raise ValueError(
+            f"{color('Cannot specify both --output and --output-dir options', 1)}"
+        )
+
     # Check if key is specified and get its value
     if args["key"] is None:
         password = getpass(color("Please enter key: ", 3))
@@ -261,7 +284,12 @@ def main():
         salt = get_salt(password, is_use_salt=False)
 
     if os.path.isdir(args["input"]):
-        if args["output"] is None:
+        if args["output_dir"] is not None:
+            # Use specified output directory
+            args["output"] = os.path.join(
+                args["output_dir"], os.path.basename(args["input"])
+            )
+        elif args["output"] is None:
             if args["mode"] == "enc":
                 args["output"] = args["input"] + (
                     "_enc" if not args["input"].endswith("_enc") else ""
@@ -280,7 +308,17 @@ def main():
             salt,
         )
     else:
-        if args["output"] is None:
+        if args["output_dir"] is not None:
+            # Use specified output directory
+            if not os.path.exists(args["output_dir"]):
+                os.makedirs(args["output_dir"])
+            base_name = os.path.basename(args["input"])
+            if args["mode"] == "enc":
+                output_name = base_name + ".enc"
+            else:
+                output_name = base_name.rstrip(".enc")
+            args["output"] = os.path.join(args["output_dir"], output_name)
+        elif args["output"] is None:
             args["output"] = (
                 args["input"] + ".enc"
                 if args["mode"] == "enc"
@@ -292,10 +330,42 @@ def main():
             decrypt_file(args["input"], args["output"], password)
 
     if args["delete"]:
-        if args["mode"] == "enc":
-            assert input("Delete source file? (y/n)") == "y", "{}".format(
-                color("Deletion cancelled", 3)
+        # Check if output is in the same directory as input (potential risk)
+        input_dir = (
+            os.path.dirname(os.path.abspath(args["input"]))
+            if os.path.isfile(args["input"])
+            else os.path.abspath(args["input"])
+        )
+        output_dir = (
+            os.path.dirname(os.path.abspath(args["output"]))
+            if os.path.isfile(args["output"])
+            else os.path.abspath(args["output"])
+        )
+
+        same_directory = input_dir == output_dir
+
+        if same_directory and not args["yes"]:
+            print(
+                color(
+                    "Warning: Source and output are in the same directory. Source file(s) will be deleted after processing.",
+                    4,
+                )
             )
+            response = input(color("Continue? (Y/n): ", 3)).strip().lower()
+            if response and response != "y":
+                print(color("Operation cancelled", 3))
+                return
+
+        if args["mode"] == "enc":
+            if not args["yes"]:
+                response = (
+                    input(color("Delete source file after encryption? (Y/n): ", 3))
+                    .strip()
+                    .lower()
+                )
+                if response and response != "y":
+                    print(color("Deletion cancelled", 3))
+                    return
             if os.path.isdir(args["input"]):
                 for root, dirs, files in os.walk(args["input"], topdown=False):
                     for name in files:
@@ -305,9 +375,15 @@ def main():
             else:
                 os.remove(args["input"])
         elif args["mode"] == "dec":  # Add deletion for decryption
-            assert input("Delete source file? (y/n)") == "y", "{}".format(
-                color("Deletion cancelled", 3)
-            )
+            if not args["yes"]:
+                response = (
+                    input(color("Delete source file after decryption? (Y/n): ", 3))
+                    .strip()
+                    .lower()
+                )
+                if response and response != "y":
+                    print(color("Deletion cancelled", 3))
+                    return
             if os.path.isdir(args["input"]):
                 for root, dirs, files in os.walk(args["input"], topdown=False):
                     for name in files:
