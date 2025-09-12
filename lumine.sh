@@ -84,6 +84,10 @@ do_decrypt_loop() {
         do_decrypt
     done
 }
+# sth to do after encrypt/decrypt
+hook() {
+    echo -e "hook: ${green}${hook}${nc}"
+}
 
 echo -e "workdir: ${green}${workdir}${nc}"
 echo -e "genshin_dir_path: ${green}${genshin_dir_path}${nc}"
@@ -95,6 +99,7 @@ enc)
 dec)
     do_decrypt
     # do_decrypt_loop
+    echo -e "${green}decrypt done, check files in ${red}${src_file_dir}${nc}"
     ;;
 show)
     echo -e "encrypt_script_path: ${green}${encrypt_script_path}${nc}"
