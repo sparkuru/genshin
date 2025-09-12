@@ -41,14 +41,11 @@ salt_path="$genshin_dir_path/paimon"
 src_file_path="/path/to/src/file"
 target_file_path="/path/to/target/file"
 # loop encrypt/decrypt if needed
-src_file_dir="$genshin_dir_path/tsuki/08-malware/himitsu"
-target_file_dir="$genshin_dir_path/tsuki/08-malware"
+src_file_dir="$genshin_dir_path/tsuki/13-siyuan-note/himitsu"
+target_file_dir="$genshin_dir_path/tsuki/13-siyuan-note"
 loop_file_list=(
-    "id_rsa"
-    "01-rsa-jump"
-    "02-rsa-jump-pub"
-    "03-rsa-slave"
-    "04-rsa-slave-pub"
+    "conf.json.zip"
+    "s3.json.zip"
 )
 
 if [ $# -eq 0 ]; then
@@ -67,6 +64,7 @@ do_decrypt() {
     python $encrypt_script_path \
         -i $target_file_path \
         -o $src_file_path \
+        -s $salt_path \
         dec
 }
 do_encrypt_loop() {
@@ -85,17 +83,39 @@ do_decrypt_loop() {
         do_decrypt
     done
 }
+# sth to do after encrypt/decrypt
+hook() {
+    echo -e "${red}hook: ${green}handling zip file in ${src_file_dir}${nc}"
+    if [[ -f "$src_file_dir/*.zip" ]]; then
+        echo -e "${red}no zip file in ${src_file_dir}, exit...${nc}"
+        exit 1
+    fi
+    for file in $src_file_dir/*.zip; do
+        case $file in
+        *siyuan-conf-*)
+            mv $file $src_file_dir/conf.json.zip
+            echo -e "${yellow}rename ${green}$(basename $file) ${yellow}to ${green}conf.json.zip${nc}"
+            ;;
+        *siyuan-s3-*)
+            mv $file $src_file_dir/s3.json.zip
+            echo -e "${yellow}rename ${green}$(basename $file) ${yellow}to ${green}s3.json.zip${nc}"
+            ;;
+        esac
+    done
+}
 
 echo -e "workdir: ${green}${workdir}${nc}"
 echo -e "genshin_dir_path: ${green}${genshin_dir_path}${nc}"
 case "$1" in
 enc)
+    hook
     # do_encrypt
     do_encrypt_loop
     ;;
 dec)
     # do_decrypt
     do_decrypt_loop
+    echo -e "${green}decrypt done, check files in ${red}${src_file_dir}${nc}"
     ;;
 show)
     echo -e "encrypt_script_path: ${green}${encrypt_script_path}${nc}"
