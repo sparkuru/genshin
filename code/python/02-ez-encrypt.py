@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# pip install argparse cryptography
+# don't need to specify the salt file when decrypt, because the salt is in the file, it conform to the standard.
 
 import argparse
 import os
