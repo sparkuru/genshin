@@ -4,6 +4,7 @@ import argparse
 import os
 import sys
 import subprocess
+import base64
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -65,25 +66,64 @@ def encrypt_file(input_path: str, output_path: str, password: str, salt: bytes):
 
     cipher_text = encryptor.update(data) + encryptor.finalize()
 
+    # Base64 encode the cipher text
+    encoded_cipher_text = base64.b64encode(cipher_text)
+
+    # Base64 encode the entire content (salt + cipher_text)
+    full_content = salt + encoded_cipher_text
+    encoded_full_content = base64.b64encode(full_content)
+
     with open(output_path, "wb") as f:
-        f.write(salt + cipher_text)
+        f.write(encoded_full_content)
 
 
 def decrypt_file(input_path: str, output_path: str, password: str):
     file_size = os.path.getsize(input_path)
-    if file_size < 16:
+    if (
+        file_size < 4
+    ):  # Minimum base64 encoded size for salt (16 bytes -> ~24 base64 chars)
         raise ValueError(
             f"{color('File size abnormal, might not be a valid encrypted file', 1)}"
         )
 
     with open(input_path, "rb") as f:
         try:
-            salt_read = f.read(16)
-            cipher_text = f.read()
+            # Read the entire base64 encoded content
+            encoded_content = f.read()
 
-            if not salt_read or not cipher_text:
+            if not encoded_content:
                 raise ValueError(
                     f"{color('Invalid file format, might not be a valid encrypted file', 1)}"
+                )
+
+            # Base64 decode the entire content
+            try:
+                decoded_content = base64.b64decode(encoded_content)
+            except Exception:
+                raise ValueError(
+                    f"{color('Invalid base64 encoding, might not be a valid encrypted file', 1)}"
+                )
+
+            # Extract salt (first 16 bytes) and encoded cipher text
+            if len(decoded_content) < 16:
+                raise ValueError(
+                    f"{color('Invalid file format, insufficient data for salt', 1)}"
+                )
+
+            salt_read = decoded_content[:16]
+            encoded_cipher_text = decoded_content[16:]
+
+            if not encoded_cipher_text:
+                raise ValueError(
+                    f"{color('Invalid file format, no cipher text found', 1)}"
+                )
+
+            # Base64 decode the cipher text
+            try:
+                cipher_text = base64.b64decode(encoded_cipher_text)
+            except Exception:
+                raise ValueError(
+                    f"{color('Invalid base64 encoding in cipher text', 1)}"
                 )
 
             salt_read = pad_salt(salt_read)
@@ -108,7 +148,9 @@ def decrypt_file(input_path: str, output_path: str, password: str):
         except (ValueError, Exception) as e:
             if os.path.exists(output_path):
                 os.remove(output_path)
-            print(f"{color('exception occured, might be an invalid key or sth ...', 1)}")
+            print(
+                f"{color('exception occured, might be an invalid key or sth ...', 1)}"
+            )
             raise e
 
 
@@ -175,7 +217,9 @@ def get_salt(key: str, salt_file="salt", is_use_salt=False) -> str:
 
 def get_banner():
     script_name = os.path.basename(sys.argv[0])
-    description = f"{color('Simple Encrypt/Decrypt Tool', 2)}"
+    description = (
+        f"{color('Simple Encrypt/Decrypt Tool', 2)}"
+    )
     epilog = f"""
 {color("Examples:", 3)}
   Encrypt a file:
