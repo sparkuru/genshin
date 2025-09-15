@@ -3,8 +3,8 @@
 index=05
 app_name=transfersh
 url=https://raw.githubusercontent.com/sparkuru/genshin/main/app/$index-$app_name/$app_name.yml
-UID=1000
-GID=1000
+UID=$UID
+GID=$GID
 
 create_dir() {
     if [ ! -d $1 ]; then
@@ -25,7 +25,7 @@ if [ ! -f $file_path ]; then
         $repo_path
     cd $repo_path
     docker build \
-        -t transfer.sh-$UID \
+        -t transfersh-user \
         --build-arg RUNAS=any \
         --build-arg PUID=$UID \
         --build-arg PGID=$GID \

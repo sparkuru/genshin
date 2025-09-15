@@ -1,5 +1,3 @@
-version: "3"
-
 services:
   synctv:
     image: synctvorg/synctv:latest

@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   openvpn_server:
     image: kylemanna/openvpn:latest
