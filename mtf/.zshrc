@@ -801,10 +801,14 @@ case $os_type in
         export CLICOLOR=1
         export LSCOLORS=ExGxBxDxCxEgEdxbxgxcxd
 
+        python_version=$(python3 --version 2>/dev/null | awk '{print $2}' | cut -d. -f1)
+        python_base_version=$(echo $python_version | cut -d. -f1,2)
+        
         darwin_path=(
             "$HOME/.bin"
             "$HOME/.local/bin"
             "$HOME/.cargo/bin"
+            "$HOME/Library/Python/$python_base_version/bin"
             "/usr/lib/nodejs/bin"
 
             "/opt/homebrew/bin"
@@ -819,10 +823,6 @@ case $os_type in
                 export_path="$path:$export_path"
             fi
         done
-
-        alias typora="/Applications/Typora.app/Contents/MacOS/Typora"
-        alias code="/Applications/VisualStudioCode.app/Contents/MacOS/Electron"
-        alias bandizip="/Applications/Bandizip.app/Contents/MacOS/Bandizip"
         ;;
 esac
 export PATH=$export_path

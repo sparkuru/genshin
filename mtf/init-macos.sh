@@ -9,10 +9,10 @@ brew install curl net-tools openvpn rsync proxychains-ng jq tcp-traceroute \
 	docker docker-compose colima \
 	ghidra rizin radare2 patchelf \
 	nmap hydra john telnet \
-	scroll-reverser
-	nmap hydra john telnet fd scroll-reverser android-platform-tools
+	scroll-reverser \
+	nmap hydra john telnet fd scroll-reverser android-platform-tools tree
 
-pip install setuptools setuptools_rust datetime argparse ipython getpass4 colorama cryptography ifaddr \
+pip install setuptools setuptools_rust datetime uv argparse ipython getpass4 colorama cryptography ifaddr \
   virtualenv ropgadget pwntools shodan \
   ollama readchar rich watchdog psutil
 

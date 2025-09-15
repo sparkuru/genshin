@@ -1,5 +1,3 @@
-version: "3"
-
 services:
   hedgedoc:
     image: lscr.io/linuxserver/hedgedoc:latest
