@@ -8,18 +8,16 @@ import argparse
 import toml
 from typing import Dict, List, Optional, Any
 
-# Global debug level
 DEBUG_MODE = False
 
 
-# Utility functions
 def clean_path(path: str) -> str:
-    """Clean path, keep only filename"""
+    """Extract filename from full path"""
     return os.path.basename(path)
 
 
 def color(text: str, color_code: int = 0) -> str:
-    """Add color to debug info"""
+    """Apply ANSI color codes to text"""
     color_table = {
         0: "{}",  # No color
         1: "\033[1;30m{}\033[0m",  # Black bold
@@ -36,18 +34,13 @@ def color(text: str, color_code: int = 0) -> str:
 
 def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> None:
     """
-    Print the arguments with their file and line number
-    ```python
-    debug(
-        'Hello',    # Parameter 1
-        'World',    # Parameter 2
-        file='debug.log',  # Output file path, default is None (output to console)
-        append=False,  # Whether to append to file, default is True
-        **kwargs  # Key-value parameters
-    )
+    Debug logging with file and line number information
 
-    return = None
-    ```
+    Args:
+        *args: Arguments to log
+        file: Output file path, None for console output
+        append: Whether to append to file
+        **kwargs: Key-value parameters to log
     """
     if not DEBUG_MODE:
         return
@@ -75,9 +68,8 @@ def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> N
         print(message)
 
 
-# CLI Style class
 class CLIStyle:
-    """CLI tool unified style config"""
+    """CLI styling and color management"""
 
     COLORS = {
         "TITLE": 7,  # Cyan - Main title
@@ -90,7 +82,7 @@ class CLIStyle:
 
     @staticmethod
     def color(text: str = "", color: int = None) -> str:
-        """Unified color processing function"""
+        """Apply color formatting to text"""
         if color is None:
             color = CLIStyle.COLORS["CONTENT"]
         color_table = {
@@ -107,9 +99,8 @@ class CLIStyle:
         return color_table[color].format(text)
 
 
-# Custom argument parser for consistent CLI style
 class ColoredArgumentParser(argparse.ArgumentParser):
-    """Unified command line argument parser"""
+    """Argument parser with colored output formatting"""
 
     def _format_action_invocation(self, action):
         if not action.option_strings:
@@ -161,7 +152,7 @@ class ColoredArgumentParser(argparse.ArgumentParser):
 def create_example_text(
     script_name: str, examples: List[tuple], notes: Optional[List[str]] = None
 ) -> str:
-    """Create unified example text"""
+    """Generate formatted example text for help output"""
     text = f"\n{CLIStyle.color('Examples:', CLIStyle.COLORS['SUB_TITLE'])}"
 
     for desc, cmd in examples:
@@ -179,33 +170,22 @@ def create_example_text(
     return text
 
 
-# Main class definitions
 class TLDRParser:
-    """TLDR configuration file parser"""
+    """TLDR configuration file parser and formatter"""
 
     def __init__(self, config_dir: str = None):
-        """Initialize TLDR parser with configuration directory"""
+        """Initialize parser with configuration directory"""
         self.config_dir = config_dir or os.path.expanduser("~/.config/tldr")
         debug("Initialized TLDRParser", config_dir=self.config_dir)
 
     def find_config_file(self, command: str) -> Optional[str]:
-        """
-        Find configuration file for given command
-        ```python
-        find_config_file(
-            "ip"    # Command name to search for
-        )
-
-        return = "/path/to/ip.tldr" or None
-        ```
-        """
+        """Locate configuration file for specified command"""
         config_file = os.path.join(self.config_dir, f"{command}.tldr")
         debug("Looking for config file", path=config_file)
 
         if os.path.exists(config_file):
             return config_file
 
-        # Also try current directory
         local_config = f"{command}.tldr"
         if os.path.exists(local_config):
             debug("Found local config file", path=local_config)
@@ -214,25 +194,12 @@ class TLDRParser:
         return None
 
     def parse_config(self, config_file: str) -> Optional[Dict[str, Any]]:
-        """
-        Parse TLDR configuration file
-        ```python
-        parse_config(
-            "/path/to/ip.tldr"    # Path to configuration file
-        )
-
-        return = {
-            "meta": {...},
-            "examples": [...]
-        } or None
-        ```
-        """
+        """Parse TOML configuration file and validate structure"""
         try:
             debug("Parsing config file", file=config_file)
             with open(config_file, "r", encoding="utf-8") as f:
                 config = toml.load(f)
 
-            # Validate required sections
             if "meta" not in config:
                 print(
                     CLIStyle.color(
@@ -264,22 +231,12 @@ class TLDRParser:
             return None
 
     def format_output(self, config: Dict[str, Any]) -> str:
-        """
-        Format configuration data for display
-        ```python
-        format_output(
-            {...}    # Parsed configuration dictionary
-        )
-
-        return = "formatted output string"
-        ```
-        """
+        """Format configuration data for terminal display"""
         meta = config.get("meta", {})
         examples = config.get("examples", [])
 
         output = []
 
-        # Header section
         name = meta.get("name", "Unknown")
         description = meta.get("description", "No description available")
         url = meta.get("url", "")
@@ -291,11 +248,9 @@ class TLDRParser:
             output.append(CLIStyle.color(f"url: {url}", CLIStyle.COLORS["CONTENT"]))
         output.append("")
 
-        # Usage section
         output.append(CLIStyle.color("usage:", CLIStyle.COLORS["SUB_TITLE"]))
         output.append("")
 
-        # Examples
         for i, example in enumerate(examples, 1):
             title = example.get("title", f"Example {i}")
             command = example.get("command", "")
@@ -311,24 +266,15 @@ class TLDRParser:
 
 
 class TLDRTool:
-    """Main TLDR tool class"""
+    """Main TLDR application interface"""
 
     def __init__(self, config_dir: str = None):
-        """Initialize TLDR tool"""
+        """Initialize TLDR tool with parser"""
         self.parser = TLDRParser(config_dir)
         debug("Initialized TLDRTool")
 
     def show_help(self, command: str) -> bool:
-        """
-        Show help for specified command
-        ```python
-        show_help(
-            "ip"    # Command to show help for
-        )
-
-        return = True if successful, False otherwise
-        ```
-        """
+        """Display help information for specified command"""
         debug("Showing help for command", command=command)
 
         config_file = self.parser.find_config_file(command)
@@ -356,14 +302,7 @@ class TLDRTool:
         return True
 
     def list_available(self) -> None:
-        """
-        List all available TLDR configurations
-        ```python
-        list_available()
-
-        return = None
-        ```
-        """
+        """Display all available TLDR configurations"""
         debug("Listing available configurations")
 
         if not os.path.exists(self.parser.config_dir):
@@ -391,16 +330,14 @@ class TLDRTool:
             CLIStyle.color("Available TLDR configurations:", CLIStyle.COLORS["TITLE"])
         )
         for tldr_file in sorted(tldr_files):
-            command_name = tldr_file[:-5]  # Remove .tldr extension
+            command_name = tldr_file[:-5]
             print(CLIStyle.color(f"  - {command_name}", CLIStyle.COLORS["CONTENT"]))
 
 
-# Main function and program entry point
 def main() -> int:
-    """Main program logic"""
+    """Application entry point and command line interface"""
     script_name = os.path.basename(sys.argv[0])
 
-    # Define examples and notes
     examples = [
         ("Show help for ip command", "help ip"),
         ("Show help for git command", "help git"),
@@ -422,7 +359,6 @@ def main() -> int:
         epilog=create_example_text(script_name, examples, notes),
     )
 
-    # Add global parameters
     parser.add_argument("--log", action="store_true", help="Enable debug logging")
     parser.add_argument(
         "--config-dir",
@@ -433,10 +369,8 @@ def main() -> int:
         ),
     )
 
-    # Add subcommands
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
-    # Help command
     help_parser = subparsers.add_parser(
         "help",
         help=CLIStyle.color("Show help for a command", CLIStyle.COLORS["CONTENT"]),
@@ -451,7 +385,6 @@ def main() -> int:
         help=CLIStyle.color("Command to show help for", CLIStyle.COLORS["CONTENT"]),
     )
 
-    # List command
     list_parser = subparsers.add_parser(
         "list",
         help=CLIStyle.color(
@@ -463,21 +396,16 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    # Parse arguments
     args = parser.parse_args()
 
-    # Set global debug mode
     global DEBUG_MODE
     DEBUG_MODE = args.log
 
-    # Show help if no command specified
     if not args.command:
         parser.print_help()
         return 0
 
-    # Main application logic in try-except block
     try:
-        # Initialize TLDR tool
         tldr_tool = TLDRTool(args.config_dir)
 
         if args.command == "help":

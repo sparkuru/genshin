@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# need pip install ollama rich readchar
+# pip install ollama rich readchar
 # find ollama api with `shodan search http.html:"ollama"`
 
 import os
@@ -20,7 +21,6 @@ from rich.markdown import Markdown
 from rich import box
 
 
-# CLI Style Template
 class CLIStyle:
     """CLI Tool Style Configuration"""
 
@@ -51,7 +51,7 @@ class CLIStyle:
 
 
 class ColoredArgumentParser(argparse.ArgumentParser):
-    """Unified command line argument parser"""
+    """Enhanced argument parser with colored help output"""
 
     def _format_action_invocation(self, action):
         if not action.option_strings:
@@ -103,7 +103,7 @@ class ColoredArgumentParser(argparse.ArgumentParser):
 
 
 def create_example_text(script_name: str, examples: list, notes: list = None) -> str:
-    """Create unified example text"""
+    """Generate formatted help text with examples and notes"""
     text = f"\n{CLIStyle.color('Examples:', CLIStyle.COLORS['SUB_TITLE'])}"
 
     for desc, cmd in examples:
@@ -121,43 +121,15 @@ def create_example_text(script_name: str, examples: list, notes: list = None) ->
     return text
 
 
-def quiet_import():
-    try:
-        import argparse
-        import json
-        import signal
-        import time
-        import threading
-        import socket
-        from ollama import Client
-        import pprint
-        import readchar
-        from rich.console import Console
-        from rich.table import Table
-        from rich.prompt import IntPrompt
-        from rich.markdown import Markdown
-        from rich import box
-
-        return True
-    except KeyboardInterrupt:
-        print("\n\nctrl + c catched, exit.")
-        sys.exit(0)
-    except Exception as e:
-        print(f"\nError: {str(e)}")
-        sys.exit(1)
-
-
-quiet_import()
-
 should_exit = False
 is_generating = False
-ollama_dir_name = ".ollama"
-ollama_dir_path = os.path.expanduser(f"~/{ollama_dir_name}")
-ollama_config_name = "config.json"
-ollama_config_path = os.path.join(ollama_dir_path, ollama_config_name)
+OLLAMA_DIR_NAME = ".ollama"
+OLLAMA_DIR_PATH = os.path.expanduser(f"~/{OLLAMA_DIR_NAME}")
+CONFIG_FILENAME = "config.json"
+DEFAULT_CONFIG_PATH = os.path.join(OLLAMA_DIR_PATH, CONFIG_FILENAME)
 
-split_line_char = "─"
-split_line_length = 30
+SEPARATOR_CHAR = "─"
+SEPARATOR_LENGTH = 30
 
 
 def signal_handler(signum, frame):
@@ -171,7 +143,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 def get_ollama_config_path():
     """Get default config file path"""
-    return ollama_config_path
+    return DEFAULT_CONFIG_PATH
 
 
 def load_config(config_path):
@@ -183,13 +155,13 @@ def load_config(config_path):
             return json.load(f)
 
     # Ensure .ollama directory exists
-    if not os.path.exists(ollama_dir_path):
+    if not os.path.exists(OLLAMA_DIR_PATH):
         try:
-            os.makedirs(ollama_dir_path)
+            os.makedirs(OLLAMA_DIR_PATH)
         except Exception as e:
             print(
                 CLIStyle.color(
-                    f"\nError creating directory {ollama_dir_path}: {str(e)}", 2
+                    f"\nError creating directory {OLLAMA_DIR_PATH}: {str(e)}", 2
                 )
             )
             return config
@@ -203,15 +175,15 @@ def load_config(config_path):
 
 
 def show_loading_animation():
-    """Show loading animation"""
+    """Display animated loading spinner with elapsed time"""
     animation = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     i = 0
     global is_generating
-    start_time = time.time()  # Record start time
+    start_time = time.time()
     while is_generating:
         if should_exit:
             break
-        elapsed = time.time() - start_time  # Calculate elapsed time
+        elapsed = time.time() - start_time
         sys.stdout.write(
             CLIStyle.color(
                 f"\r{animation[i]} Generating response... ({elapsed:.1f}s)", 6
@@ -220,12 +192,12 @@ def show_loading_animation():
         sys.stdout.flush()
         time.sleep(0.1)
         i = (i + 1) % len(animation)
-    sys.stdout.write("\r" + " " * 50 + "\r")  # Clear status bar (increased width)
+    sys.stdout.write("\r" + " " * 50 + "\r")
     sys.stdout.flush()
 
 
 def format_size(size_bytes):
-    """Smart convert file size units"""
+    """Convert bytes to human readable format (MB, GB, TB)"""
     for unit in ["MB", "GB", "TB"]:
         if size_bytes < 1024:
             return f"{size_bytes:.1f}{unit}"
@@ -254,7 +226,7 @@ class OllamaClient:
             sys.exit(1)
 
     def _get_models(self):
-        """获取原始模型列表数据"""
+        """Fetch raw model list data from Ollama API"""
         try:
             response = self.client.list()
             return json.loads(response.model_dump_json())["models"]
@@ -265,15 +237,15 @@ class OllamaClient:
             return []
 
     def list_models(self):
-        """获取模型列表对象"""
+        """Get model list objects"""
         return self._get_models()
 
     def get_available_models(self):
-        """获取可用模型名称列表"""
+        """Get list of available model names"""
         return [model["model"] for model in self._get_models()]
 
     def show_model_list(self):
-        """显示模型列表"""
+        """Display available models in simple list format"""
         models = self._get_models()
         if not models:
             print(CLIStyle.color("\nNo models available.", 2))
@@ -282,7 +254,7 @@ class OllamaClient:
         print(CLIStyle.color("Available models:", 3))
         for model in models:
             param_size = model.get("details", {}).get("parameter_size", "N/A")
-            size_mb = model.get("size", 0) / (1024 * 1024)  # 转换为 MB
+            size_mb = model.get("size", 0) / (1024 * 1024)
             formatted_size = format_size(size_mb)
             print(
                 CLIStyle.color(
@@ -291,7 +263,7 @@ class OllamaClient:
             )
 
     def show_model_selection(self, current_model=None):
-        """显示模型选择界面"""
+        """Display interactive model selection interface"""
         try:
             models = self._get_models()
             if not models:
@@ -300,7 +272,6 @@ class OllamaClient:
 
             console = Console()
 
-            # 创建表格
             table = Table(
                 title="Available Models",
                 box=box.ROUNDED,
@@ -310,27 +281,22 @@ class OllamaClient:
                 show_lines=True,
             )
 
-            # 添加列
             table.add_column("#", style="dim")
             table.add_column("Model", style="bold")
             table.add_column("Parameters", style="green")
             table.add_column("Size", style="blue")
 
-            # 添加数据行
             for idx, model in enumerate(models, 1):
                 param_size = model.get("details", {}).get("parameter_size", "N/A")
                 size_mb = model.get("size", 0) / (1024 * 1024)
                 formatted_size = format_size(size_mb)
 
-                # 添加到表格
                 table.add_row(str(idx), model["model"], param_size, formatted_size)
 
-            # 显示表格
             console.print()
             console.print(table)
             console.print()
 
-            # 添加提示
             console.print(
                 Panel(
                     "[cyan]Enter number to select (1-{}) or 0 to quit[/cyan]".format(
@@ -341,7 +307,6 @@ class OllamaClient:
                 )
             )
 
-            # 使用 IntPrompt 进行选择
             try:
                 choice = IntPrompt.ask("\nSelect model", console=console, default=1)
 
@@ -359,7 +324,7 @@ class OllamaClient:
         except Exception as e:
             print(CLIStyle.color(f"\nError displaying model selection: {str(e)}", 2))
             print(CLIStyle.color("\nAvailable models:", 3))
-            self.show_model_list()  # 如果 rich 界面失败，回退到简单列表显示
+            self.show_model_list()
             return None
 
     def generate(self, model, prompt):
@@ -393,17 +358,14 @@ class OllamaClient:
 
     def chat(self, model, messages):
         try:
-            # 使用 stream=True 获取流式响应
             response = ""
             for chunk in self.client.chat(model=model, messages=messages, stream=True):
-                if chunk.message:  # 检查消息是否有内容
+                if chunk.message:
                     content = chunk.message.get("content", "")
-                    print(content, end="", flush=True)  # 立即打印每个文本块
+                    print(content, end="", flush=True)
                     response += content
-            print()  # 添加换行
-            return type(
-                "Response", (), {"message": {"content": response}}
-            )  # 返回类似的响应对象
+            print()
+            return type("Response", (), {"message": {"content": response}})
         except Exception as e:
             error_msg = str(e)
             if "502" in error_msg:
@@ -431,20 +393,18 @@ class OllamaClient:
             "pre_prompt": "1. Answer in Chinese\n2. Be concise and efficient",
         }
 
-        # If using default config path, ensure directory exists
-        if config_path == ollama_config_path:
+        if config_path == DEFAULT_CONFIG_PATH:
             try:
-                if not os.path.exists(ollama_dir_path):
-                    os.makedirs(ollama_dir_path)
+                if not os.path.exists(OLLAMA_DIR_PATH):
+                    os.makedirs(OLLAMA_DIR_PATH)
             except Exception as e:
                 print(
                     CLIStyle.color(
-                        f"\nError creating directory {ollama_dir_path}: {str(e)}", 2
+                        f"\nError creating directory {OLLAMA_DIR_PATH}: {str(e)}", 2
                     )
                 )
                 return
 
-        # Ensure target file directory exists
         config_dir = os.path.dirname(config_path)
         if config_dir and not os.path.exists(config_dir):
             try:
@@ -473,7 +433,7 @@ class OllamaClient:
         try:
             with open(config_path, "w") as f:
                 json.dump(default_config, f, indent=4)
-            print(CLIStyle.color(f"Config file generated at: {config_path}", 3))
+            print(CLIStyle.color(f"Config file created at: {config_path}", 3))
             print(CLIStyle.color("\nConfig contents:", 7))
             print(json.dumps(default_config, indent=4))
         except Exception as e:
@@ -481,7 +441,7 @@ class OllamaClient:
 
 
 def check_required_params(args, config):
-    """Check if required parameters are complete"""
+    """Validate required configuration parameters"""
     errors = []
     suggestions = []
 
@@ -531,17 +491,14 @@ def check_required_params(args, config):
 
 
 def get_user_input(prompt_text=None):
-    """Get user input with support for backspace and cursor movement"""
+    """Enhanced input handler with cursor movement and backspace support"""
     buffer = []
     cursor_pos = 0
 
     def refresh_line():
-        """Refresh current line display"""
-        # Move to line start and clear line
+        """Update terminal display with current buffer content"""
         print("\r" + " " * 100 + "\r", end="")
-        # Print buffer content
         print("".join(buffer), end="")
-        # Move cursor to correct position
         if cursor_pos < len(buffer):
             print("\033[{}D".format(len(buffer) - cursor_pos), end="")
         sys.stdout.flush()
@@ -549,30 +506,30 @@ def get_user_input(prompt_text=None):
     while True:
         char = readchar.readkey()
 
-        if char == "\r" or char == "\n":  # Enter key
-            print()  # New line
+        if char == "\r" or char == "\n":
+            print()
             return "".join(buffer)
 
-        elif char == "\x03":  # Ctrl+C
+        elif char == "\x03":
             raise KeyboardInterrupt
 
-        elif char == "\x7f" or char == "\x08":  # Backspace key
+        elif char == "\x7f" or char == "\x08":
             if cursor_pos > 0:
                 buffer.pop(cursor_pos - 1)
                 cursor_pos -= 1
                 refresh_line()
 
-        elif char == "\x1b[D":  # Left arrow
+        elif char == "\x1b[D":
             if cursor_pos > 0:
                 cursor_pos -= 1
                 refresh_line()
 
-        elif char == "\x1b[C":  # Right arrow
+        elif char == "\x1b[C":
             if cursor_pos < len(buffer):
                 cursor_pos += 1
                 refresh_line()
 
-        elif len(char) == 1 and char.isprintable():  # Printable character
+        elif len(char) == 1 and char.isprintable():
             buffer.insert(cursor_pos, char)
             cursor_pos += 1
             refresh_line()
@@ -581,10 +538,9 @@ def get_user_input(prompt_text=None):
 
 
 def show_current_config(args, config):
-    """Display current configuration information"""
+    """Display current configuration in formatted table"""
     console = Console()
 
-    # 检查命令行参数是否被明确指定（而不是使用默认值）
     cmd_args = sys.argv[1:]
     explicitly_set = {
         "ip": "--ip" in cmd_args or "-i" in cmd_args,
@@ -594,7 +550,6 @@ def show_current_config(args, config):
         "pre_prompt": "--pre-prompt" in cmd_args,
     }
 
-    # Merge command line args and config file
     current_config = {
         "ip": args["ip"] if explicitly_set["ip"] else config.get("ip", "127.0.0.1"),
         "port": args["port"] if explicitly_set["port"] else config.get("port", "11434"),
@@ -605,7 +560,6 @@ def show_current_config(args, config):
         else config.get("pre_prompt", ""),
     }
 
-    # Create table
     table = Table(
         title="Current Configuration",
         box=box.ROUNDED,
@@ -614,12 +568,10 @@ def show_current_config(args, config):
         title_style="bold cyan",
     )
 
-    # Add columns
-    table.add_column("Parameter", style="bold green")  # 添加列名
-    table.add_column("Value", style="yellow")  # 添加列名
-    table.add_column("Source", style="cyan")  # 添加列名
+    table.add_column("Parameter", style="bold green")
+    table.add_column("Value", style="yellow")
+    table.add_column("Source", style="cyan")
 
-    # Add config info to table
     for key, value in current_config.items():
         source = (
             "Command Line"
@@ -628,16 +580,14 @@ def show_current_config(args, config):
             if key in config
             else "Default"
         )
-        # Handle multiline pre_prompt display
         if key == "pre_prompt" and value:
             value = value.replace("\n", "\\n")
         table.add_row(key, str(value), source)
 
-    # Add config file path info
     if args["config"]:
         table.add_row("Config File", args["config"], "Command Line")
-    elif os.path.exists(ollama_config_path):
-        table.add_row("Config File", ollama_config_path, "Default")
+    elif os.path.exists(DEFAULT_CONFIG_PATH):
+        table.add_row("Config File", DEFAULT_CONFIG_PATH, "Default")
 
     console.print()
     console.print(table)
@@ -645,19 +595,19 @@ def show_current_config(args, config):
 
 
 def get_user_confirmation(prompt_text):
-    """获取用户确认输入"""
+    """Get user confirmation (y/n) input"""
     print(f"\n{CLIStyle.color(prompt_text, 4)} (y/n): ", end="")
     while True:
         char = readchar.readkey().lower()
         if char in ["y", "n"]:
             print(char)
             return char == "y"
-        elif char == "\x03":  # Ctrl+C
+        elif char == "\x03":
             raise KeyboardInterrupt
 
 
 def update_config(args, config_path):
-    """更新配置文件"""
+    """Update configuration file with current parameters"""
     if not os.path.exists(config_path):
         if not get_user_confirmation(
             f"Config file not found at: {config_path}\nCreate new config file?"
@@ -707,19 +657,18 @@ def main():
     script_name = os.path.basename(sys.argv[0])
 
     default_config = {}
-    if os.path.exists(ollama_config_path):
+    if os.path.exists(DEFAULT_CONFIG_PATH):
         try:
-            with open(ollama_config_path, "r") as f:
+            with open(DEFAULT_CONFIG_PATH, "r") as f:
                 default_config = json.load(f)
         except json.JSONDecodeError:
             print(
                 CLIStyle.color(
-                    f"\nWarning: Default config file '{ollama_config_path}' is invalid",
+                    f"\nWarning: Default config file '{DEFAULT_CONFIG_PATH}' is invalid",
                     4,
                 )
             )
 
-    # Define examples and notes
     examples = [
         ("Basic chat", "-m llama2"),
         ("Use specific model", "-m codellama"),
@@ -765,7 +714,7 @@ def main():
     args = vars(ap.parse_args())
 
     if args["update"]:
-        config_path = args["config"] if args["config"] else ollama_config_path
+        config_path = args["config"] if args["config"] else DEFAULT_CONFIG_PATH
         if not get_user_confirmation(f"Update config file at: {config_path}?"):
             return
         if update_config(args, config_path):
@@ -786,10 +735,10 @@ def main():
                     f"\nError: Config file '{args['config']}' not found or empty", 2
                 )
             )
-            if os.path.exists(ollama_config_path):
+            if os.path.exists(DEFAULT_CONFIG_PATH):
                 print(
                     CLIStyle.color(
-                        f"\nUsing default config file: {ollama_config_path}", 3
+                        f"\nUsing default config file: {DEFAULT_CONFIG_PATH}", 3
                     )
                 )
                 config = default_config
@@ -802,22 +751,18 @@ def main():
                 print(CLIStyle.color("2. Create default config file:", 7))
                 print(
                     CLIStyle.color(
-                        f"  {script_name} --new-config {ollama_config_path}", 8
+                        f"  {script_name} --new-config {DEFAULT_CONFIG_PATH}", 8
                     )
                 )
             return
     else:
-        # 如果没有指定配置文件，使用默认配置
         config = default_config
 
-    # 在检查参数之前添加显示配置的处理
     if args["show_config"]:
         show_current_config(args, config)
         return
 
-    # 设置默认值（仅在需要完整配置的命令时使用）
     if not args["show_config"] and not args["list"] and not args["status"]:
-        # 只有在这些参数未明确设置时，才从配置文件中获取值
         if args["ip"] is None:
             args["ip"] = config.get("ip", "127.0.0.1")
         if args["port"] is None:
@@ -829,7 +774,6 @@ def main():
         if args["pre_prompt"] is None:
             args["pre_prompt"] = config.get("pre_prompt", "")
 
-    # 只在需要完整配置的命令时检查参数
     if (
         not args["list"]
         and not args["status"]
@@ -881,20 +825,16 @@ def main():
 
             try:
                 start_time = time.time()
-                print(f"\n{CLIStyle.color(args['model'], 6)}:")  # 添加模型名称提示
+                print(f"\n{CLIStyle.color(args['model'], 6)}:")
                 response = client.chat(args["model"], messages)
 
                 assistant_message = response.message
                 messages.append(
                     {"role": "assistant", "content": assistant_message["content"]}
                 )
-                elapsed = time.time() - start_time  # 获取总响应时间
-                print(
-                    f"\n{CLIStyle.color(f'[Responded in {elapsed:.1f}s]', 8)}"
-                )  # 使用不同颜色
-                print(
-                    CLIStyle.color(split_line_char * split_line_length, 8)
-                )  # 添加底部分隔符
+                elapsed = time.time() - start_time
+                print(f"\n{CLIStyle.color(f'[Responded in {elapsed:.1f}s]', 8)}")
+                print(CLIStyle.color(SEPARATOR_CHAR * SEPARATOR_LENGTH, 8))
             except Exception:
                 sys.exit(1)
             return
@@ -918,7 +858,7 @@ def main():
             if should_exit:
                 break
 
-            user_input = get_user_input()  # 不传入提示文本
+            user_input = get_user_input()
             if not user_input.strip():
                 continue
 
@@ -934,14 +874,14 @@ def main():
                     {"role": "assistant", "content": response.message["content"]}
                 )
                 print(f"\n{CLIStyle.color(f'[Responded in {elapsed:.1f}s]', 8)}")
-                print(CLIStyle.color(split_line_char * split_line_length, 8))
-                print(f"\n{CLIStyle.color('You:', 4)}")  # 移除 end=' '，让输入在下一行
+                print(CLIStyle.color(SEPARATOR_CHAR * SEPARATOR_LENGTH, 8))
+                print(f"\n{CLIStyle.color('You:', 4)}")
             except Exception as e:
                 print(CLIStyle.color(f"\nError: {str(e)}", 2))
                 if should_exit:
                     break
                 messages.pop()
-                print(f"\n{CLIStyle.color('You:', 4)}")  # 移除 end=' '，让输入在下一行
+                print(f"\n{CLIStyle.color('You:', 4)}")
 
     except EOFError:
         pass  # Handle EOFError, exit silently
