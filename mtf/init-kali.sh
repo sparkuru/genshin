@@ -60,7 +60,7 @@ require_version="20.0.0"
 if [ $(echo -e "$require_version\n$(nodejs -v | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')" | sort -V | head -1) != "$require_version" ]; then
 	curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs npm && \
 	npm install -g npm@latest --registry=https://registry.npmmirror.com && \
-	npm install -g --registry=https://registry.npmmirror.com cnpm pm2 @anthropic-ai/claude-code
+	npm install -g --registry=https://registry.npmmirror.com cnpm pm2 @anthropic-ai/claude-code @google/gemini-cli
 fi
 
 apt purge needrestart -y

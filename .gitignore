@@ -2,9 +2,12 @@
 .DS_Store
 .venv
 *.gdb_history
-*.cursorrules
 
-# dir
+# ai agent
+*.cursorrules.mdc
+!.cursor/**/*.cursorrules.mdc
+
+# dir```
 online/archive
 binary/archive
 artificial-intelligence/archive
