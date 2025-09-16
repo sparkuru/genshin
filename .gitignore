@@ -4,8 +4,8 @@
 *.gdb_history
 
 # ai agent
-*.cursorrules.mdc
-!.cursor/**/*.cursorrules.mdc
+*.cursorrule.mdc
+!.cursor/**/*.cursorrule.mdc
 
 # dir```
 online/archive
