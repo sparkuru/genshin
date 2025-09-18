@@ -41,7 +41,7 @@ apt install -y ack fd-find fzf ripgrep
 apt install -y btop iftop inotify-tools aria2 sshpass telnet network-manager-openvpn arch-install-scripts
 apt install -y docker-compose virt-manager qemu-system qemu-user bridge-utils
 apt install -y fcitx5 fcitx5-chinese-addons fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
-apt install -y filezilla okteta putty picocom
+apt install -y filezilla okteta putty picocom glow
 apt install -y upx p7zip p7zip-full
 apt install -y gnupg2 patchelf
 apt install -y python3-ropgadget strace adb
