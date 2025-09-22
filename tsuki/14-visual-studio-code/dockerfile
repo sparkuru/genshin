@@ -1,0 +1,21 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+	git \
+	wget \
+	curl \
+	jq \
+	file \
+	libfuse2 \
+	imagemagick \
+	patchelf \
+	--no-install-recommends && \
+	rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY build.sh vscode.desktop ./
+
+CMD ["./build.sh", "build"]
