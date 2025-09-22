@@ -1,0 +1,13 @@
+services:
+  builder:
+    build:
+      context: .
+      dockerfile: dockerfile
+    volumes:
+      - /tmp/dist:/app/dist
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    security_opt:
+      - apparmor:unconfined

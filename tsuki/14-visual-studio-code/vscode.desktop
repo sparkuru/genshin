@@ -1,0 +1,25 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=vscode
+Comment=visual studio code.
+GenericName=Text Editor
+Exec=code --unity-launch %F
+Icon=code
+StartupNotify=true
+StartupWMClass=Code
+Categories=TextEditor;Development;IDE;
+MimeType=text/plain;inode/directory;application/x-code-workspace;
+Actions=new-empty-window;
+Keywords=vscode;Visual Studio Code;Code;
+
+X-AppImage-Version=
+
+[Desktop Action new-empty-window]
+Name=New Empty Window
+Exec=code --new-window %F
+Icon=code
+
+[X-Build]
+DownloadUrl=https://code.visualstudio.com/sha/download?build=stable&os=linux-x64
+DownloadVersion=

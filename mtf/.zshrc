@@ -93,7 +93,8 @@ fi
 
 configure_prompt() {    
 
-    prompt_symbol="(.ᗜ ᴗ ᗜ.)"
+    # prompt_symbol="(.ᗜ ᴗ ᗜ.)"
+    prompt_symbol="(🌸.ᗜ ᴗ ᗜ.)"
 
     if [ "$is_incognito" ]; then
         prompt_symbol="%F{red}$prompt_symbol！%F{%(#.red.blue)}"
