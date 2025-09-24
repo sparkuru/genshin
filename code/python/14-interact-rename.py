@@ -31,9 +31,7 @@ VIDEO_EXTENSIONS = (
     ".mkv",
 )
 
-IMAGE_EXTENSIONS = (".jpg", ".png", ".jpeg", ".bmp", ".webp")
-
-GIF_EXTENSIONS = (".gif",)
+IMAGE_EXTENSIONS = (".jpg", ".png", ".jpeg", ".bmp", ".webp", ".gif")
 
 # Files to ignore
 IGNORE_FILES = [
@@ -84,11 +82,10 @@ def natural_sort_key(s):
 class FileType:
     VIDEO = "video"
     IMAGE = "image"
-    GIF = "gif"
 
-    EXTENSIONS = {VIDEO: VIDEO_EXTENSIONS, IMAGE: IMAGE_EXTENSIONS, GIF: GIF_EXTENSIONS}
+    EXTENSIONS = {VIDEO: VIDEO_EXTENSIONS, IMAGE: IMAGE_EXTENSIONS}
 
-    DEFAULT_OUTPUT = {VIDEO: ".mp4", IMAGE: ".png", GIF: ".gif"}
+    DEFAULT_OUTPUT = {VIDEO: ".mp4", IMAGE: ".png"}
 
     @classmethod
     def get_extensions(cls, file_type: str) -> tuple:
@@ -244,10 +241,10 @@ class FileRenamer:
             return False
 
     def fast_rename(self, file_type: str, width: int = 3) -> None:
-        if file_type not in [FileType.VIDEO, FileType.IMAGE, FileType.GIF]:
+        if file_type not in [FileType.VIDEO, FileType.IMAGE]:
             print(
                 color(
-                    f"Error: type must be '{FileType.VIDEO}', '{FileType.IMAGE}', or '{FileType.GIF}'",
+                    f"Error: type must be '{FileType.VIDEO}' or '{FileType.IMAGE}'",
                     CLI_COLORS["ERROR"],
                 )
             )
@@ -283,7 +280,14 @@ class FileRenamer:
         # Preview changes to be made
         changes = []
         for index, filename in enumerate(files, 1):
-            new_name = f"{str(index).zfill(width)}{default_ext}"
+            # Smart extension handling: preserve .gif extension for GIF files
+            file_ext = os.path.splitext(filename)[1].lower()
+            if file_ext == ".gif":
+                target_ext = ".gif"
+            else:
+                target_ext = default_ext
+
+            new_name = f"{str(index).zfill(width)}{target_ext}"
             if new_name == filename:
                 continue
 
@@ -762,7 +766,6 @@ def create_example_text() -> str:
     examples = [
         ("Fast rename images", "fast -t image -w 3"),
         ("Fast rename videos", "fast -t video"),
-        ("Fast rename gifs", "fast -t gif"),
         ("Add numeric prefix", "prefix -w 3 -m add -s 1"),
         ("Remove numeric prefix", "prefix -m remove"),
         ("Interactive rename", "interactive"),
@@ -782,7 +785,7 @@ def create_example_text() -> str:
     notes = [
         "All commands support -d/--dirs option to include directories",
         "Use --debug option to enable debug mode",
-        "Fast rename supports file types: image, video, gif",
+        "Fast rename supports file types: image, video",
         "try replace 'sth' '\"\"' to remove the string",
         "Interactive rename uses '>' symbol to mark custom input positions",
         "Lowercase command converts all uppercase letters to lowercase in filenames",
@@ -859,7 +862,7 @@ def create_command_help(parser: argparse.ArgumentParser, command: str) -> str:
                 f"{color('Usage:', CLI_COLORS['TITLE'])} {prog_name} fast [OPTIONS]",
                 "",
                 color("Options:", CLI_COLORS["TITLE"]),
-                f"  {color('-t, --type', CLI_COLORS['SUB_TITLE'])} TYPE     File type (image, video, gif) [default: image]",
+                f"  {color('-t, --type', CLI_COLORS['SUB_TITLE'])} TYPE     File type (image, video) [default: image]",
                 f"  {color('-w, --width', CLI_COLORS['SUB_TITLE'])} WIDTH   Number width [default: 3]",
             ]
         )
@@ -926,7 +929,7 @@ def main():
     fast_parser.add_argument(
         "-t",
         "--type",
-        choices=[FileType.IMAGE, FileType.VIDEO, FileType.GIF],
+        choices=[FileType.IMAGE, FileType.VIDEO],
         default=FileType.IMAGE,
         help=f"File type (default: {FileType.IMAGE})",
     )
