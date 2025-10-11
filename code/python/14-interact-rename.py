@@ -31,7 +31,7 @@ VIDEO_EXTENSIONS = (
     ".mkv",
 )
 
-IMAGE_EXTENSIONS = (".jpg", ".png", ".jpeg", ".bmp", ".webp", ".gif")
+IMAGE_EXTENSIONS = (".jpg", ".png", ".jpeg", ".bmp", ".webp", ".jfif", ".avif", ".gif")
 
 # Files to ignore
 IGNORE_FILES = [
