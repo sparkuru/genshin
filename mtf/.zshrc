@@ -858,11 +858,14 @@ alias size="du -abh --time -d 1"
 alias rcp="rsync -avtz --progress"
     # use ssh option: `rcp -e "ssh -p 22000 -i ~/.ssh/id_rsa" src user@host:/path/to/dst`
 
-alias x="curl"
-alias xi="curl -I"
+alias transfer="sd search http.favicon.hash:-620522584"
+    # refresh the cache: `transfer --d`
+
+alias x="curl -f"
+alias xi="curl -I -sfL"
+alias xl="curl -sfL"
 alias reg="grep -ir"
 alias zshrc="source ~/.zshrc"
-alias transfer="sd search http.favicon.hash:-620522584"
 alias random="cat /dev/urandom|head|base64|md5sum|cut -d \" \" -f 1"
 alias p="ipython3"
 ## end_alias_anchor
