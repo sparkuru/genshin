@@ -41,7 +41,6 @@ install_vim() {
     echo "${CYAN}\$USER = $USER${NC}"
 
     mkdir -p $local_vim_tmp_dir
-    chown -R $USER:$USER $local_vim_root
 
     _curl \
         $home_vimrc \
@@ -54,6 +53,7 @@ install_vim() {
         https://raw.githubusercontent.com/morhetz/gruvbox/master/autoload/gruvbox.vim
     
     vim -c PlugInstall -c qa
+    chown -R $USER:$USER $local_vim_root
 }
 
 remove_vim() {
