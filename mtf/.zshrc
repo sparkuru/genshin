@@ -744,8 +744,14 @@ ggit() {
         auto)
             ggit commit && ggit push
             ;;
+        root)
+            current_dir=$(pwd)
+            git_root_dir=$(git rev-parse --show-toplevel)
+            echo -n "current path: ${RED}$current_dir${NC}\nchange to: ${GREEN}$git_root_dir${NC}"
+            cd $git_root_dir
+            ;;
         *)
-            echo "usage: ggit {push|commit|auto}"
+            echo "usage: ggit {push|commit|auto|root}"
             ;;
     esac
 }
