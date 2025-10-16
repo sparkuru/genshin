@@ -1,5 +1,5 @@
 if [ $# -ne 1 ]; then
-    echo "usage: $0 <install|remove|no_proxy>"
+    echo "usage: $0 <install|remove>"
     exit 1
 fi
 
@@ -24,7 +24,11 @@ define_env() {
 }
 
 _curl() {
-    curl -fLo $1 --create-dirs $2
+    if [ -f $1 ]; then
+        return
+    fi
+    echo "file ${CYAN}${1}${NC} not found, download from ${CYAN}${2}${NC} (need sudo)"
+    sudo curl --create-dirs -fLo $1 $2
 }
 
 install_vim() {
