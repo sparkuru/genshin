@@ -33,14 +33,18 @@ _curl() {
 
 install_vim() {
     define_env
-    echo "${GREEN}install vim${NC}"
+    echo "${GREEN}installing vim${NC}"
 
     if [ ! -d $local_vim_root ]; then
         mkdir $local_vim_root
     fi
 
-    ln -s $vim_dir/autoload $local_vim_root/autoload
-    ln -s $vim_dir/colors $local_vim_root/colors
+    if [ ! -d $local_vim_root/autoload ]; then
+        ln -s $vim_dir/autoload $local_vim_root/autoload 2>/dev/null
+    fi
+    if [ ! -d $local_vim_root/colors ]; then
+        ln -s $vim_dir/colors $local_vim_root/colors 2>/dev/null
+    fi
 
     echo "${CYAN}\$USER = $USER${NC}"
 
@@ -48,14 +52,14 @@ install_vim() {
 
     _curl \
         $home_vimrc \
-        https://raw.githubusercontent.com/sparkuru/vim/main/diy/unix-vimrc
+        https://raw.githubusercontent.com/sparkuru/vim/main/diy/unix-vimrc 2>/dev/null
     _curl \
         $local_vim_root/autoload/plug.vim \
-        https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+        https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim 2>/dev/null
     _curl \
         $local_vim_root/colors/gruvbox.vim \
-        https://raw.githubusercontent.com/morhetz/gruvbox/master/autoload/gruvbox.vim
-    
+        https://raw.githubusercontent.com/morhetz/gruvbox/master/autoload/gruvbox.vim 2>/dev/null
+
     vim -c PlugInstall -c qa
     chown -R $USER:$USER $local_vim_root
 }
