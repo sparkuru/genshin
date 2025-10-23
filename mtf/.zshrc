@@ -875,4 +875,5 @@ alias reg="grep -ir"
 alias zshrc="source ~/.zshrc"
 alias random="cat /dev/urandom|head|base64|md5sum|cut -d \" \" -f 1"
 alias p="ipython3"
+alias ipa="ip -br a"
 ## end_alias_anchor
