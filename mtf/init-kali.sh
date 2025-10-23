@@ -5,7 +5,7 @@ if [ "$(id -u)" -ne 0 ]; then
 	exit 1
 fi
 
-USERNAME="wkyuu"
+USERNAME="${SUDO_USER:-$USER}"
 PROXY_POINT="http://198.18.0.1:1080"
 GITHUB_URL_BASE="https://raw.githubusercontent.com/sparkuru/genshin/main"
 export all_proxy="$PROXY_POINT"
@@ -27,13 +27,13 @@ curl -fLo /etc/ssh/sshd_config $GITHUB_URL_BASE/mtf/sshd_config
 systemctl start ssh && systemctl enable ssh
 
 # software
-cat << EOF > /etc/apt/sources.list
+cat <<EOF >/etc/apt/sources.list
 deb https://mirrors.ustc.edu.cn/kali kali-rolling main non-free non-free-firmware contrib
 deb-src https://mirrors.ustc.edu.cn/kali kali-rolling main non-free non-free-firmware contrib
 EOF
 
 apt update
-apt install -y autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd
+apt install -y autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
 apt install -y g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
 apt install -y libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg
 apt install -y git asciidoc pandoc
@@ -58,9 +58,9 @@ fi
 # nodejs
 require_version="20.0.0"
 if [ $(echo -e "$require_version\n$(nodejs -v | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')" | sort -V | head -1) != "$require_version" ]; then
-	curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs npm && \
-	npm install -g npm@latest --registry=https://registry.npmmirror.com && \
-	npm install -g --registry=https://registry.npmmirror.com cnpm pm2 @anthropic-ai/claude-code @google/gemini-cli
+	curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs npm &&
+		npm install -g npm@latest --registry=https://registry.npmmirror.com &&
+		npm install -g --registry=https://registry.npmmirror.com cnpm pm2 @anthropic-ai/claude-code @google/gemini-cli
 fi
 
 apt purge needrestart -y
@@ -77,14 +77,14 @@ groups="docker,netdev,libvirt,dialout,plugdev"
 usermod -aG $groups $USERNAME
 
 mkdir /etc/systemd/system/docker.service.d
-cat << EOF > /etc/systemd/system/docker.service.d/proxy.conf
+cat <<EOF >/etc/systemd/system/docker.service.d/proxy.conf
 [Service]
 Environment="HTTP_PROXY=http://198.18.0.1:7890"
 Environment="HTTPS_PROXY=http://198.18.0.1:7890"
 Environment="NO_PROXY=localhost,198.18.0.1"
 EOF
 mkdir /etc/docker/
-cat << EOF > /etc/docker/daemon.json
+cat <<EOF >/etc/docker/daemon.json
 {
     "default-address-pools" : [
         {
@@ -100,14 +100,14 @@ cat << EOF > /etc/docker/daemon.json
 EOF
 
 # python
-cat << EOF > /etc/pip.conf
+cat <<EOF >/etc/pip.conf
 [global]
 index-url = https://mirrors.ustc.edu.cn/pypi/simple
 [install]
 trusted-host = https://mirrors.ustc.edu.cn
 EOF
 
-sudo -u wkyuu pip install \
+sudo -u $USERNAME pip install \
 	datetime argparse colorama cryptography getpass4 rich bs4 readchar mmh3 toml \
 	ipython \
 	ifaddr \
@@ -117,22 +117,24 @@ sudo -u wkyuu pip install \
 	watchdog psutil
 
 # git
-git config --global user.email wkyuu@majo.im
-git config --global user.name shiguma
-git config --global credential.helper store
-git config --global init.defaultbranch main
-git config --global core.editor vim
-git config --global core.autocrlf false
-git config --global pull.rebase true
+if [ $USERNAME = "wkyuu" ]; then
+	git config --global user.email wkyuu@majo.im
+	git config --global user.name shiguma
+	git config --global credential.helper store
+	git config --global init.defaultbranch main
+	git config --global core.editor vim
+	git config --global core.autocrlf false
+	git config --global pull.rebase true
 
-git config -l
+	git config -l
+fi
 
 # vim
-curl -fLo /tmp/tmp/unix-install-vim.sh https://raw.githubusercontent.com/sparkuru/vim/main/diy/unix-install-vim.sh
+curl -fLo /tmp/tmp/unix-install-vim.sh $GITHUB_URL_BASE/mtf/unix-install-vim.sh
 chmod +x /tmp/tmp/unix-install-vim.sh
 /tmp/tmp/unix-install-vim.sh
 
-chown -R $USERNAME:$USERNAME $HOME_DIR_PATH
+chown -R $USERNAME:$USERNAME $HOME
 
 # 其他需要安装的软件
 # siyuan-note、百度网盘、wps（12.1.0.17881）、wechat、linuxqq、wemeet、vmware-workstation、mihomua
