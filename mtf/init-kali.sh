@@ -35,7 +35,7 @@ EOF
 apt update
 apt install -y autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
 apt install -y g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
-apt install -y libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg
+apt install -y libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg libxml2
 apt install -y git asciidoc pandoc
 apt install -y ack fd-find fzf ripgrep
 apt install -y btop iftop inotify-tools aria2 sshpass telnet network-manager-openvpn arch-install-scripts
