@@ -460,7 +460,9 @@ w2u() {
 
 update_zshrc() {
     zshrc_path="$HOME/.zshrc"
-    _curl $zshrc_path $github_url_base/mtf/.zshrc
+    if [[ ! -f $zshrc_path ]]; then
+        _curl $zshrc_path $github_url_base/mtf/.zshrc
+    fi
 }
 
 find_path() {
@@ -520,7 +522,6 @@ exp() {
 }
 
 sm() {
-
     export is_incognito=1
     source ~/.zshrc
     fc -p /dev/null 0 0
@@ -542,6 +543,39 @@ sm() {
 
         fc -P
     }
+}
+
+md5() {
+    if [[ $# -eq 0 ]]; then
+        echo "fast md5sum hash generator, usage: ${GREEN}md5 [string | file] [string | file] ...${NC}"
+        return 1
+    fi
+
+    _echo() {
+        echo "${RED}$1${NC}: ${GREEN}$2${NC}"
+    }
+    hash_file() {
+        _echo "$1" "$(md5sum "$1" | awk '{print $1}')"
+    }
+    hash_string() {
+        _echo "$1" "$(echo -n "$1" | md5sum | awk '{print $1}')"
+    }
+
+    if [[ $# -eq 1 ]]; then
+        if [[ -f "$1" ]]; then
+            hash_file "$1"
+        else
+            hash_string "$1"
+        fi
+    else
+        for arg in "$@"; do
+            if [[ -f "$arg" ]]; then
+                hash_file "$arg"
+            else
+                hash_string "$arg"
+            fi
+        done
+    fi
 }
 
 ## base on custom script, python, shellscript, etc.
