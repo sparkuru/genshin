@@ -45,7 +45,7 @@ apt install -y filezilla okteta putty picocom glow
 apt install -y upx p7zip p7zip-full
 apt install -y gnupg2 patchelf
 apt install -y python3-ropgadget strace adb
-apt install -y osdlyrics winetricks k3b gimp digikam krdc
+apt install -y osdlyrics winetricks k3b gimp digikam krdc cups
 apt install -y genisoimage device-tree-compiler
 apt install -y antlr3 antlr4 swig
 apt install -y debsums msmtp
