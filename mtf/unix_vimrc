@@ -115,3 +115,6 @@ nnoremap <silent> <leader>h :History<CR>
 nnoremap <silent> <leader>c :History:<CR>
 " 按 ,r 选择历史正则表达式
 nnoremap <silent> <leader>r :History/<CR>
+" 将所选内容追加到系统剪贴板, ctrl + shift + c
+set clipboard+=unnamedplus
+vnoremap <C-S-C> "+y

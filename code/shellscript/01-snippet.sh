@@ -15,8 +15,7 @@ nc='\033[0m'
 #endregion
 
 workdir=$(
-	cd $(dirname $0)
-	pwd
+	dirname $(readlink -f $0)
 )
 
 if [ $(id -u) -ne 0 ]; then
