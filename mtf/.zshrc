@@ -364,10 +364,13 @@ cmd() {
     /^alias/ {
         cmd = $0;
         sub(/^alias[ \t]+/, "", cmd);
-        split(cmd, parts, "=");
-        alias_name = parts[1];
-        alias_cmd = substr(parts[2], 2, length(parts[2]) - 2);
-        printf("%salias %s%-10s%s = %s\"%s\"%s\n", color_alias, color_alias_name, alias_name, reset, color_alias_cmd, alias_cmd, reset);
+        eq_pos = index(cmd, "=");
+        if (eq_pos > 0) {
+            alias_name = substr(cmd, 1, eq_pos - 1);
+            alias_cmd = substr(cmd, eq_pos + 1);
+            gsub(/^["'\'']|["'\'']$/, "", alias_cmd);
+            printf("%salias %s%-10s%s = %s\"%s\"%s\n", color_alias, color_alias_name, alias_name, reset, color_alias_cmd, alias_cmd, reset);
+        }
         next;
     }
     {
@@ -900,6 +903,10 @@ alias rcp="rsync -avtz --progress"
 
 alias transfer="sd search http.favicon.hash:-620522584"
     # refresh the cache: `transfer --d`
+
+alias 7za="7z a -r -t7z -mx=9 -m0=lzma2 -mfb=273 -md=32m -ms=on -mhe=on"
+    # zip with password: `7za -p<password> archive_name.7z [file1] [file2] ...`
+    # unzip with password: `7z x -p<password> archive_name.7z`
 
 alias x="curl -f"
 alias xi="curl -I -sfL"
