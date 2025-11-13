@@ -887,12 +887,28 @@ if [[ -d "$HOME/$leader_path_name/repo/04-flyMe2theStar/03-genshin" ]]; then
 fi
 
 ## alias_anchor
+
 alias l="ls -ah"
 alias ll="ls -alh"
 alias lt="ls -alht"
 alias lss="ls -alhS"
 alias c="clear"
 alias cls="clear"
+alias x="curl -f"
+alias xi="curl -I -sfL"
+alias xl="curl -sfL"
+alias less="less -N"
+alias zshrc="source ~/.zshrc"
+alias random="cat /dev/urandom|head|base64|md5sum|cut -d \" \" -f 1"
+alias p="ipython3"
+alias ipa="ip -br a"
+alias ima="date '+%Y-%m-%d-%H%M%S'"
+
+alias reg="grep -ir"
+    # grep with pattern: `reg -e 'pattern'`, like `reg -e "test*"`
+    # grep with regex: `reg -E '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}'`
+    # grep with full string: `reg -w 'a_single_word'`
+
 alias size="du -abh --time -d 1"
     # exclude file size under 1G: `size -t 1G`;
     # exclude reg files: `size --exclude=*backups*`;
@@ -907,14 +923,4 @@ alias transfer="sd search http.favicon.hash:-620522584"
 alias 7za="7z a -r -t7z -mx=9 -m0=lzma2 -mfb=273 -md=32m -ms=on -mhe=on"
     # zip with password: `7za -p<password> archive_name.7z [file1] [file2] ...`
     # unzip with password: `7z x -p<password> archive_name.7z`
-
-alias x="curl -f"
-alias xi="curl -I -sfL"
-alias xl="curl -sfL"
-alias less="less -N"
-alias reg="grep -ir"
-alias zshrc="source ~/.zshrc"
-alias random="cat /dev/urandom|head|base64|md5sum|cut -d \" \" -f 1"
-alias p="ipython3"
-alias ipa="ip -br a"
 ## end_alias_anchor
