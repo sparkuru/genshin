@@ -904,10 +904,11 @@ alias p="ipython3"
 alias ipa="ip -br a"
 alias ima="date '+%Y-%m-%d-%H%M%S'"
 
-alias reg="grep -ir"
+alias reg="grep -ir --color=always"
     # grep with pattern: `reg -e 'pattern'`, like `reg -e "test*"`
-    # grep with regex: `reg -E '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}'`
-    # grep with full string: `reg -w 'a_single_word'`
+    # grep with regex: `reg -E '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}'`, `reg -E '\bA_WORD\b|B_WORD'`
+    # grep with full word match: `reg -w 'a_single_word'`
+    # grep without binary file: `reg -I 'pattern'`
 
 alias size="du -abh --time -d 1"
     # exclude file size under 1G: `size -t 1G`;
