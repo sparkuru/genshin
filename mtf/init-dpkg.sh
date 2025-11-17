@@ -36,19 +36,22 @@ apt update
 apt install -y autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
 apt install -y g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
 apt install -y libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg libxml2
-apt install -y git asciidoc pandoc
+apt install -y zsh git asciidoc pandoc curl pkexec tree
 apt install -y ack fd-find fzf ripgrep
 apt install -y btop iftop inotify-tools aria2 sshpass telnet network-manager-openvpn arch-install-scripts
 apt install -y docker-compose virt-manager qemu-system qemu-user bridge-utils
-apt install -y fcitx5 fcitx5-chinese-addons fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
+apt install -y fcitx5 fcitx5-chinese-addons fcitx5-rime fcitx5-anthy fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei kde-config-fcitx5
+apt install -y fcitx5-frontend-all fcitx5-frontend-gtk* fcitx5-frontend-qt* fcitx5-table-*
 apt install -y filezilla okteta putty picocom glow mtools
-apt install -y upx p7zip p7zip-full
-apt install -y gnupg2 patchelf
-apt install -y python3-ropgadget strace adb
-apt install -y osdlyrics winetricks k3b gimp digikam krdc cups
+apt install -y upx p7zip p7zip-full python3-pip python3-venv
+apt install -y gnupg2 patchelf binwalk	
+apt install -y docker.io docker-compose
+apt install -y strace adb
+apt install -y winetricks k3b gimp digikam krdc cups ffmpeg
 apt install -y genisoimage device-tree-compiler
 apt install -y antlr3 antlr4 swig
 apt install -y debsums msmtp
+# apt install -y ibus ibus-gtk ibus-rime rime-data-emoji im-config
 
 python_version=$(python3 --version | awk '{print $2}' | awk -F. '{print "python"$1"."$2}')
 if [[ -f "/usr/lib/${python_version}/EXTERNALLY-MANAGED" ]]; then
@@ -56,14 +59,15 @@ if [[ -f "/usr/lib/${python_version}/EXTERNALLY-MANAGED" ]]; then
 fi
 
 # nodejs
-require_version="20.0.0"
-if [ $(echo -e "$require_version\n$(nodejs -v | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')" | sort -V | head -1) != "$require_version" ]; then
-	curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs npm &&
-		npm install -g npm@latest --registry=https://registry.npmmirror.com &&
-		npm install -g --registry=https://registry.npmmirror.com cnpm pm2 @anthropic-ai/claude-code @google/gemini-cli
-fi
+# require_version="20.0.0"
+# if [ $(echo -e "$require_version\n$(nodejs -v | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')" | sort -V | head -1) != "$require_version" ]; then
+# 	curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs npm &&
+# 		npm install -g npm@latest --registry=https://registry.npmmirror.com &&
+# 		npm install -g --registry=https://registry.npmmirror.com cnpm pm2 @anthropic-ai/claude-code @google/gemini-cli
+# fi
 
-apt purge needrestart -y
+# for pkg in $(dpkg -l | grep fcitx | awk '{print $2}'); do apt purge -y $pkg; done
+apt purge -y needrestart
 apt autoremove -y
 
 ln -s /usr/bin/fdfind /usr/bin/fd
@@ -73,14 +77,14 @@ curl -fLo $HOME/.config/fontconfig/fonts.conf $GITHUB_URL_BASE/mtf/fonts.conf
 fc-cache -f
 
 # docker
-groups="docker,netdev,libvirt,dialout,plugdev"
+groups="adm,sudo,docker,netdev,libvirt,dialout,plugdev"
 usermod -aG $groups $USERNAME
 
 mkdir /etc/systemd/system/docker.service.d
 cat <<EOF >/etc/systemd/system/docker.service.d/proxy.conf
 [Service]
-Environment="HTTP_PROXY=http://198.18.0.1:7890"
-Environment="HTTPS_PROXY=http://198.18.0.1:7890"
+Environment="HTTP_PROXY=http://198.18.0.1:1080"
+Environment="HTTPS_PROXY=http://198.18.0.1:1080"
 Environment="NO_PROXY=localhost,198.18.0.1"
 EOF
 mkdir /etc/docker/
@@ -134,7 +138,14 @@ curl -fLo /tmp/tmp/unix-install-vim.sh $GITHUB_URL_BASE/mtf/unix-install-vim.sh
 chmod +x /tmp/tmp/unix-install-vim.sh
 /tmp/tmp/unix-install-vim.sh
 
+# locale
+echo "en_SG.UTF-8 UTF-8\nen_US.UTF-8 UTF-8\nzh_CN.UTF-8 UTF-8\nzh_SG.UTF-8 UTF-8" >> /etc/locale.gen
+locale-gen
+
+
+
 chown -R $USERNAME:$USERNAME $HOME
 
 # 其他需要安装的软件
 # siyuan-note、百度网盘、wps（12.1.0.17881）、wechat、linuxqq、wemeet、vmware-workstation、mihomua
+

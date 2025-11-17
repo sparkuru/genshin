@@ -8,4 +8,6 @@
      3.   `systemctl start ssh && systemctl enable ssh`
 4.   vim
      1.   `sudo apt-get install -y vim fzf ripgrep`
-     2.   `curl -fLo /tmp/unix-install-vim.sh https://raw.githubusercontent.com/sparkuru/genshin/main/mtf/unix-install-vim.sh && chmod +x /tmp/unix-install-vim.sh && /tmp/unix-install-vim.sh install`
+     2.   `curl -fLo /tmp/unix-install-vim.sh https://raw.githubusercontent.com/sparkuru/genshin/main/mtf/unix-install-vim.sh && chmod +x /tmp/unix-install-vim.sh && sudo /tmp/unix-install-vim.sh install`
+5.   unix environment
+     1.   `sudo curl -fLo /etc/environment https://raw.githubusercontent.com/sparkuru/genshin/main/mtf/environment`
