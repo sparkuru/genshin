@@ -21,7 +21,7 @@ set number	" Show line numbers
 " set relativenumber " 相对行号
 set ruler	" Show file stats
 " set visualbell	" a1 高闪
-set guicursor=a:hor20-Cursor/lCursor
+set guicursor=n-v-c:block-Cursor,i-ci-ve:hor20-Cursor/lCursor,r-cr:hor20-Cursor,o:hor50-Cursor
 set guifont=Consolas:h12
 
 " Whitespace
