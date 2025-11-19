@@ -40,8 +40,8 @@ apt install -y zsh git asciidoc pandoc curl pkexec tree
 apt install -y ack fd-find fzf ripgrep
 apt install -y btop iftop inotify-tools aria2 sshpass telnet network-manager-openvpn arch-install-scripts
 apt install -y docker-compose virt-manager qemu-system qemu-user bridge-utils
-apt install -y fcitx5 fcitx5-chinese-addons fcitx5-rime fcitx5-anthy fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei kde-config-fcitx5
-apt install -y fcitx5-frontend-all fcitx5-frontend-gtk* fcitx5-frontend-qt* fcitx5-table-*
+apt install -y fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
+apt install -y fcitx5 fcitx5-table fcitx5-chinese-addons fcitx5-rime fcitx5-anthy fcitx5-frontend-all fcitx5-frontend-gtk* fcitx5-frontend-qt* kde-config-fcitx5
 apt install -y filezilla okteta putty picocom glow mtools
 apt install -y upx p7zip p7zip-full python3-pip python3-venv
 apt install -y gnupg2 patchelf binwalk	
@@ -118,7 +118,8 @@ sudo -u $USERNAME pip install \
 	ropgadget pwntools \
 	scapy shodan \
 	ollama \
-	watchdog psutil
+	watchdog psutil \
+	legacy-cgi
 
 # git
 if [ $USERNAME = "wkyuu" ]; then
