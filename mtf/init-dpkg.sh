@@ -36,18 +36,18 @@ apt update
 apt install -y autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
 apt install -y g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
 apt install -y libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg libxml2
-apt install -y zsh git asciidoc pandoc curl pkexec tree
+apt install -y zsh git asciidoc pandoc curl pkexec tree dkms aptitude
 apt install -y ack fd-find fzf ripgrep
 apt install -y btop iftop inotify-tools aria2 sshpass telnet network-manager-openvpn arch-install-scripts
 apt install -y docker-compose virt-manager qemu-system qemu-user bridge-utils
 apt install -y fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
 apt install -y fcitx5 fcitx5-table fcitx5-chinese-addons fcitx5-rime fcitx5-anthy fcitx5-frontend-all fcitx5-frontend-gtk* fcitx5-frontend-qt* kde-config-fcitx5
 apt install -y filezilla okteta putty picocom glow mtools
-apt install -y upx p7zip p7zip-full python3-pip python3-venv
+apt install -y upx p7zip p7zip-full python3-pip python3-venv python-is-python3
 apt install -y gnupg2 patchelf binwalk	
 apt install -y docker.io docker-compose
 apt install -y strace adb
-apt install -y winetricks k3b gimp digikam krdc cups ffmpeg
+apt install -y winetricks k3b gimp digikam krdc cups ffmpeg npm
 apt install -y genisoimage device-tree-compiler
 apt install -y antlr3 antlr4 swig
 apt install -y debsums msmtp
@@ -115,7 +115,7 @@ sudo -u $USERNAME pip install \
 	datetime argparse colorama cryptography getpass4 rich bs4 readchar mmh3 toml \
 	ipython \
 	ifaddr \
-	ropgadget pwntools \
+	ropgadget pwntools frida-tools \
 	scapy shodan \
 	ollama \
 	watchdog psutil \

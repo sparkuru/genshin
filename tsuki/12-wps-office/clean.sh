@@ -1,7 +1,13 @@
 #!/bin/bash
 
+wpspath="/opt/kingsoft/wps-office/office6"
+wcsbin="$wpspath/wpscloudsrv"
+
 wps_config_file_dir="/home/$USER/.config/Kingsoft"
 wps_bin_root_dir="/opt/kingsoft/wps-office"
+
+mv $wcsbin "$wcsbin.shit"
+sudo echo "#!/bin/bash\nexit 0" > $wcsbin
 
 config_file_list=(
     "Office.conf"
@@ -15,6 +21,7 @@ keyword_list=(
     "lastOpenDir"
     "FileDialog"
     "openfilelist"
+    "AutoRecoverFilePath"
 )
 
 printf -v expr_str '%s\\|' "${keyword_list[@]}"
@@ -22,6 +29,7 @@ expr_str="${expr_str%\\|}"
 
 for config_file in "${config_file_list[@]}"; do
     sed -i "/$expr_str/d" $wps_config_file_dir/$config_file
+    # echo "sed -i \"/$expr_str/d\" $wps_config_file_dir/$config_file"
 done
 
 # turn off cloud sync function
@@ -38,11 +46,13 @@ for keyword in "${num_keyword_list[@]}"; do
     sed -i "s/$keyword=1/$keyword=0/g" "$wps_config_file_dir/WPSCloud.conf"
 done
 
+# remove auto recovery file path
+
 # remove wps cloud files
 document_path=$(echo "$HOME/document/WPS Cloud Files" | sed 's|\/|\\/|g')
 target_path="\/tmp\/wps"
 sed -i "s/$document_path/$target_path/g" "$wps_config_file_dir/WPSCloud.conf"
-sed -i "s/supportSecretFolderFunc_tmp=true/supportSecretFolderFunc_tmp=false/g" "$wps_config_file_dir/WPSCloud\\usercenter\\secretFolder.conf"
+sed -i "s/supportSecretFolderFunc_tmp=true/supportSecretFolderFunc_tmp=false/g" "$wps_config_file_dir/WPSCloud\\usercenter\\secretFolder.conf" > /dev/null 2>&1
 
 # other clean
 old="00000001=eyJRUHVzaCI6InRydWUiLCJjcnlwdGNvb2tpZSI6InRydWUiLCJtb2JpbGVQdXNoIjoiZmFsc2UiLCJxaW5pdSI6Im9wZW4iLCJyZXN1bHQiOiJvayIsInJvYW1Ib21lcGFnZVNldHRpbmdHdWlkIjoidHJ1ZSIsInNob3dndWlkZSI6ImZhbHNlIiwidXBkYXRlVGlwSW50ZXJ2YWwiOiIzNjAwMCJ9"
