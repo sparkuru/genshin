@@ -8,8 +8,8 @@ import re
 from datetime import datetime
 import argparse
 
+from colorama import Fore, Style, init as colorama_init
 if sys.platform == "win32":
-    from colorama import init as colorama_init
     colorama_init(autoreset=True)
 
 # Import modules based on operating system
