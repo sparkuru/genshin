@@ -13,6 +13,10 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from getpass import getpass
 
+if sys.platform == "win32":
+    from colorama import init as colorama_init
+    colorama_init(autoreset=True)
+
 
 def color(text: str = "", color: int = 1) -> str:
     """

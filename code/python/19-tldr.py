@@ -8,6 +8,10 @@ import argparse
 import toml
 from typing import Dict, List, Optional, Any
 
+if sys.platform == "win32":
+    from colorama import init as colorama_init
+    colorama_init(autoreset=True)
+
 DEBUG_MODE = False
 
 

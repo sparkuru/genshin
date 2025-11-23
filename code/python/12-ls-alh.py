@@ -7,7 +7,10 @@ import ctypes
 import re
 from datetime import datetime
 import argparse
-from colorama import Fore, Style
+
+if sys.platform == "win32":
+    from colorama import init as colorama_init
+    colorama_init(autoreset=True)
 
 # Import modules based on operating system
 if sys.platform != "win32":
