@@ -19,6 +19,10 @@ from urllib.parse import unquote, quote
 import ifaddr
 import signal
 
+if sys.platform == "win32":
+    from colorama import init as colorama_init
+    colorama_init(autoreset=True)
+
 # Global variables and constants
 DEBUG_MODE = False
 SERVER_INSTANCE = None

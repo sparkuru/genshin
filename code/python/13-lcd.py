@@ -7,6 +7,10 @@ import os
 import sys
 from typing import List
 
+if sys.platform == "win32":
+    from colorama import init as colorama_init
+    colorama_init(autoreset=True)
+
 # Global variables
 DEBUG_MODE = False
 VERSION = "1.1.4"

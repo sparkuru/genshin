@@ -17,6 +17,9 @@ import time
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlencode
 
+from colorama import init as colorama_init
+colorama_init(autoreset=True)
+
 import requests
 
 DEBUG_MODE = False
