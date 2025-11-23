@@ -24,6 +24,7 @@ import sys
 import time
 from pathlib import Path
 from typing import List, Tuple, Dict
+from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup  # type: ignore
@@ -70,11 +71,10 @@ def _extract_time_text(soup: "BeautifulSoup") -> str:
     return ""
 
 
-def parse_title_and_images(html_text: str) -> Tuple[str, List[str], str]:
+def parse_title_and_images(html_text: str, base_url: str) -> Tuple[str, List[str], str]:
     soup = BeautifulSoup(html_text, "html.parser")
 
     title_text = ""
-    # Prefer <title>, fallback to body header h1
     title_tag = soup.find("title")
     if title_tag and title_tag.text:
         title_text = title_tag.text
@@ -82,19 +82,24 @@ def parse_title_and_images(html_text: str) -> Tuple[str, List[str], str]:
         header_h1 = soup.select_one(".tl_article_header h1")
         title_text = header_h1.text if header_h1 else "telegraph"
 
-    # Telegraph body is usually within #_tl_editor; collect all <img> in order
     article = soup.select_one("#_tl_editor") or soup.select_one(".tl_article_content")
     if not article:
         article = soup
+
+    parsed_base = urlparse(base_url)
+    base_scheme_netloc = f"{parsed_base.scheme}://{parsed_base.netloc}"
 
     image_urls: List[str] = []
     for img in article.find_all("img"):
         src = (img.get("src") or "").strip()
         if not src:
             continue
-        # Normalize protocol-relative URL
         if src.startswith("//"):
             src = "https:" + src
+        elif src.startswith("/"):
+            src = urljoin(base_scheme_netloc, src)
+        elif not src.startswith(("http://", "https://")):
+            src = urljoin(base_url, src)
         image_urls.append(src)
 
     time_text = _extract_time_text(soup)
@@ -111,12 +116,10 @@ def ensure_directory(base_dir: Path, title: str) -> Path:
 
 
 def download_with_retry(url: str, dest_path: Path, timeout: float, headers: dict[str, str], retries: int, backoff: float) -> Path:
-    last_exc: Exception | None = None
     for attempt in range(1, retries + 1):
         try:
             with requests.get(url, stream=True, timeout=timeout, headers=headers) as r:
                 r.raise_for_status()
-                # Guess extension from response Content-Type
                 content_type = r.headers.get("Content-Type", "")
                 ext = guess_extension_from_content_type(content_type)
                 if ext and dest_path.suffix.lower() != ext:
@@ -128,8 +131,7 @@ def download_with_retry(url: str, dest_path: Path, timeout: float, headers: dict
                             f.write(chunk)
                 os.replace(tmp_path, dest_path)
                 return dest_path
-        except Exception as e:  # noqa: BLE001 - Centralized retry error handling
-            last_exc = e
+        except Exception:  # noqa: BLE001 - Centralized retry error handling
             if attempt < retries:
                 time.sleep(backoff * attempt)
             else:
@@ -162,16 +164,24 @@ def build_headers(user_agent: str | None) -> dict[str, str]:
     return headers
 
 
-def rewrite_html_with_local_images(html_text: str, url_to_local_name: Dict[str, str]) -> str:
+def rewrite_html_with_local_images(html_text: str, url_to_local_name: Dict[str, str], base_url: str) -> str:
     """Replace <img src> with local filenames if present in mapping."""
     soup = BeautifulSoup(html_text, "html.parser")
     article = soup.select_one("#_tl_editor") or soup.select_one(".tl_article_content") or soup
+    
+    parsed_base = urlparse(base_url)
+    base_scheme_netloc = f"{parsed_base.scheme}://{parsed_base.netloc}"
+    
     for img in article.find_all("img"):
         src = (img.get("src") or "").strip()
         if not src:
             continue
         if src.startswith("//"):
             src = "https:" + src
+        elif src.startswith("/"):
+            src = urljoin(base_scheme_netloc, src)
+        elif not src.startswith(("http://", "https://")):
+            src = urljoin(base_url, src)
         local = url_to_local_name.get(src)
         if local:
             img["src"] = local
@@ -197,7 +207,7 @@ def main() -> None:
         print(f"[Error] Failed to fetch page: {e}", file=sys.stderr)
         sys.exit(2)
 
-    title_text, image_urls, time_text = parse_title_and_images(html_text)
+    title_text, image_urls, time_text = parse_title_and_images(html_text, args.url)
     if not image_urls:
         print("[Warning] No images found on the page.", file=sys.stderr)
 
@@ -232,7 +242,7 @@ def main() -> None:
 
     # Save rewritten HTML with local image paths
     try:
-        rewritten = rewrite_html_with_local_images(html_text, url_to_local)
+        rewritten = rewrite_html_with_local_images(html_text, url_to_local, args.url)
         with open(target_dir / "index.html", "w", encoding="utf-8") as f:
             f.write(rewritten)
     except Exception as e:
