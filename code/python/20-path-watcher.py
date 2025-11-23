@@ -7,6 +7,10 @@ import time
 import argparse
 from typing import Optional, List, Dict
 
+if sys.platform == "win32":
+    from colorama import init as colorama_init
+    colorama_init(autoreset=True)
+
 try:
     from watchdog.observers import Observer
     from watchdog.events import FileSystemEventHandler
