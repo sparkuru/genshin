@@ -7,6 +7,9 @@ import argparse
 import os
 import sys
 
+if sys.platform == "win32":
+    from colorama import init as colorama_init
+    colorama_init(autoreset=True)
 
 # CLI Style Template
 class CLIStyle:

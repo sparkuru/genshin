@@ -6,6 +6,10 @@ import json
 import argparse
 from typing import Dict, List, Union, Any
 
+if sys.platform == "win32":
+    from colorama import init as colorama_init
+    colorama_init(autoreset=True)
+
 # Global debug level
 DEBUG_MODE = False
 

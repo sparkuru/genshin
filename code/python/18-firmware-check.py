@@ -15,6 +15,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import argparse
 
+if sys.platform == "win32":
+    from colorama import init as colorama_init
+    colorama_init(autoreset=True)
+
 # patterns
 password_patterns = ["passwd", "shadow", "*.psk"]
 ssl_patterns = ["*.crt", "*.pem", "*.cer", "*.p7b", "*.p12", "*.key"]

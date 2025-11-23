@@ -10,6 +10,10 @@ import signal
 from rich.console import Console
 from rich.panel import Panel
 
+if sys.platform == "win32":
+    from colorama import init as colorama_init
+    colorama_init(autoreset=True)
+
 # Global variables
 DEBUG_MODE = False
 WORK_DIR = os.getcwd()

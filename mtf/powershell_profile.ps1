@@ -1,6 +1,7 @@
 $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding    # english use utf-8
 $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(936)   # chinese change to utf-8 handly
 
+$home_path = "d:/home"
 $lang_base_path = "d:/lang"
 $bin_base_path = "d:/bin"
 $software_base_path = "d:/software"
@@ -142,13 +143,28 @@ function exp {
         & explorer .
     }
 }
+function update_profile {
+    $src_profile_path = "$repo_base_path/04-flyMe2theStar/03-genshin/mtf/powershell_profile.ps1"
+    $dest_profile_path = "$PROFILE"
+    if (-Not (Test-Path $src_profile_path)) {
+        Write-Host "source profile path not found" -ForegroundColor Red
+        return
+    }
+    if (-Not (Test-Path $dest_profile_path)) {
+        Write-Host "destination profile path not found" -ForegroundColor Red
+        return
+    }
+    Copy-Item -Path $src_profile_path -Destination $dest_profile_path -Force
+    Write-Host "profile updated" -ForegroundColor Green
+    Write-Host "please restart powershell to apply the changes" -ForegroundColor Yellow
+}
 function print_old_dir {
     $old_dir = Get-Location
     Write-Host "old pwd > $old_dir" -ForegroundColor Blue
 }
 function home {
     & print_old_dir
-    $home_path = "c:/users/wkyuu/desktop"
+    $home_path = "$home_path/desktop"
     Set-Location -Path $home_path
 }
 function tmp {
@@ -236,5 +252,41 @@ function frida {
         Write-Host " Type 'deactivate' to exit" -ForegroundColor Yellow
         Write-Host "------------------------------------------------`n" -ForegroundColor Yellow
         Set-Location -Path $currentPath
+    }
+}
+function ggit {
+    $commit_comment = "u1x:wq"
+    switch ($args[0]) {
+        "push" {
+            git pull 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                git push
+            } else {
+                Write-Host "pulled, but conflict or sth, manual resolve first." -ForegroundColor Red
+                return 1
+            }
+        }
+        "commit" {
+            $git_root_dir = git rev-parse --show-toplevel
+            Set-Location -Path $git_root_dir
+            git add .
+            git commit -m $commit_comment
+        }
+        "auto" {
+            ggit commit
+            ggit push
+        }
+        "root" {
+            $current_dir = Get-Location
+            $git_root_dir = git rev-parse --show-toplevel
+            Write-Host "current path: " -NoNewline
+            Write-Host $current_dir -ForegroundColor Red -NoNewline
+            Write-Host "`nchange to: " -NoNewline
+            Write-Host $git_root_dir -ForegroundColor Green
+            Set-Location -Path $git_root_dir
+        }
+        default {
+            Write-Host "usage: ggit {push|commit|auto|root}" -ForegroundColor Yellow
+        }
     }
 }
