@@ -26,9 +26,7 @@ $systemPathsToAdd = @(
     "c:\Program Files\dotnet",
     "d:\lang\java\java-microsoft-jdk-21.0.2\bin",
     "d:\bin\git\bin"
-    "d:\software\bandizip",
-    "d:\sec\xftp",
-    "d:\sec\xshell"
+    "d:\software\bandizip"
 )
 
 # CLASSPATH and JAVA_HOME for system variables

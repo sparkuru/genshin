@@ -5,7 +5,7 @@ $lang_base_path = "d:/lang"
 $bin_base_path = "d:/bin"
 $software_base_path = "d:/software"
 $sec_base_path = "d:/sec"
-$project_base_path = "d:/project"
+$repo_base_path = "d:/repo"
 
 # app export
 ###################### lang ######################
@@ -22,7 +22,7 @@ $env:PIP_DOWNLOAD_CACHE = "$lang_base_path/python/pip-cache"
 ###################### bin ######################
 $BTOPPATH = "$bin_base_path/btop4win"
 $FDPATH = "$bin_base_path/fd"
-$FFMPEGPATH = "$bin_base_path/ffmpeg"
+$FFMPEGPATH = "$bin_base_path/ffmpeg/bin"
 $FZFPATH = "$bin_base_path/fzf"
 $GITPATH = "$bin_base_path/git/cmd"
 $NMAPPATH = "$bin_base_path/nmap"
@@ -49,12 +49,14 @@ $NOTEPAD4PATH = "$software_base_path/notepad4"
 $POTPLAYERPATH = "$software_base_path/potplayer"
 $SUMATRAPATH = "$software_base_path/sumatra-pdf"
 $TYPORAPATH = "$software_base_path/typora"
+$WINDTERMPATH = "$software_base_path/WindTerm"
 $XNVIEWPATH = "$software_base_path/xnview"
 
 $env:PATH += "$NOTEPAD4PATH;" + `
 "$POTPLAYERPATH;" + `
 "$SUMATRAPATH;" + `
 "$TYPORAPATH;" + `
+"$WINDTERMPATH;" + `
 "$XNVIEWPATH;"
 
 Set-Alias play PotPlayerMini64
@@ -68,7 +70,6 @@ $BURPSUITEPATH = "$sec_base_path/burpsuite"
 $FRIDAPATH = "$sec_base_path/frida"
 $IDAPATH = "$sec_base_path/ida"
 $JADXPATH = "$sec_base_path/jadx"
-$MOBAXTERMPATH = "$sec_base_path/mobaxterm-portable"
 $WINHEXPATH = "$sec_base_path/winhex"
 $WIRESHARKPATH = "$sec_base_path/wireshark"
 
@@ -77,7 +78,6 @@ $env:PATH += "$ADBPATH;" + `
 "$FRIDAPATH;" + `
 "$IDAPATH;" + `
 "$JADXPATH;" + `
-"$MOBAXTERMPATH;" + `
 "$WINHEXPATH;" + `
 "$WIRESHARKPATH;"
 
@@ -87,10 +87,10 @@ Set-Alias winhex xwforensics64
 Set-Alias wireshark WiresharkPortable64
 
 # proxy export
-$proxy_host = "127.0.0.1"
+$proxy_host = "198.18.0.1"
 $proxy_port = "1080"
-$env:http_proxy="http://${proxy_host}:${proxy_port}"
-$env:https_proxy="http://${proxy_host}:${proxy_port}"
+# $env:http_proxy="http://${proxy_host}:${proxy_port}"
+# $env:https_proxy="http://${proxy_host}:${proxy_port}"
 
 # cancle native alias
 Remove-Item Alias:ls
@@ -106,15 +106,15 @@ Set-Alias reg regedit
 function poweroff { Stop-Computer }
 function reboot { Restart-Computer }
 
-$project_genshin_path = "$project_base_path/04-flyMe2theStar/03-genshin"
+$project_genshin_path = "$repo_base_path/04-flyMe2theStar/03-genshin"
 function password { python $project_genshin_path/code/python/08-password-generator.py $args }
 function rename { python $project_genshin_path/code/python/14-interact-rename.py $args}
 function encrypt { python $project_genshin_path/code/python/02-ez-encrypt.py $args }
 function cx { python $project_genshin_path/code/python/09-ip-status.py $args }
-function ftp { python $project_genshin_path/code/python/16-fast-ftp-server.py $args }
-function l { python $project_genshin_path/code/python/12-ls-alh.py $args --level 0 }
-function ls { python $project_genshin_path/code/python/12-ls-alh.py $args --level 0  }
+function ftp { python $project_genshin_path/code/python/16-hftp.py $args }
+function l { python $project_genshin_path/code/python/12-ls-alh.py $args }
 function ll { python $project_genshin_path/code/python/12-ls-alh.py $args }
+function ls { python $project_genshin_path/code/python/12-ls-alh.py $args }
 function la { python $project_genshin_path/code/python/12-ls-alh.py $args --all }
 function lt { python $project_genshin_path/code/python/12-ls-alh.py $args -s time }
 function lss { python $project_genshin_path/code/python/12-ls-alh.py $args -s size }
