@@ -23,14 +23,14 @@ mkdir -p /root/.ssh
 curl -fLo /root/.ssh/authorized_keys $GITHUB_URL_BASE/mtf/authorized_keys
 chmod 700 -R /root/.ssh
 
-curl -fLo /etc/ssh/sshd_config $GITHUB_URL_BASE/mtf/sshd_config
+curl -fLo /etc/ssh/sshd_config $GITHUB_URL_BASE/mtf/etc/sshd_config
 systemctl start ssh && systemctl enable ssh
 
 # software
-cat <<EOF >/etc/apt/sources.list
-deb https://mirrors.ustc.edu.cn/kali kali-rolling main non-free non-free-firmware contrib
-deb-src https://mirrors.ustc.edu.cn/kali kali-rolling main non-free non-free-firmware contrib
-EOF
+# cat <<EOF >/etc/apt/sources.list
+# deb https://mirrors.ustc.edu.cn/kali kali-rolling main non-free non-free-firmware contrib
+# deb-src https://mirrors.ustc.edu.cn/kali kali-rolling main non-free non-free-firmware contrib
+# EOF
 
 apt update
 apt install -y autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
@@ -139,10 +139,11 @@ curl -fLo /tmp/tmp/unix-install-vim.sh $GITHUB_URL_BASE/mtf/unix-install-vim.sh
 chmod +x /tmp/tmp/unix-install-vim.sh
 /tmp/tmp/unix-install-vim.sh
 
-# locale
+# locale, or run `sudo dpkg-reconfigure locales` to config in terminal GUI
 echo "en_SG.UTF-8 UTF-8\nen_US.UTF-8 UTF-8\nzh_CN.UTF-8 UTF-8\nzh_SG.UTF-8 UTF-8" >> /etc/locale.gen
+# update-locale LANG=zh_CN.UTF-8 LANGUAGE=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8
 locale-gen
-
+locale
 
 
 chown -R $USERNAME:$USERNAME $HOME
