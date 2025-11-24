@@ -1,0 +1,82 @@
+#!/bin/bash
+
+gOpt=
+#gOptExt=-multiply
+gTemplateExt=("dpt" "pot" "potx" "potm" "uopt3")
+gBinPath=$(dirname "$0")
+if [ -d "${gBinPath}/office6" ]; then
+	gInstallPath=${gBinPath}
+else
+	gInstallPath=/opt/kingsoft/wps-office
+fi
+gApp=wpp
+gDaemon=0
+gConfigPath="${HOME}/.config/Kingsoft/Office.conf"
+gIsFushion=0
+
+function get_model_type()
+{
+	currentMode=""
+	haveConf=0
+	if [ -e "${gConfigPath}" ];then
+		haveConf=1
+	fi
+	if [ $haveConf -eq 1 ]; then
+		currentMode=$(awk -v line=$(awk '/\[6.0\]/{print NR}' "${gConfigPath}")  -F"=" '$1=="wpsoffice\\Application%20Settings\\AppComponentMode" {if(NR>=line){print $2}}' "${gConfigPath}")
+	fi
+	if [ $haveConf -eq 1 ] && [ "$currentMode" = "prome_fushion" ]; then
+			gApp="wpsoffice"
+			gIsFushion=1
+	fi
+}
+
+function parse_arg()
+{
+	if [ "$1" == "-quickstart" ]; then
+		gOpt=-quickstart
+		gDaemon=1
+		return 0
+	fi
+	get_model_type "$@"
+	if [ $# -eq 1 ] ; then
+		ext="${1##*.}"
+		if [ "" = "${ext}" ] ; then
+			return 0
+		fi
+
+		ext_lowercase=$(echo $ext | tr [A-Z] [a-z])
+
+		for i in "${gTemplateExt[@]}"
+		do
+			if [ "${ext_lowercase}" = "${i}" ] ; then
+				gOpt=-t
+			fi
+		done
+	fi
+}
+
+function run()
+{
+	oldPwd="${PWD}"
+	if [ -e "${gInstallPath}/office6/${gApp}" ] ; then
+		if [ 1 -eq ${gDaemon} ]; then
+			nohup ${gInstallPath}/office6/${gApp} ${gOpt} > /dev/null 2>&1 &
+		elif [ 1 -eq ${gIsFushion} ] && [ "$1" != "/prometheus" ]; then
+			{ unset GIO_LAUNCHED_DESKTOP_FILE && ${gInstallPath}/office6/${gApp} /prometheus ${gOptExt} ${gOpt} "$@"; } > /dev/null 2>&1
+		else
+			{ ${gInstallPath}/office6/${gApp} ${gOptExt} ${gOpt} "$@"; } > /dev/null 2>&1
+		fi
+	else
+		echo "${gApp} does not exist!"
+	fi
+}
+
+function main()
+{
+	parse_arg "$@"
+	run "$@"
+	sudo -u root /home/wkyuu/.local/share/Kingsoft/clean.sh
+	exit 0
+}
+
+main "$@"
