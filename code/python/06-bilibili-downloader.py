@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pip install requests
+# pip install requests argparse
 
 from __future__ import annotations
 

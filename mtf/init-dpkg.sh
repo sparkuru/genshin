@@ -44,7 +44,7 @@ apt install -y fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
 apt install -y fcitx5 fcitx5-table fcitx5-chinese-addons fcitx5-rime fcitx5-anthy fcitx5-frontend-all fcitx5-frontend-gtk* fcitx5-frontend-qt* kde-config-fcitx5
 apt install -y filezilla okteta putty picocom glow mtools
 apt install -y upx p7zip p7zip-full python3-pip python3-venv python-is-python3
-apt install -y gnupg2 patchelf binwalk	
+apt install -y gnupg2 patchelf binwalk wireshark	
 apt install -y docker.io docker-compose
 apt install -y strace adb
 apt install -y winetricks k3b gimp digikam krdc cups ffmpeg npm
@@ -77,9 +77,6 @@ curl -fLo $HOME/.config/fontconfig/fonts.conf $GITHUB_URL_BASE/mtf/fonts.conf
 fc-cache -f
 
 # docker
-groups="adm,sudo,docker,netdev,libvirt,dialout,plugdev"
-usermod -aG $groups $USERNAME
-
 mkdir /etc/systemd/system/docker.service.d
 cat <<EOF >/etc/systemd/system/docker.service.d/proxy.conf
 [Service]
@@ -145,6 +142,8 @@ echo "en_SG.UTF-8 UTF-8\nen_US.UTF-8 UTF-8\nzh_CN.UTF-8 UTF-8\nzh_SG.UTF-8 UTF-8
 locale-gen
 locale
 
+groups="adm,sudo,docker,netdev,libvirt,dialout,plugdev,wireshark"
+usermod -aG $groups $USERNAME
 
 chown -R $USERNAME:$USERNAME $HOME
 
