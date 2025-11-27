@@ -911,6 +911,7 @@ alias reg="grep -ir --color=always"
     # grep without binary file: `reg -I 'pattern'`
 
 alias size="du -abh --time -d 1"
+alias ssize="du -abh --time -d 1 | sort -h"
     # exclude file size under 1G: `size -t 1G`;
     # exclude reg files: `size --exclude=*backups*`;
     # sort by size: `size | sort -h`
