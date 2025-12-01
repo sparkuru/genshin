@@ -842,7 +842,8 @@ ggit() {
             echo "$raw_url"
             ;;
         *)
-            echo "usage: ggit {push|commit|auto|root|path <file>}"
+            echo "usage: ggit {push | commit [commit_msg] | auto [commit_msg] | root | path <file_path>}"
+            return 1
             ;;
     esac
 }
