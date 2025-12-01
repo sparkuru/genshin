@@ -958,6 +958,7 @@ alias random="cat /dev/urandom|head|base64|md5sum|cut -d \" \" -f 1"
 alias p="ipython3"
 alias ipa="ip -br a"
 alias ima="date '+%Y-%m-%d-%H%M%S'"
+alias count="wc -l"
 
 alias reg="grep -ir --color=always"
     # grep with pattern: `reg -e 'pattern'`, like `reg -e "test*"`
@@ -980,4 +981,5 @@ alias transfer="sd search http.favicon.hash:-620522584"
 alias 7za="7z a -r -t7z -mx=9 -m0=lzma2 -mfb=273 -md=32m -ms=on -mhe=on"
     # zip with password: `7za -p<password> archive_name.7z [file1] [file2] ...`
     # unzip with password: `7z x -p<password> archive_name.7z`
+    # specific uncompress output directory: `7z x -o<output_directory> archive_name.7z`
 ## end_alias_anchor
