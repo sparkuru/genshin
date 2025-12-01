@@ -23,4 +23,6 @@ kali 默认自带 code-oss，如果卸载掉 code-oss，会导致潜在的依赖
 	dist/vscode-xxxxx-x86_64.AppImage --appimage-extract
 	```
 
-	
+## fetch config
+
+1. ``
