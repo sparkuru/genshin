@@ -15,6 +15,8 @@ kali 默认自带 code-oss，如果卸载掉 code-oss，会导致潜在的依赖
 	dist/vscode-xxxxx-x86_64.AppImage --appimage-extract
 	```
 
+	如果想查看 appimage 解压运行时，通过 `dist/vscode-xxxxx-x86_64.AppImage --appimage-mount` 可以进入到 fuse 挂载类型的目录查看
+
 2. docker
 
 	```bash
