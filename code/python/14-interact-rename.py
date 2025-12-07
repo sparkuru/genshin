@@ -244,7 +244,7 @@ class FileRenamer:
             print(color(f"Unexpected error: {str(e)}", CLI_COLORS["ERROR"]))
             return False
 
-    def fast_rename(self, file_type: str, width: int = 3) -> None:
+    def fast_rename(self, file_type: str, width: int = 3, start_num: int = 1) -> None:
         if file_type not in [FileType.VIDEO, FileType.IMAGE]:
             print(
                 color(
@@ -283,7 +283,7 @@ class FileRenamer:
 
         # Preview changes to be made
         changes = []
-        for index, filename in enumerate(files, 1):
+        for index, filename in enumerate(files, start_num):
             # Smart extension handling: preserve .gif extension for GIF files
             file_ext = os.path.splitext(filename)[1].lower()
             if file_ext == ".gif":
@@ -868,6 +868,7 @@ def create_command_help(parser: argparse.ArgumentParser, command: str) -> str:
                 color("Options:", CLI_COLORS["TITLE"]),
                 f"  {color('-t, --type', CLI_COLORS['SUB_TITLE'])} TYPE     File type (image, video) [default: image]",
                 f"  {color('-w, --width', CLI_COLORS['SUB_TITLE'])} WIDTH   Number width [default: 3]",
+                f"  {color('--start_num', CLI_COLORS['SUB_TITLE'])} START NUMBER   Starting number [default: 1]",
             ]
         )
     elif command == "prefix":
@@ -940,6 +941,9 @@ def main():
     fast_parser.add_argument(
         "-w", "--width", type=int, default=3, help="Number width (default: 3)"
     )
+    fast_parser.add_argument(
+        "--start_num", type=int, default=1, help="Starting number (default: 1)"
+    )
 
     # Prefix rename command
     prefix_parser = subparsers.add_parser(
@@ -999,7 +1003,7 @@ def main():
         return
 
     if args.command == "fast":
-        renamer.fast_rename(args.type, args.width)
+        renamer.fast_rename(args.type, args.width, args.start_num)
     elif args.command == "prefix":
         renamer.prefix_rename(file_list, args.width, args.mode, args.start_num)
     elif args.command == "interactive":
