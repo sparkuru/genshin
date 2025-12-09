@@ -1,0 +1,17 @@
+services:
+  ftp-server:
+    image: stilliard/pure-ftpd
+    container_name: ftp-server
+    ports:
+      - "21:21"
+      - "30000-30009:30000-30009"
+    volumes:
+      - /mnt/sda/ftp:/home/ftpuser/
+    environment:
+      - "FTP_USER_NAME=ftpuser"
+      - "FTP_USER_PASS=testpassword"
+      - "FTP_USER_HOME=/home/ftpuser"
+      - "FTP_PASSIVE_PORTS=30000:30009"
+      - "PUBLICHOST=172.24.7.2"
+    restart: unless-stopped
+    # command: "/usr/sbin/pure-ftpd -p 30000:30009 -P YOUR_SERVER_IP_OR_HOSTNAME --passived_ports 30000:30009"
