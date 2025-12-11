@@ -1,0 +1,80 @@
+{
+	"editor.unicodeHighlight.nonBasicASCII": false,
+	"breadcrumbs.filePath": "off",
+	"remote.SSH.remotePlatform": {
+		"aliyun-hk-wkyuu": "linux",
+		"aliyun-wkyuu": "linux"
+	},
+	"editor.unicodeHighlight.ambiguousCharacters": false,
+	"notebook.lineNumbers": "on",
+	"security.workspace.trust.untrustedFiles": "open",
+	"explorer.confirmDragAndDrop": false,
+	"liveServer.settings.donotShowInfoMsg": true,
+	"window.commandCenter": false,
+	"terminal.integrated.defaultProfile.linux": "zsh",
+	"workbench.iconTheme": "material-icon-theme",
+	"http.proxyStrictSSL": false,
+	"remote.SSH.localServerDownload": "always",
+	"update.showReleaseNotes": false,
+	"extensions.autoUpdate": false,
+	"extensions.autoCheckUpdates": false,
+	"editor.stickyScroll.enabled": false,
+	"window.confirmSaveUntitledWorkspace": false,
+	"[nginx]": {
+		"editor.defaultFormatter": "ahmadalli.vscode-nginx-conf"
+	},
+	"[json]": {
+		"editor.defaultFormatter": "vscode.json-language-features"
+	},
+	"[yaml]": {
+		"editor.defaultFormatter": "redhat.vscode-yaml"
+	},
+	"[javascript]": {
+		"editor.defaultFormatter": "vscode.typescript-language-features"
+	},
+	"[jsonc]": {
+		"editor.defaultFormatter": "vscode.json-language-features"
+	},
+	"[html]": {
+		"editor.defaultFormatter": "vscode.html-language-features"
+	},
+	"editor.accessibilitySupport": "off",
+	"editor.fontFamily": "'MonoLisa-Medium', '文泉驿等宽微米黑'",
+	"nginx-conf-hint.format.align": true,
+	"window.titleBarStyle": "custom",
+	"editor.find.addExtraSpaceOnTop": false,
+	"terminal.explorerKind": "external",
+	"breadcrumbs.icons": false,
+	"breadcrumbs.enabled": false,
+	"cursor.cpp.disabledLanguages": [
+		"plaintext",
+		"csv (pipe)"
+	],
+	"workbench.activityBar.orientation": "vertical",
+	"python.createEnvironment.trigger": "off",
+	"editor.minimap.renderCharacters": false,
+	"terminal.integrated.profiles.linux": {
+		"bash": {
+			"path": "bash",
+			"icon": "terminal-bash"
+		},
+		"tmux": {
+			"path": "tmux",
+			"icon": "terminal-tmux"
+		}
+	},
+	"terminal.external.linuxExec": "bash",
+	"[dockerfile]": {
+		"editor.defaultFormatter": "ms-azuretools.vscode-docker"
+	},
+	"git.openRepositoryInParentFolders": "never",
+	"editor.minimap.enabled": true,
+	"editor.insertSpaces": false,
+	"workbench.colorTheme": "Cursor Dark High Contrast",
+	"cursorpyright.analysis.disableWorkspaceSymbol": true,
+	"update.mode": "none",
+	"files.associations": {
+		"*.llm": "markdown",
+		"*.tldr": "toml"
+	}
+}

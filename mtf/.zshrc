@@ -581,6 +581,105 @@ md5() {
     fi
 }
 
+ggit() {
+    commit_comment="u1x:wq"
+    case "$1" in
+        push)
+            if [ $(git pull -q; echo $?) -eq 0 ]; then
+                git push
+            else
+                echo "pulled, but conflict or sth, manual resolve first."
+                return 1
+            fi
+            ;;
+        commit)
+            local msg="${2:-$commit_comment}"
+            git_root_dir=$(git rev-parse --show-toplevel)
+            git add $git_root_dir && git commit -m "$msg"
+            ;;
+        auto)
+            ggit commit "$2" && ggit push
+            ;;
+        root)
+            current_dir=$(pwd)
+            git_root_dir=$(git rev-parse --show-toplevel)
+            echo -n "current path: ${RED}$current_dir${NC}\nchange to: ${GREEN}$git_root_dir${NC}"
+            cd $git_root_dir
+            ;;
+        path)
+            if [[ -z "$2" ]]; then
+                echo "usage: ggit path <file_path>"
+                return 1
+            fi
+
+            local target_path="$2"
+            if [[ ! "$target_path" = /* ]]; then
+                target_path="$(pwd)/$target_path"
+            fi
+            target_path=$(realpath "$target_path" 2>/dev/null)
+
+            if [[ ! -e "$target_path" ]]; then
+                echo "file not found: $target_path"
+                return 1
+            fi
+
+            local target_dir
+            if [[ -d "$target_path" ]]; then
+                target_dir="$target_path"
+            else
+                target_dir=$(dirname "$target_path")
+            fi
+
+            local git_root=$(cd "$target_dir" && git rev-parse --show-toplevel 2>/dev/null)
+            if [[ -z "$git_root" ]]; then
+                echo "not a git repository: $target_dir"
+                return 1
+            fi
+
+            local remote_url=$(cd "$git_root" && git remote get-url origin 2>/dev/null)
+            if [[ -z "$remote_url" ]]; then
+                echo "no remote origin found"
+                return 1
+            fi
+
+            local user repo
+            if [[ "$remote_url" =~ ^git@github\.com:(.+)/(.+)\.git$ ]]; then
+                user="${match[1]}"
+                repo="${match[2]}"
+            elif [[ "$remote_url" =~ ^https://github\.com/(.+)/(.+)(\.git)?$ ]]; then
+                user="${match[1]}"
+                repo="${match[2]%.git}"
+            else
+                echo "unsupported remote url format: $remote_url"
+                return 1
+            fi
+
+            local branch=$(cd "$git_root" && git branch --show-current)
+            local rel_path="${target_path#$git_root/}"
+            local raw_url="https://raw.githubusercontent.com/$user/$repo/refs/heads/$branch/$rel_path"
+            echo "$raw_url"
+            ;;
+        *)
+            echo "usage: ggit {push | commit [commit_msg] | auto [commit_msg] | root | path <file_path>}"
+            return 1
+            ;;
+    esac
+}
+
+activate() {
+    default_max_depth=3
+    current_path=$(pwd)
+    pyvenv_cfg_path=$(find $current_path -maxdepth $default_max_depth -type f -path "*/.pyvenv.cfg")
+    if [[ -z "$pyvenv_cfg_path" ]]; then
+        echo "${RED}no venv found${NC}"
+        return 1
+    fi
+    python_venv_root_path=$(dirname "$pyvenv_cfg_path")
+    source "$python_venv_root_path/bin/activate"
+    echo "${GREEN}activated venv: $python_venv_root_path${NC}"
+}
+
+
 ## base on custom script, python, shellscript, etc.
 local_repo_path="$HOME/$leader_path_name/repo/04-flyMe2theStar/03-genshin"
 call_bridge() {
@@ -761,91 +860,6 @@ tldr() {
         fi
     fi
     python3 $tldr_path --config-dir $tldr_config_dir_path "$@"
-}
-
-ggit() {
-    commit_comment="u1x:wq"
-    case "$1" in
-        push)
-            if [ $(git pull -q; echo $?) -eq 0 ]; then
-                git push
-            else
-                echo "pulled, but conflict or sth, manual resolve first."
-                return 1
-            fi
-            ;;
-        commit)
-            local msg="${2:-$commit_comment}"
-            git_root_dir=$(git rev-parse --show-toplevel)
-            git add $git_root_dir && git commit -m "$msg"
-            ;;
-        auto)
-            ggit commit "$2" && ggit push
-            ;;
-        root)
-            current_dir=$(pwd)
-            git_root_dir=$(git rev-parse --show-toplevel)
-            echo -n "current path: ${RED}$current_dir${NC}\nchange to: ${GREEN}$git_root_dir${NC}"
-            cd $git_root_dir
-            ;;
-        path)
-            if [[ -z "$2" ]]; then
-                echo "usage: ggit path <file_path>"
-                return 1
-            fi
-
-            local target_path="$2"
-            if [[ ! "$target_path" = /* ]]; then
-                target_path="$(pwd)/$target_path"
-            fi
-            target_path=$(realpath "$target_path" 2>/dev/null)
-
-            if [[ ! -e "$target_path" ]]; then
-                echo "file not found: $target_path"
-                return 1
-            fi
-
-            local target_dir
-            if [[ -d "$target_path" ]]; then
-                target_dir="$target_path"
-            else
-                target_dir=$(dirname "$target_path")
-            fi
-
-            local git_root=$(cd "$target_dir" && git rev-parse --show-toplevel 2>/dev/null)
-            if [[ -z "$git_root" ]]; then
-                echo "not a git repository: $target_dir"
-                return 1
-            fi
-
-            local remote_url=$(cd "$git_root" && git remote get-url origin 2>/dev/null)
-            if [[ -z "$remote_url" ]]; then
-                echo "no remote origin found"
-                return 1
-            fi
-
-            local user repo
-            if [[ "$remote_url" =~ ^git@github\.com:(.+)/(.+)\.git$ ]]; then
-                user="${match[1]}"
-                repo="${match[2]}"
-            elif [[ "$remote_url" =~ ^https://github\.com/(.+)/(.+)(\.git)?$ ]]; then
-                user="${match[1]}"
-                repo="${match[2]%.git}"
-            else
-                echo "unsupported remote url format: $remote_url"
-                return 1
-            fi
-
-            local branch=$(cd "$git_root" && git branch --show-current)
-            local rel_path="${target_path#$git_root/}"
-            local raw_url="https://raw.githubusercontent.com/$user/$repo/refs/heads/$branch/$rel_path"
-            echo "$raw_url"
-            ;;
-        *)
-            echo "usage: ggit {push | commit [commit_msg] | auto [commit_msg] | root | path <file_path>}"
-            return 1
-            ;;
-    esac
 }
 
 # export
