@@ -51,6 +51,7 @@ apt install -y winetricks k3b gimp digikam krdc cups ffmpeg npm
 apt install -y genisoimage device-tree-compiler
 apt install -y antlr3 antlr4 swig
 apt install -y debsums msmtp xxd ftp shfmt rlwrap
+apt install -y wireguard resolvconf
 # apt install -y ibus ibus-gtk ibus-rime rime-data-emoji im-config
 
 python_version=$(python3 --version | awk '{print $2}' | awk -F. '{print "python"$1"."$2}')
