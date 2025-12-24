@@ -70,11 +70,11 @@
 	"git.openRepositoryInParentFolders": "never",
 	"editor.minimap.enabled": true,
 	"editor.insertSpaces": false,
-	"workbench.colorTheme": "Cursor Dark High Contrast",
+	"workbench.colorTheme": "Quiet Light",
 	"cursorpyright.analysis.disableWorkspaceSymbol": true,
 	"update.mode": "none",
 	"files.associations": {
-		"*.llm": "markdown",
+		"*.pmt": "markdown",
 		"*.tldr": "toml"
 	}
 }
