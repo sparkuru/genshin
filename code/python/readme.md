@@ -1,4 +1,24 @@
+
+## uv
+
+python 虚拟环境, 项目隔离的新主流范式.
+
+1. 安装: `apt install uv`
+2. 创建虚拟环境: `uv venv`, 指定 python 版本: `uv venv --python 3.12`
+3. 进入虚拟环境: `source .venv/bin/activate`
+4. 安装依赖: `uv pip install -r requirements.txt`
+5. 运行项目: `uv run python main.py`
+
+就是简单做了个替换: 
+
+1. `python -m venv` -> `uv venv`
+2. `pip` -> `uv pip`
+3. `pip install` -> `uv pip install`
+4. `python main.py` -> `uv run python main.py`
+
 ## python-embed-env-maker
+
+手动制作 python 的 portable 环境
 
 ### windows
 

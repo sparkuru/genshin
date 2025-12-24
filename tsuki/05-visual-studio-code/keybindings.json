@@ -119,7 +119,7 @@
         "when": "hasGPT4Diff"
     },
     {
-        "key": "ctrl+`",
+        "key": "tab",
         "command": "editor.action.acceptCursorTabSuggestion",
         "when": "cpp.shouldAcceptTab"
     },
@@ -171,5 +171,40 @@
         "key": "ctrl+k",
         "command": "-editor.action.inlineDiffs.focusEditor",
         "when": "editorHasPromptBar && editorPromptBarFocused"
+    },
+    {
+        "key": "ctrl+shift+j",
+        "command": "-aiSettings.action.open",
+        "when": "!isSettingsPaneOpen"
+    },
+    {
+        "key": "ctrl+shift+j",
+        "command": "-aiSettings.action.openhidden",
+        "when": "!isSettingsPaneOpen"
+    },
+    {
+        "key": "ctrl+shift+j",
+        "command": "-workbench.action.search.toggleQueryDetails",
+        "when": "inSearchEditor || searchViewletFocus"
+    },
+    {
+        "key": "ctrl+v",
+        "command": "-filesExplorer.paste",
+        "when": "filesExplorerFocus && foldersViewVisible && !explorerResourceReadonly && !inputFocus"
+    },
+    {
+        "key": "ctrl+k v",
+        "command": "-markdown.extension.closePreview",
+        "when": "activeWebviewPanelId == 'markdown.preview'"
+    },
+    {
+        "key": "ctrl+v",
+        "command": "-markdown.extension.editing.paste",
+        "when": "editorHasSelection && editorTextFocus && editorLangId =~ /^markdown$|^rmd$|^quarto$/"
+    },
+    {
+        "key": "ctrl+alt+v",
+        "command": "-workbench.action.editorDictation.start",
+        "when": "hasSpeechProvider && !editorReadonly && !speechToTextInProgress"
     }
 ]

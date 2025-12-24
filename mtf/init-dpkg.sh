@@ -46,7 +46,7 @@ apt install -y filezilla okteta putty picocom glow mtools
 apt install -y upx p7zip p7zip-full python3-pip python3-venv python-is-python3
 apt install -y gnupg2 patchelf binwalk wireshark	
 apt install -y docker.io docker-compose
-apt install -y strace adb
+apt install -y strace android-sdk-platform-tools
 apt install -y winetricks k3b gimp digikam krdc cups ffmpeg npm
 apt install -y genisoimage device-tree-compiler
 apt install -y antlr3 antlr4 swig
