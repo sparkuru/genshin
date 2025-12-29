@@ -1,3 +1,72 @@
+# =============================================================================
+# CONVERSION PROMPT: .zshrc -> .zshrc.example
+# =============================================================================
+# 
+# This file is a generic template converted from personal .zshrc.
+# When updating from .zshrc, follow these principles to maintain a generic version:
+#
+# REMOVAL PRINCIPLES - Remove anything that is:
+#   1. Personal/Private Information:
+#      - Hardcoded personal paths (e.g., $HOME/custom/path, specific repo paths)
+#      - Personal usernames, hostnames, or identifiers
+#      - Personal commit messages, prompts, or symbols
+#   2. External Dependencies:
+#      - Functions/variables that download from specific URLs (GitHub, etc.)
+#      - Functions that depend on external scripts not in the repo
+#      - Auto-download or auto-update mechanisms
+#   3. Environment-Specific:
+#      - Proxy configurations (unless truly universal)
+#      - Personal service configurations
+#      - Machine-specific paths or settings
+#   4. Personal Workflows:
+#      - Wrapper functions for personal tools/workflows
+#      - Personal shortcuts to specific projects/locations
+#      - Custom integrations with personal services
+#   5. Dependent Items:
+#      - Aliases that call removed functions
+#      - Variables only used by removed functions
+#      - Conditional blocks that depend on personal paths
+#
+# KEEP PRINCIPLES - Keep anything that is:
+#   1. Universal Shell Configuration:
+#      - Standard zsh options (setopt, bindkey, completion, history)
+#      - Terminal behavior settings
+#      - Generic prompt configurations (with neutral symbols)
+#   2. Generic Utilities:
+#      - Functions that work with standard tools (ls, grep, find, etc.)
+#      - Path manipulation utilities (if path-agnostic)
+#      - Generic file/directory operations
+#      - Standard tool wrappers (if they don't hardcode paths)
+#   3. Cross-Platform Support:
+#      - OS detection and conditional paths (Linux/Darwin)
+#      - Standard PATH additions (HOME/.bin, .local/bin, etc.)
+#      - Universal tool configurations (FZF, etc.)
+#   4. Reusable Patterns:
+#      - Generic aliases for common commands
+#      - Color/formatting variables
+#      - Helper functions that don't depend on personal setup
+#
+# CONVERSION PROCESS:
+#   1. Review each function/alias/variable:
+#      - Does it reference personal paths? → Remove or generalize
+#      - Does it download from external sources? → Remove
+#      - Does it depend on personal tools/services? → Remove
+#      - Is it truly generic and reusable? → Keep
+#   2. Check dependencies:
+#      - If a function is removed, remove aliases that call it
+#      - If a variable is removed, remove functions that use it
+#   3. Generalize remaining items:
+#      - Replace personal paths with generic patterns
+#      - Replace personal symbols with neutral ones
+#      - Ensure no hardcoded personal information
+#   4. Verify:
+#      - No personal identifiers remain
+#      - No external download dependencies
+#      - File loads without errors
+#      - All kept functions are truly generic
+#
+# =============================================================================
+
 # ~/.zshrc file for zsh interactive shells.
 # see /usr/share/doc/zsh/examples/zshrc for examples
 
@@ -91,8 +160,7 @@ if [ -n "$force_color_prompt" ]; then
     fi
 fi
 
-configure_prompt() {    
-
+configure_prompt() {
     prompt_symbol="@"
 
     if [ "$is_incognito" ]; then
@@ -358,10 +426,13 @@ cmd() {
     /^alias/ {
         cmd = $0;
         sub(/^alias[ \t]+/, "", cmd);
-        split(cmd, parts, "=");
-        alias_name = parts[1];
-        alias_cmd = substr(parts[2], 2, length(parts[2]) - 2);
-        printf("%salias %s%-10s%s = %s\"%s\"%s\n", color_alias, color_alias_name, alias_name, reset, color_alias_cmd, alias_cmd, reset);
+        eq_pos = index(cmd, "=");
+        if (eq_pos > 0) {
+            alias_name = substr(cmd, 1, eq_pos - 1);
+            alias_cmd = substr(cmd, eq_pos + 1);
+            gsub(/^["'\'']|["'\'']$/, "", alias_cmd);
+            printf("%salias %s%-10s%s = %s\"%s\"%s\n", color_alias, color_alias_name, alias_name, reset, color_alias_cmd, alias_cmd, reset);
+        }
         next;
     }
     {
@@ -452,11 +523,6 @@ w2u() {
     echo "$unix_path"
 }
 
-update_zshrc() {
-    zshrc_path="$HOME/.zshrc"
-    _curl $zshrc_path $github_url_base/mtf/.zshrc
-}
-
 find_path() {
     current_dir=$(pwd)
 
@@ -500,21 +566,7 @@ find_path() {
     return 1
 }
 
-exp() {
-    if [[ ! -f "/usr/bin/dolphin" ]]; then
-        echo "${RED}dolphin not found, try ${GREEN}sudo apt install dolphin-emu${NC}"
-        return 1
-    fi
-    if [[ $# -eq 0 ]]; then
-        dolphin . &>/dev/null &
-    else
-        dolphin "$@" &>/dev/null &
-    fi
-    return 0
-}
-
 sm() {
-
     export is_incognito=1
     source ~/.zshrc
     fc -p /dev/null 0 0
@@ -526,7 +578,6 @@ sm() {
     precmd_functions+=(incognito_precmd)
 
     xsm() {
-
         echo "${RED}exit incognito mode.${NC}"
 
         precmd_functions=(${precmd_functions[@]/incognito_precmd})
@@ -538,35 +589,93 @@ sm() {
     }
 }
 
-# export
-## proxy
-proxy_ip_file="$HOME/.proxy-ip"
-if [[ -f $proxy_ip_file ]]; then
+md5() {
+    if [[ $# -eq 0 ]]; then
+        echo "fast md5sum hash generator, usage: ${GREEN}md5 [string | file] [string | file] ...${NC}"
+        return 1
+    fi
 
-    if [[ $(cat $proxy_ip_file) == "no proxy" ]]; then
-        :
-    elif [[ $( stat -c %s $proxy_ip_file) -eq 0 ]]; then
-        echo "${RED}proxy ip file: $proxy_ip_file is empty, delete it or ${GREEN}echo 'ip port' > \$proxy_ip_file${NC} ${NC}"
-    else
-        proxy_ip=$(cat $proxy_ip_file | awk '{print $1}')
-        proxy_port=$(cat $proxy_ip_file | awk '{print $2}')
+    _echo() {
+        echo "${RED}$1${NC}: ${GREEN}$2${NC}"
+    }
+    hash_file() {
+        _echo "$1" "$(md5sum "$1" | awk '{print $1}')"
+    }
+    hash_string() {
+        _echo "$1" "$(echo -n "$1" | md5sum | awk '{print $1}')"
+    }
 
-        if [[ -z "$proxy_port" ]]; then
-            proxy_port=1080
+    if [[ $# -eq 1 ]]; then
+        if [[ -f "$1" ]]; then
+            hash_file "$1"
+        else
+            hash_string "$1"
         fi
-        export all_proxy="http://$proxy_ip:$proxy_port"
+    else
+        for arg in "$@"; do
+            if [[ -f "$arg" ]]; then
+                hash_file "$arg"
+            else
+                hash_string "$arg"
+            fi
+        done
     fi
-else
-    if [[ -d "/home/$USER" ]]; then
-        echo "${RED}proxy ip file: $proxy_ip_file not found, try ${NC}${GREEN}echo 'ip port' > \$proxy_ip_file${NC}"
-        echo "${RED}or ${GREEN}echo 'no proxy' > \$proxy_ip_file ${NC}${RED}for no proxy needed${NC}"
-    fi
-fi
+}
 
+# export
 ## vim
 export FZF_DEFAULT_COMMAND="rg --files"
 export FZF_DEFAULT_OPTS="-m --height 40% --reverse --border --ansi --preview '(highlight -O ansi {} || cat {}) 2> /dev/null | head -500'"
 
+## app
+os_type=$(uname -o)
+export_path=$PATH
+case $os_type in
+    "GNU/Linux")
+        linux_path=(
+            "$HOME/.bin"
+            "$HOME/.local/bin"
+            "$HOME/.cargo/bin"
+            "/usr/lib/nodejs/bin"
+            "$export_path"
+        )
+
+        for path in "${linux_path[@]}"; do
+            if [[ -d "$path" ]]; then
+                export_path="$path:$export_path"
+            fi
+        done
+        ;;
+    "Darwin")
+        export CLICOLOR=1
+        export LSCOLORS=ExGxBxDxCxEgEdxbxgxcxd
+
+        python_version=$(python3 --version 2>/dev/null | awk '{print $2}' | cut -d. -f1)
+        python_base_version=$(echo $python_version | cut -d. -f1,2)
+        
+        darwin_path=(
+            "$HOME/.bin"
+            "$HOME/.local/bin"
+            "$HOME/.cargo/bin"
+            "$HOME/Library/Python/$python_base_version/bin"
+            "/usr/lib/nodejs/bin"
+
+            "/opt/homebrew/bin"
+            "/opt/homebrew/opt/make/libexec/gnubin"
+
+            "$export_path"
+        )
+
+        for path in "${darwin_path[@]}"; do
+            if [[ -d "$path" ]]; then
+                export_path="$path:$export_path"
+            fi
+        done
+        ;;
+esac
+export PATH=$export_path
+
+# alias
 ## alias_anchor
 alias l="ls -ah"
 alias ll="ls -alh"
@@ -585,8 +694,25 @@ alias rcp="rsync -avtz --progress"
 alias x="curl -f"
 alias xi="curl -I -sfL"
 alias xl="curl -sfL"
-alias reg="grep -ir"
+alias less="less -N"
 alias zshrc="source ~/.zshrc"
 alias random="cat /dev/urandom|head|base64|md5sum|cut -d \" \" -f 1"
 alias p="ipython3"
+alias ipa="ip -br a"
+alias ima="date '+%Y-%m-%d-%H%M%S'"
+alias count="wc -l"
+alias nsp="netstat -plantu"
+
+alias reg="grep -ir --color=always"
+    # grep with pattern: `reg -e 'pattern'`, like `reg -e "test*"`
+    # grep with regex: `reg -E '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}'`, `reg -E '\bA_WORD\b|B_WORD'`
+    # grep with full word match: `reg -w 'a_single_word'`
+    # grep without binary file: `reg -I 'pattern'`
+
+alias ssize="du -abh --time -d 1 | sort -h"
+
+alias 7za="7z a -r -t7z -mx=9 -m0=lzma2 -mfb=273 -md=32m -ms=on -mhe=on"
+    # zip with password: `7za -p<password> archive_name.7z [file1] [file2] ...`
+    # unzip with password: `7z x -p<password> archive_name.7z`
+    # specific uncompress output directory: `7z x -o<output_directory> archive_name.7z`
 ## end_alias_anchor
