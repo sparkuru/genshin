@@ -18,6 +18,10 @@ workdir=$(
 	dirname $(readlink -f $0)
 )
 
+workdir=$(
+	cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+)
+
 if [ $(id -u) -ne 0 ]; then
 	echo "run as root"
 	exit 1
