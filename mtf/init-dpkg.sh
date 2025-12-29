@@ -38,7 +38,7 @@ apt install -y g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-a
 apt install -y libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg libxml2 libguestfs-tools
 apt install -y zsh git asciidoc pandoc curl pkexec tree dkms aptitude
 apt install -y ack fd-find fzf ripgrep
-apt install -y btop iftop inotify-tools aria2 sshpass telnet network-manager-openvpn arch-install-scripts
+apt install -y glances iftop inotify-tools aria2 sshpass telnet network-manager-openvpn arch-install-scripts
 apt install -y docker-compose virt-manager qemu-system qemu-user bridge-utils
 apt install -y fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
 apt install -y fcitx5 fcitx5-table fcitx5-chinese-addons fcitx5-rime fcitx5-anthy fcitx5-frontend-all fcitx5-frontend-gtk* fcitx5-frontend-qt* kde-config-fcitx5

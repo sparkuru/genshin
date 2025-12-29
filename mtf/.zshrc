@@ -862,6 +862,16 @@ tldr() {
     python3 $tldr_path --config-dir $tldr_config_dir_path "$@"
 }
 
+request2curl() {
+    this_script_path="code/python/23-http-request-to-curl.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        request2curl_path="$local_repo_path/$this_script_path"
+    else
+        request2curl_path="$HOME/.genshin/http-request-to-curl.py"
+    fi
+    python3 $request2curl_path "$@"
+}
+
 # export
 ## proxy
 proxy_ip_file="$HOME/.proxy-ip"
