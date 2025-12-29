@@ -1329,6 +1329,17 @@ iface enp7s0 inet static
 1. `cp xxx.iso /var/lib/vz/template/iso/`
 2. `chmod 644 /var/lib/vz/template/iso/xxx.iso`
 
+### 导入 vmware 虚拟机
+
+1. 创建空的虚拟机：`qm create 101 --name "VM Name" --memory 1024 --cores 1 --sockets 1 --net0 virtio,bridge=vmbr0 --scsihw virtio-scsi-pci --ostype l26`
+2. 将 vmdx 分片合并转换成单个文件：`qemu-img convert -f vmdk CentOS7.7-base-cl2.vmdk -O vmdk vm-full.vmdk`
+3. `qm importvm 101 vm-full.vmdk local-lvm --format vmdk`，导入成功后会显示生成的卷 ID：`unused0:local-lvm:vm-101-disk-0`
+4. 挂载磁盘到 IDE 总线：`qm set 101 --ide0 local-lvm:vm-101-disk-0`
+
+如果虚拟机是 SCSI 硬盘，需要手动调整硬盘类型，一般是设置成 IDE 模式
+
+导入选择快照问题
+
 ## refer
 
 1. https://post.smzdm.com/p/a7nd00ql/
