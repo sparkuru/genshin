@@ -1,3 +1,72 @@
+# =============================================================================
+# CONVERSION PROMPT: .bashrc -> .bashrc.example
+# =============================================================================
+# 
+# This file is a generic template converted from personal .bashrc.
+# When updating from .bashrc, follow these principles to maintain a generic version:
+#
+# REMOVAL PRINCIPLES - Remove anything that is:
+#   1. Personal/Private Information:
+#      - Hardcoded personal paths (e.g., $HOME/custom/path, specific repo paths)
+#      - Personal usernames, hostnames, or identifiers
+#      - Personal commit messages, prompts, or symbols
+#   2. External Dependencies:
+#      - Functions/variables that download from specific URLs (GitHub, etc.)
+#      - Functions that depend on external scripts not in the repo
+#      - Auto-download or auto-update mechanisms
+#   3. Environment-Specific:
+#      - Proxy configurations (unless truly universal)
+#      - Personal service configurations
+#      - Machine-specific paths or settings
+#   4. Personal Workflows:
+#      - Wrapper functions for personal tools/workflows
+#      - Personal shortcuts to specific projects/locations
+#      - Custom integrations with personal services
+#   5. Dependent Items:
+#      - Aliases that call removed functions
+#      - Variables only used by removed functions
+#      - Conditional blocks that depend on personal paths
+#
+# KEEP PRINCIPLES - Keep anything that is:
+#   1. Universal Shell Configuration:
+#      - Standard bash options (shopt, history, completion)
+#      - Terminal behavior settings
+#      - Generic prompt configurations (with neutral symbols)
+#   2. Generic Utilities:
+#      - Functions that work with standard tools (ls, grep, find, etc.)
+#      - Path manipulation utilities (if path-agnostic)
+#      - Generic file/directory operations
+#      - Standard tool wrappers (if they don't hardcode paths)
+#   3. Cross-Platform Support:
+#      - OS detection and conditional paths (Linux/Darwin)
+#      - Standard PATH additions (HOME/.bin, .local/bin, etc.)
+#      - Universal tool configurations (FZF, etc.)
+#   4. Reusable Patterns:
+#      - Generic aliases for common commands
+#      - Color/formatting variables
+#      - Helper functions that don't depend on personal setup
+#
+# CONVERSION PROCESS:
+#   1. Review each function/alias/variable:
+#      - Does it reference personal paths? → Remove or generalize
+#      - Does it download from external sources? → Remove
+#      - Does it depend on personal tools/services? → Remove
+#      - Is it truly generic and reusable? → Keep
+#   2. Check dependencies:
+#      - If a function is removed, remove aliases that call it
+#      - If a variable is removed, remove functions that use it
+#   3. Generalize remaining items:
+#      - Replace personal paths with generic patterns
+#      - Replace personal symbols with neutral ones
+#      - Ensure no hardcoded personal information
+#   4. Verify:
+#      - No personal identifiers remain
+#      - No external download dependencies
+#      - File loads without errors
+#      - All kept functions are truly generic
+#
+# =============================================================================
+
 # Disable the default interactive shell warning
 export BASH_SILENCE_DEPRECATION_WARNING=1
 
@@ -141,7 +210,7 @@ NEWLINE_BEFORE_PROMPT=yes
 # STOP KALI CONFIG VARIABLES
 
 # Define prompt symbol globally
-prompt_symbol="(🌸.ᗜ ᴗ ᗜ.)"
+prompt_symbol="@"
 
 if [ "$color_prompt" = yes ]; then
     # override default virtualenv indicator in prompt
@@ -197,14 +266,7 @@ if [ -x /usr/bin/dircolors ]; then
     export LESS_TERMCAP_ue=$'\E[0m'        # reset underline
 fi
 
-# ==============================================================
-# |                       custom script                         |
-# ==============================================================
-
-# repo
-github_url_base="https://raw.githubusercontent.com/sparkuru/genshin/main"
-# local
-leader_path_name="cargo"
+# ----------------------------------------- custom script ----------------------------------------- #
 
 # color, usage: ${RED}xxx${NC}
 RED='\033[0;31m'
@@ -313,19 +375,10 @@ clean_docker() {
     docker ps -a
 }
 
-_curl() {
-    curl --create-dirs -fLo $1 $2
-}
-
 w2u() {
     windows_path_like="$1"
     unix_path=$(echo "$windows_path_like" | sed 's|\\|/|g' | sed 's|^\([a-zA-Z]\):|/\L\1|')
     echo "$unix_path"
-}
-
-update_bashrc() {
-    bashrc_path="$HOME/.bashrc"
-    _curl $bashrc_path $github_url_base/mtf/.bashrc
 }
 
 find_path() {
@@ -369,19 +422,6 @@ find_path() {
 
     echo -e "${RED}Error: ${GREEN}$target_dir_name${RED} directory not found${NC}"
     return 1
-}
-
-exp() {
-    if [[ ! -f "/usr/bin/dolphin" ]]; then
-        echo -e "${RED}dolphin not found, try ${GREEN}sudo apt install dolphin-emu${NC}"
-        return 1
-    fi
-    if [[ $# -eq 0 ]]; then
-        dolphin . &>/dev/null &
-    else
-        dolphin "$@" &>/dev/null &
-    fi
-    return 0
 }
 
 sm() {
@@ -443,194 +483,7 @@ md5() {
     fi
 }
 
-# Script-based functions
-local_repo_path="$HOME/$leader_path_name/repo/04-flyMe2theStar/03-genshin"
-
-call_bridge() {
-    this_script_path="code/shellscript/07-call-bridge.sh"
-    if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        call_bridge_path="$local_repo_path/$this_script_path"
-    else
-        call_bridge_path="$HOME/.genshin/call-bridge.sh"
-        if [[ ! -f $call_bridge_path ]]; then
-            _curl $call_bridge_path $github_url_base/$this_script_path
-            chmod +x $call_bridge_path
-        fi
-    fi
-    eval "$call_bridge_path $@"
-}
-
-password() {
-    this_script_path="code/python/08-password-generator.py"
-    if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        rename_path="$local_repo_path/$this_script_path"
-    else
-        rename_path="$HOME/.genshin/password-generator.py"
-        if [[ ! -f $rename_path ]]; then
-            _curl $rename_path $github_url_base/$this_script_path
-        fi
-    fi
-    python3 $rename_path "$@"
-}
-
-cx() {
-    this_script_path="code/python/09-ip-status.py"
-    if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        ip_status_path="$local_repo_path/$this_script_path"
-    else
-        ip_status_path="$HOME/.genshin/ip-status.py"
-        if [[ ! -f $ip_status_path ]]; then
-            _curl $ip_status_path $github_url_base/$this_script_path
-        fi
-    fi
-    python3 $ip_status_path "$@"
-}
-
-lcd() {
-    this_script_path="code/python/13-lcd.py"
-    if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        lcd_path="$local_repo_path/$this_script_path"
-    else
-        lcd_path="$HOME/.genshin/lcd.py"
-        if [[ ! -f $lcd_path ]]; then
-            _curl $lcd_path $github_url_base/$this_script_path
-        fi
-    fi
-    if [[ "$1" == "cd" && ! -z "$2" ]]; then
-        target_dir=$(python $lcd_path -g "$2")
-        cd "$target_dir"
-    elif [[ "$1" == "l" ]]; then
-        python3 $lcd_path -l
-    elif [[ "$1" == "d" && ! -z "$2" ]]; then
-        python3 $lcd_path -d -n "$2"
-    elif [[ "$1" == "a" && ! -z "$2" ]]; then
-        python3 $lcd_path -a "$2"
-    else
-        python3 $lcd_path "$@"
-    fi
-}
-
-rename() {
-    this_script_path="code/python/14-interact-rename.py"
-    if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        rename_path="$local_repo_path/$this_script_path"
-    else
-        rename_path="$HOME/.genshin/interact-rename.py"
-        if [[ ! -f $rename_path ]]; then
-            _curl $rename_path $github_url_base/$this_script_path
-        fi
-    fi
-    python3 $rename_path "$@"
-}
-
-unblob() {
-    this_script_path="code/shellscript/04-unblob.sh"
-    if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        unblob_path="$local_repo_path/$this_script_path"
-    else
-        unblob_path="$HOME/.genshin/unblob.sh"
-        if [[ ! -f $unblob_path ]]; then
-            _curl $unblob_path $github_url_base/$this_script_path
-            chmod +x $unblob_path
-        fi
-    fi
-    eval $unblob_path "$@"
-}
-
-ollama() {
-    this_script_path="code/python/17-cli-ollama.py"
-    if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        ollama_path="$local_repo_path/$this_script_path"
-    else
-        ollama_path="$HOME/.ollama/cli-ollama.py"
-        if [[ ! -f $ollama_path ]]; then
-            mkdir -p "$HOME/.ollama"
-            _curl $ollama_path $github_url_base/$this_script_path
-        fi
-    fi
-    python3 $ollama_path "$@"
-}
-
-sd() {
-    this_script_path="code/python/10-shodan.py"
-    if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        sd_path="$local_repo_path/$this_script_path"
-    else
-        sd_path="$HOME/.genshin/sd.py"
-        if [[ ! -f $sd_path ]]; then
-            _curl $sd_path $github_url_base/$this_script_path
-        fi
-    fi
-    python3 $sd_path "$@"
-}
-
-fast_http_server() {
-    this_script_path="code/python/16-fast-http-server.py"
-    if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        fast_http_server_path="$local_repo_path/$this_script_path"
-    else
-        fast_http_server_path="$HOME/.genshin/fast-http-server.py"
-        if [[ ! -f $fast_http_server_path ]]; then
-            _curl $fast_http_server_path $github_url_base/$this_script_path
-        fi
-    fi
-    python3 $fast_http_server_path "$@"
-}
-
-encrypt() {
-    this_script_path="code/python/02-ez-encrypt.py"
-    if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        encrypt_path="$local_repo_path/$this_script_path"
-    else
-        encrypt_path="$HOME/.genshin/ez-encrypt.py"
-        if [[ ! -f $encrypt_path ]]; then
-            _curl $encrypt_path $github_url_base/$this_script_path
-        fi
-    fi
-    python3 $encrypt_path "$@"
-}
-
-# Conditional aliases
-if [[ -f "$HOME/$leader_path_name/game/minecraft/tool/rcon.py" ]]; then
-    alias mc="python $HOME/$leader_path_name/game/minecraft/tool/rcon.py"
-fi
-
-if [[ -d "$HOME/$leader_path_name" ]]; then
-    alias home="cd $HOME/$leader_path_name"
-fi
-
-if [[ -d "$HOME/$leader_path_name/app" ]]; then
-    alias app="cd $HOME/$leader_path_name/app"
-fi
-
-if [[ -d "$HOME/$leader_path_name/repo" ]]; then
-    alias repo="cd $HOME/$leader_path_name/repo"
-fi
-
-# Export settings
-## proxy
-proxy_ip_file="$HOME/.proxy-ip"
-if [[ -f $proxy_ip_file ]]; then
-    if [[ $(cat $proxy_ip_file) == "no proxy" ]]; then
-        :
-    elif [[ $( stat -c %s $proxy_ip_file) -eq 0 ]]; then
-        echo -e "${RED}proxy ip file: $proxy_ip_file is empty, delete it or ${GREEN}echo 'ip port' > \$proxy_ip_file${NC} ${NC}"
-    else
-        proxy_ip=$(cat $proxy_ip_file | awk '{print $1}')
-        proxy_port=$(cat $proxy_ip_file | awk '{print $2}')
-
-        if [[ -z "$proxy_port" ]]; then
-            proxy_port=1080
-        fi
-        export all_proxy="http://$proxy_ip:$proxy_port"
-    fi
-else
-    if [[ -d "/home/$USER" ]]; then
-        echo -e "${RED}proxy ip file: $proxy_ip_file not found, try ${NC}${GREEN}echo 'ip port' > \$proxy_ip_file${NC}"
-        echo -e "${RED}or ${GREEN}echo 'no proxy' > \$proxy_ip_file ${NC}${RED}for no proxy needed${NC}"
-    fi
-fi
-
+# export
 ## vim
 export FZF_DEFAULT_COMMAND="rg --files"
 export FZF_DEFAULT_OPTS="-m --height 40% --reverse --border --ansi --preview '(highlight -O ansi {} || cat {}) 2> /dev/null | head -500'"
@@ -665,7 +518,6 @@ case $os_type in
             "/usr/lib/nodejs/bin"
             "/opt/homebrew/bin"
             "/opt/homebrew/opt/make/libexec/gnubin"
-            "/opt/metasploit-framework/bin"
         )
 
         export_path=$PATH
@@ -674,7 +526,6 @@ case $os_type in
                 export_path="$path:$export_path"
             fi
         done
-        
         ;;
 esac
 export PATH=$export_path
@@ -720,3 +571,4 @@ alias 7za="7z a -r -t7z -mx=9 -m0=lzma2 -mfb=273 -md=32m -ms=on -mhe=on"
     # unzip with password: `7z x -p<password> archive_name.7z`
     # specific uncompress output directory: `7z x -o<output_directory> archive_name.7z`
 # end alias
+
