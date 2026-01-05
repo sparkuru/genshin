@@ -1,27 +1,39 @@
 #!/bin/bash
 
 if [ "$(id -u)" -ne 0 ]; then
-	echo "\033[0;31mrerun "$0" with sudo\033[0m"
+	echo "\033[0;31m please rerun "$0" with root user permission \033[0m"
 	exit 1
 fi
 
-USERNAME="${SUDO_USER:-$USER}"
 PROXY_POINT="http://198.18.0.1:1080"
 GITHUB_URL_BASE="https://raw.githubusercontent.com/sparkuru/genshin/main"
 export all_proxy="$PROXY_POINT"
 
+VALID_USER_LIST=("root")
+while read -r line; do
+	if [[ -d "/home/$line" ]]; then
+		VALID_USER_LIST+=("$line")
+	fi
+done < <(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 {print $1}')
+
 # init zsh
-curl -fLo $HOME/.zshrc $GITHUB_URL_BASE/mtf/.zshrc
-curl -fLo /root/.zshrc $GITHUB_URL_BASE/mtf/.zshrc
+tmp_zshrc_path="/tmp/zshrc"
+curl -fLo $tmp_zshrc_path $GITHUB_URL_BASE/mtf/.zshrc
+for user in "${VALID_USER_LIST[@]}"; do
+	mkdir -p /home/$user/.zsh
+	cp -f $tmp_zshrc_path /home/$user/.zshrc
+done
+rm -f $tmp_zshrc_path
 
 # ssh
-mkdir -p $HOME/.ssh
-curl -fLo $HOME/.ssh/authorized_keys $GITHUB_URL_BASE/mtf/authorized_keys
-chmod 700 -R $HOME/.ssh
-
-mkdir -p /root/.ssh
-curl -fLo /root/.ssh/authorized_keys $GITHUB_URL_BASE/mtf/authorized_keys
-chmod 700 -R /root/.ssh
+tmp_ssh_authorized_keys_path="/tmp/ssh_authorized_keys"
+curl -fLo $tmp_ssh_authorized_keys_path $GITHUB_URL_BASE/mtf/authorized_keys
+for user in "${VALID_USER_LIST[@]}"; do
+	mkdir -p /home/$user/.ssh
+	cp -f $tmp_ssh_authorized_keys_path /home/$user/.ssh/authorized_keys
+	chmod 700 -R /home/$user/.ssh
+done
+rm -f $tmp_ssh_authorized_keys_path
 
 curl -fLo /etc/ssh/sshd_config $GITHUB_URL_BASE/mtf/etc/sshd_config
 systemctl start ssh && systemctl enable ssh
@@ -44,7 +56,7 @@ apt install -y fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
 apt install -y fcitx5 fcitx5-table fcitx5-chinese-addons fcitx5-rime fcitx5-anthy fcitx5-frontend-all fcitx5-frontend-gtk* fcitx5-frontend-qt* kde-config-fcitx5
 apt install -y filezilla okteta putty picocom glow mtools
 apt install -y upx p7zip p7zip-full python3-pip python3-venv python-is-python3
-apt install -y gnupg2 patchelf binwalk wireshark	
+apt install -y gnupg2 patchelf binwalk wireshark
 apt install -y docker.io docker-compose
 apt install -y strace android-sdk-platform-tools
 apt install -y winetricks k3b gimp digikam krdc cups ffmpeg npm
@@ -71,11 +83,31 @@ fi
 apt purge -y needrestart
 apt autoremove -y
 
-ln -s /usr/bin/fdfind /usr/bin/fd
+update-alternatives --install /usr/bin/fd fd /usr/bin/fdfind 1
 
 # fonts
-curl -fLo $HOME/.config/fontconfig/fonts.conf $GITHUB_URL_BASE/mtf/fonts.conf
+tmp_fonts_conf_path="/tmp/fonts.conf"
+curl -fLo $tmp_fonts_conf_path $GITHUB_URL_BASE/mtf/fonts.conf
+for user in "${VALID_USER_LIST[@]}"; do
+	mkdir -p /home/$user/.config/fontconfig
+	cp -f $tmp_fonts_conf_path /home/$user/.config/fontconfig/fonts.conf
+done
 fc-cache -f
+rm -f $tmp_fonts_conf_path
+
+# rime
+tmp_oh_my_rime_path="/tmp/oh_my_rime"
+git clone https://github.com/Mintimate/oh-my-rime.git $tmp_oh_my_rime_path
+for user in "${VALID_USER_LIST[@]}"; do
+	if [ $user = "root" ]; then
+		user_rime_path="/root/.config/fcitx5/rime"
+	else
+		user_rime_path="/home/$user/.config/fcitx5/rime"
+	fi
+	sudo -u $user mkdir -p $user_rime_path
+	sudo -u $user cp -f $tmp_oh_my_rime_path $user_rime_path
+done
+rm -f $tmp_oh_my_rime_path
 
 # docker
 mkdir /etc/systemd/system/docker.service.d
@@ -109,45 +141,55 @@ index-url = https://mirrors.ustc.edu.cn/pypi/simple
 trusted-host = https://mirrors.ustc.edu.cn
 EOF
 
-sudo -u $USERNAME pip install \
-	datetime argparse colorama cryptography getpass4 rich bs4 readchar mmh3 toml \
-	ipython \
-	ifaddr \
-	ropgadget pwntools frida-tools \
-	scapy shodan \
-	ollama \
-	watchdog psutil \
-	legacy-cgi
+for user in "${VALID_USER_LIST[@]}"; do
+	sudo -u $user pip install \
+		datetime argparse colorama cryptography getpass4 rich bs4 readchar mmh3 toml \
+		ipython \
+		ifaddr \
+		ropgadget pwntools frida-tools \
+		scapy shodan \
+		ollama \
+		watchdog psutil \
+		legacy-cgi
+done
 
 # git
-if [ $USERNAME = "wkyuu" ]; then
-	git config --global user.email wkyuu@majo.im
-	git config --global user.name shiguma
-	git config --global credential.helper store
-	git config --global init.defaultbranch main
-	git config --global core.editor vim
-	git config --global core.autocrlf false
-	git config --global pull.rebase true
+for user in "${VALID_USER_LIST[@]}"; do
+	if [ $user = "wkyuu" ]; then
+		sudo -u $user git config --global user.email wkyuu@majo.im
+		sudo -u $user git config --global user.name sparkuru
+		sudo -u $user git config --global credential.helper store
+		sudo -u $user git config --global init.defaultbranch main
+		sudo -u $user git config --global core.editor vim
+		sudo -u $user git config --global core.autocrlf false
+		sudo -u $user git config --global pull.rebase true
 
-	git config -l
-fi
+		sudo -u $user git config -l
+		ln -s "/home/$user/.gitconfig" "/root/.gitconfig"
+	fi
+done
 
 # vim
 curl -fLo /tmp/tmp/unix-install-vim.sh $GITHUB_URL_BASE/mtf/unix-install-vim.sh
 chmod +x /tmp/tmp/unix-install-vim.sh
-/tmp/tmp/unix-install-vim.sh
+for user in "${VALID_USER_LIST[@]}"; do
+	sudo -u $user /tmp/tmp/unix-install-vim.sh
+done
 
 # locale, or run `sudo dpkg-reconfigure locales` to config in terminal GUI
-echo "en_SG.UTF-8 UTF-8\nen_US.UTF-8 UTF-8\nzh_CN.UTF-8 UTF-8\nzh_SG.UTF-8 UTF-8" >> /etc/locale.gen
+echo "en_SG.UTF-8 UTF-8\nen_US.UTF-8 UTF-8\nzh_CN.UTF-8 UTF-8\nzh_SG.UTF-8 UTF-8" >>/etc/locale.gen
 # update-locale LANG=zh_CN.UTF-8 LANGUAGE=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8
 locale-gen
 locale
 
 groups="adm,sudo,docker,netdev,libvirt,dialout,plugdev,wireshark"
-usermod -aG $groups $USERNAME
+for user in "${VALID_USER_LIST[@]}"; do
+	usermod -aG $groups $user
+done
 
-chown -R $USERNAME:$USERNAME $HOME
+for user in "${VALID_USER_LIST[@]}"; do
+	chown -R $user:$user /home/$user
+done
 
 # 其他需要安装的软件
 # siyuan-note、百度网盘、wps（12.1.0.17881）、wechat、linuxqq、wemeet、vmware-workstation、mihomua
-
