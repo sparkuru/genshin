@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Any
 
 if sys.platform == "win32":
     from colorama import init as colorama_init
+
     colorama_init(autoreset=True)
 
 DEBUG_MODE = False
@@ -237,6 +238,7 @@ class TLDRParser:
     def format_output(self, config: Dict[str, Any]) -> str:
         """Format configuration data for terminal display"""
         meta = config.get("meta", {})
+        hit = config.get("hit", [])
         examples = config.get("examples", [])
 
         output = []
@@ -251,6 +253,26 @@ class TLDRParser:
         if url:
             output.append(CLIStyle.color(f"url: {url}", CLIStyle.COLORS["CONTENT"]))
         output.append("")
+
+        if hit:
+            output.append(CLIStyle.color("hit:", CLIStyle.COLORS["SUB_TITLE"]))
+            output.append("")
+            for i, example in enumerate(hit, 1):
+                title = example.get("title", f"Hit {i}")
+                command = example.get("command", "")
+                desc = example.get("description", "")
+
+                output.append(
+                    CLIStyle.color(f"{i}. {title}", CLIStyle.COLORS["CONTENT"])
+                )
+                if desc:
+                    output.append(
+                        CLIStyle.color(f"   {desc}", CLIStyle.COLORS["CONTENT"])
+                    )
+                output.append(
+                    CLIStyle.color(f"`{command}`", CLIStyle.COLORS["EXAMPLE"])
+                )
+                output.append("")
 
         output.append(CLIStyle.color("usage:", CLIStyle.COLORS["SUB_TITLE"]))
         output.append("")
@@ -276,6 +298,76 @@ class TLDRTool:
         """Initialize TLDR tool with parser"""
         self.parser = TLDRParser(config_dir)
         debug("Initialized TLDRTool")
+
+    def _create_default_config(self, command: str, config_file: str) -> None:
+        """Create default TLDR configuration file"""
+        default_config = {
+            "meta": {
+                "name": command,
+                "description": f"Quick reference for {command}",
+                "url": "",
+            },
+            "hit": [],
+            "examples": [],
+        }
+
+        os.makedirs(os.path.dirname(config_file), exist_ok=True)
+
+        with open(config_file, "w", encoding="utf-8") as f:
+            toml.dump(default_config, f)
+
+        debug("Created default config file", path=config_file)
+
+    def add_example(self, command: str, cmd: str, desc: str = "") -> bool:
+        """Add command example to configuration file"""
+        debug("Adding example", command=command, cmd=cmd)
+
+        config_file = self.parser.find_config_file(command)
+
+        if not config_file:
+            config_file = os.path.join(self.parser.config_dir, f"{command}.tldr")
+            print(
+                CLIStyle.color(
+                    f"Configuration file not found, creating: {config_file}",
+                    CLIStyle.COLORS["WARNING"],
+                )
+            )
+            self._create_default_config(command, config_file)
+
+        try:
+            config = self.parser.parse_config(config_file)
+            if not config:
+                return False
+
+            if "hit" not in config:
+                config["hit"] = []
+
+            new_example = {
+                "title": cmd.split()[0] if cmd else "Example",
+                "command": cmd,
+                "description": desc,
+            }
+
+            config["hit"].append(new_example)
+
+            with open(config_file, "w", encoding="utf-8") as f:
+                toml.dump(config, f)
+
+            print(
+                CLIStyle.color(
+                    f"Successfully added example to {command}.tldr",
+                    CLIStyle.COLORS["CONTENT"],
+                )
+            )
+            return True
+
+        except Exception as e:
+            print(
+                CLIStyle.color(
+                    f"Error adding example: {str(e)}", CLIStyle.COLORS["ERROR"]
+                )
+            )
+            return False
 
     def show_help(self, command: str) -> bool:
         """Display help information for specified command"""
@@ -346,6 +438,10 @@ def main() -> int:
         ("Show help for ip command", "help ip"),
         ("Show help for git command", "help git"),
         ("List available configurations", "list"),
+        (
+            "Add command example",
+            'add magick --cmd "magick -resize 256x256 src.png dst.ico" --desc "Resize and convert"',
+        ),
         ("Use custom config directory", "--config-dir /dir/path/to/*.tldr help ip"),
     ]
 
@@ -400,6 +496,38 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
+    add_parser = subparsers.add_parser(
+        "add",
+        help=CLIStyle.color(
+            "Add command example to configuration", CLIStyle.COLORS["CONTENT"]
+        ),
+        description=CLIStyle.color(
+            "Add new command example to TLDR configuration", CLIStyle.COLORS["TITLE"]
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    add_parser.add_argument(
+        "--cmd",
+        "-c",
+        required=True,
+        metavar=CLIStyle.color("COMMAND", CLIStyle.COLORS["WARNING"]),
+        help=CLIStyle.color("Command to add", CLIStyle.COLORS["CONTENT"]),
+    )
+    add_parser.add_argument(
+        "--desc",
+        "-d",
+        default="",
+        metavar=CLIStyle.color("DESCRIPTION", CLIStyle.COLORS["WARNING"]),
+        help=CLIStyle.color("Command description", CLIStyle.COLORS["CONTENT"]),
+    )
+    add_parser.add_argument(
+        "command_name",
+        metavar=CLIStyle.color("NAME", CLIStyle.COLORS["WARNING"]),
+        help=CLIStyle.color(
+            "Target command name (e.g., magick, git)", CLIStyle.COLORS["CONTENT"]
+        ),
+    )
+
     args = parser.parse_args()
 
     global DEBUG_MODE
@@ -418,6 +546,9 @@ def main() -> int:
         elif args.command == "list":
             tldr_tool.list_available()
             return 0
+        elif args.command == "add":
+            success = tldr_tool.add_example(args.command_name, args.cmd, args.desc)
+            return 0 if success else 1
         else:
             print(
                 CLIStyle.color(
