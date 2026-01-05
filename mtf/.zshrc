@@ -592,6 +592,9 @@ ggit() {
                 return 1
             fi
             ;;
+		status)
+			git status
+			;;
         commit)
             local msg="${2:-$commit_comment}"
             git_root_dir=$(git rev-parse --show-toplevel)
