@@ -1,18 +1,17 @@
-serverAddr = "192.168.9.1"
-serverPort = 9440
-auth.method = "token"
-auth.token = "abcdefg"
+serverAddr = "frp.example.com"
+serverPort = 4000
+auth.token = "2s7fu4osCqCUmcayLMp9Gp1#a5NsKQA7"
 
 [[proxies]]
-name = "pve-web"
+name = "src-relay-dst/file_owner/application-native_port"
 type = "tcp"
-localIP = "127.0.0.1"
-localPort = 8006
-remotePort = 18006
-
-[[proxies]]
-name = "pve-22"
-type = "tcp"
-localIP = "127.0.0.1"
+localIP = "192.168.9.2"
 localPort = 22
-remotePort = 10022
+remotePort = 8022
+
+[[proxies]]
+name = "lab_server-relay_name-any/root/phpmyadmin-7890"
+type = "tcp"
+localIP = "192.168.9.2"
+localPort = 7890
+remotePort = 17890

@@ -54,7 +54,7 @@ apt install -y glances iftop inotify-tools aria2 sshpass telnet network-manager-
 apt install -y docker-compose virt-manager qemu-system qemu-user bridge-utils
 apt install -y fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
 apt install -y fcitx5 fcitx5-table fcitx5-chinese-addons fcitx5-rime fcitx5-anthy fcitx5-frontend-all fcitx5-frontend-gtk* fcitx5-frontend-qt* kde-config-fcitx5
-apt install -y filezilla okteta putty picocom glow mtools
+apt install -y filezilla okteta putty picocom glow mtools epub-utils
 apt install -y upx p7zip p7zip-full python3-pip python3-venv python-is-python3
 apt install -y gnupg2 patchelf binwalk wireshark
 apt install -y docker.io docker-compose

@@ -1,0 +1,19 @@
+services:
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: phpmyadmin_web
+    restart: always
+    environment:
+      PMA_HOST: 192.168.9.2
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: "yourstrongrootpassword"
+      PMA_ARBITRARY: 1
+      UPLOAD_LIMIT: 300M
+      MEMORY_LIMIT: 512M
+      PMA_CONTROLUSER: ""
+      PMA_CONTROLPASS: ""
+    ports:
+      - "7890:80"
+    volumes:
+      - ./config:/etc/phpmyadmin/conf.d
