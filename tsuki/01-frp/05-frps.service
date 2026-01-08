@@ -1,0 +1,25 @@
+[Unit]
+Description=FRP Server Service; https://github.com/fatedier/frp.git
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/frps -c /etc/frp/frps.toml
+ExecStop=/usr/bin/pkill -TERM frps
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+TimeoutStartSec=30s
+TimeoutStopSec=10s
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
+
+# mkdir -p /etc/systemd/system/
+# cp frps.server /etc/systemd/system/frps.service
+# systemctl daemon-reload
+# systemctl enable frps --now
