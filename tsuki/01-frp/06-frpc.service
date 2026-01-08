@@ -1,0 +1,25 @@
+[Unit]
+Description=FRP Client Service; https://github.com/fatedier/frp.git
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/frpc -c /etc/frp/frpc.toml
+ExecStop=/usr/bin/pkill -TERM frpc
+Restart=always
+RestartSec=5s
+StartLimitIntervalSec=300
+StartLimitBurst=5
+TimeoutStartSec=30s
+TimeoutStopSec=10s
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
+
+# mkdir -p /etc/systemd/system/
+# cp frpc.server /etc/systemd/system/frpc.service
+# systemctl daemon-reload
+# systemctl enable frpc --now

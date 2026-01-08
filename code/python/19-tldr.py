@@ -183,6 +183,24 @@ class TLDRParser:
         self.config_dir = config_dir or os.path.expanduser("~/.config/tldr")
         debug("Initialized TLDRParser", config_dir=self.config_dir)
 
+    def format_command(self, command: str) -> str:
+        """Format command with highlighted command name"""
+        if not command:
+            return ""
+
+        parts = command.split(None, 1)
+        if len(parts) == 0:
+            return ""
+
+        cmd_name = parts[0]
+        rest = parts[1] if len(parts) > 1 else ""
+
+        formatted = CLIStyle.color(cmd_name, CLIStyle.COLORS["WARNING"])
+        if rest:
+            formatted += " " + CLIStyle.color(rest, CLIStyle.COLORS["EXAMPLE"])
+
+        return f"`{formatted}`"
+
     def find_config_file(self, command: str) -> Optional[str]:
         """Locate configuration file for specified command"""
         config_file = os.path.join(self.config_dir, f"{command}.tldr")
@@ -258,20 +276,13 @@ class TLDRParser:
             output.append(CLIStyle.color("hit:", CLIStyle.COLORS["SUB_TITLE"]))
             output.append("")
             for i, example in enumerate(hit, 1):
-                title = example.get("title", f"Hit {i}")
                 command = example.get("command", "")
                 desc = example.get("description", "")
 
                 output.append(
-                    CLIStyle.color(f"{i}. {title}", CLIStyle.COLORS["CONTENT"])
+                    CLIStyle.color(f"{i}. {desc}", CLIStyle.COLORS["CONTENT"])
                 )
-                if desc:
-                    output.append(
-                        CLIStyle.color(f"   {desc}", CLIStyle.COLORS["CONTENT"])
-                    )
-                output.append(
-                    CLIStyle.color(f"`{command}`", CLIStyle.COLORS["EXAMPLE"])
-                )
+                output.append("  " + self.format_command(command))
                 output.append("")
 
         output.append(CLIStyle.color("usage:", CLIStyle.COLORS["SUB_TITLE"]))
@@ -285,7 +296,7 @@ class TLDRParser:
             output.append(CLIStyle.color(f"{i}. {title}", CLIStyle.COLORS["CONTENT"]))
             if desc:
                 output.append(CLIStyle.color(f"   {desc}", CLIStyle.COLORS["CONTENT"]))
-            output.append(CLIStyle.color(f"`{command}`", CLIStyle.COLORS["EXAMPLE"]))
+            output.append(self.format_command(command))
             output.append("")
 
         return "\n".join(output)
@@ -343,7 +354,6 @@ class TLDRTool:
                 config["hit"] = []
 
             new_example = {
-                "title": cmd.split()[0] if cmd else "Example",
                 "command": cmd,
                 "description": desc,
             }
@@ -369,9 +379,69 @@ class TLDRTool:
             )
             return False
 
-    def show_help(self, command: str) -> bool:
+    def delete_hit(self, command: str, index: int) -> bool:
+        """Delete hit entry at specified index"""
+        debug("Deleting hit entry", command=command, index=index)
+
+        config_file = self.parser.find_config_file(command)
+        if not config_file:
+            print(
+                CLIStyle.color(
+                    f"Error: No configuration found for command '{command}'",
+                    CLIStyle.COLORS["ERROR"],
+                )
+            )
+            return False
+
+        try:
+            config = self.parser.parse_config(config_file)
+            if not config:
+                return False
+
+            if "hit" not in config or not config["hit"]:
+                print(
+                    CLIStyle.color(
+                        "No hit entries found", CLIStyle.COLORS["WARNING"]
+                    )
+                )
+                return False
+
+            if index < 1 or index > len(config["hit"]):
+                print(
+                    CLIStyle.color(
+                        f"Invalid index: {index}. Valid range: 1-{len(config['hit'])}",
+                        CLIStyle.COLORS["ERROR"],
+                    )
+                )
+                return False
+
+            config["hit"].pop(index - 1)
+            
+            with open(config_file, "w", encoding="utf-8") as f:
+                toml.dump(config, f)
+
+            print(
+                CLIStyle.color(
+                    f"Successfully deleted hit entry {index}",
+                    CLIStyle.COLORS["CONTENT"],
+                )
+            )
+            return True
+
+        except Exception as e:
+            print(
+                CLIStyle.color(
+                    f"Error deleting entry: {str(e)}", CLIStyle.COLORS["ERROR"]
+                )
+            )
+            return False
+
+    def show_help(self, command: str, delete_index: Optional[int] = None) -> bool:
         """Display help information for specified command"""
         debug("Showing help for command", command=command)
+
+        if delete_index is not None:
+            return self.delete_hit(command, delete_index)
 
         config_file = self.parser.find_config_file(command)
         if not config_file:
@@ -437,6 +507,7 @@ def main() -> int:
     examples = [
         ("Show help for ip command", "help ip"),
         ("Show help for git command", "help git"),
+        ("Delete hit entry at index 3", "help uv --delete 3"),
         ("List available configurations", "list"),
         (
             "Add command example",
@@ -483,6 +554,12 @@ def main() -> int:
         "target_command",
         metavar=CLIStyle.color("COMMAND", CLIStyle.COLORS["WARNING"]),
         help=CLIStyle.color("Command to show help for", CLIStyle.COLORS["CONTENT"]),
+    )
+    help_parser.add_argument(
+        "--delete",
+        type=int,
+        metavar=CLIStyle.color("INDEX", CLIStyle.COLORS["WARNING"]),
+        help=CLIStyle.color("Delete hit entry at specified index", CLIStyle.COLORS["CONTENT"]),
     )
 
     list_parser = subparsers.add_parser(
@@ -541,7 +618,7 @@ def main() -> int:
         tldr_tool = TLDRTool(args.config_dir)
 
         if args.command == "help":
-            success = tldr_tool.show_help(args.target_command)
+            success = tldr_tool.show_help(args.target_command, args.delete)
             return 0 if success else 1
         elif args.command == "list":
             tldr_tool.list_available()
