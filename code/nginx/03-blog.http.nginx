@@ -30,6 +30,16 @@ server {
         index             index.html;
     }
 
+    location /ftp {
+        alias             /home/www/ftp;
+        autoindex         on;
+    }
+
+    location /tmp {
+        alias             /tmp/tmp/nginx;
+        autoindex         on;
+    }
+
     location / {
         add_header        'Access-Control-Allow-Origin' '*';
         add_header        'Access-Control-Allow-Credentials' 'true';
