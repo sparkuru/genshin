@@ -16,26 +16,34 @@ while read -r line; do
 	fi
 done < <(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 {print $1}')
 
+_curl() {
+	curl -fLo $1 $2
+}
+
+_cp() {
+	cp -f $1 $2
+}
+
 # init zsh
 tmp_zshrc_path="/tmp/zshrc"
-curl -fLo $tmp_zshrc_path $GITHUB_URL_BASE/mtf/.zshrc
+_curl $tmp_zshrc_path $GITHUB_URL_BASE/mtf/.zshrc
 for user in "${VALID_USER_LIST[@]}"; do
 	mkdir -p /home/$user/.zsh
-	cp -f $tmp_zshrc_path /home/$user/.zshrc
+	_cp $tmp_zshrc_path /home/$user/.zshrc
 done
 rm -f $tmp_zshrc_path
 
 # ssh
 tmp_ssh_authorized_keys_path="/tmp/ssh_authorized_keys"
-curl -fLo $tmp_ssh_authorized_keys_path $GITHUB_URL_BASE/mtf/authorized_keys
+_curl $tmp_ssh_authorized_keys_path $GITHUB_URL_BASE/mtf/authorized_keys
 for user in "${VALID_USER_LIST[@]}"; do
 	mkdir -p /home/$user/.ssh
-	cp -f $tmp_ssh_authorized_keys_path /home/$user/.ssh/authorized_keys
+	_cp $tmp_ssh_authorized_keys_path /home/$user/.ssh/authorized_keys
 	chmod 700 -R /home/$user/.ssh
 done
 rm -f $tmp_ssh_authorized_keys_path
 
-curl -fLo /etc/ssh/sshd_config $GITHUB_URL_BASE/mtf/etc/sshd_config
+_curl /etc/ssh/sshd_config $GITHUB_URL_BASE/mtf/etc/sshd_config
 systemctl start ssh && systemctl enable ssh
 
 # software
@@ -87,10 +95,10 @@ update-alternatives --install /usr/bin/fd fd /usr/bin/fdfind 1
 
 # fonts
 tmp_fonts_conf_path="/tmp/fonts.conf"
-curl -fLo $tmp_fonts_conf_path $GITHUB_URL_BASE/mtf/fonts.conf
+_curl $tmp_fonts_conf_path $GITHUB_URL_BASE/mtf/fonts.conf
 for user in "${VALID_USER_LIST[@]}"; do
 	mkdir -p /home/$user/.config/fontconfig
-	cp -f $tmp_fonts_conf_path /home/$user/.config/fontconfig/fonts.conf
+	_cp $tmp_fonts_conf_path /home/$user/.config/fontconfig/fonts.conf
 done
 fc-cache -f
 rm -f $tmp_fonts_conf_path
@@ -164,7 +172,10 @@ for user in "${VALID_USER_LIST[@]}"; do
 		sudo -u $user git config --global core.autocrlf false
 		sudo -u $user git config --global pull.rebase true
 
-		sudo -u $user git config -l
+		sudo -u $user _curl "/home/$user/.gitignore_global" $GITHUB_URL_BASE/mtf/.gitignore_global
+		sudo -u $user git config --global include.path "/home/$user/.gitignore_global"
+
+		sudo -u $user git config --global --list
 		ln -s "/home/$user/.gitconfig" "/root/.gitconfig"
 	fi
 done
