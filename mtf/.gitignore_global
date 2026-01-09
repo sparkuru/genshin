@@ -1,0 +1,21 @@
+.DS_Store
+*.gdb_history
+
+.claude
+.cursor
+.pmt
+.venv
+.env
+
+# zipfile
+*.zip
+*.rar
+*.7z
+*.tar
+*.tgz
+*.gz
+*.bz2
+
+# ai agent
+*.cursorrule.mdc
+*.claudecode.md

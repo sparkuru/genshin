@@ -1,8 +1,4 @@
 
-.DS_Store
-.venv
-*.gdb_history
-
 # ai agent
 *.cursorrule.mdc
 !.cursor/**/*.cursorrule.mdc

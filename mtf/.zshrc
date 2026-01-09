@@ -584,6 +584,9 @@ md5() {
 ggit() {
     commit_comment="u1x:wq"
     case "$1" in
+		status)
+			git status
+			;;
         push)
             if [ $(git pull -q; echo $?) -eq 0 ]; then
                 git push
@@ -592,9 +595,6 @@ ggit() {
                 return 1
             fi
             ;;
-		status)
-			git status
-			;;
         commit)
             local msg="${2:-$commit_comment}"
             git_root_dir=$(git rev-parse --show-toplevel)
@@ -662,8 +662,11 @@ ggit() {
             local raw_url="https://raw.githubusercontent.com/$user/$repo/refs/heads/$branch/$rel_path"
             echo "$raw_url"
             ;;
+		init)
+			git init
+			;;
         *)
-            echo "usage: ggit {push | commit [commit_msg] | auto [commit_msg] | root | path <file_path>}"
+            echo "usage: ggit {status | push | commit [commit_msg] | auto [commit_msg] | root | path <file_path> | init}"
             return 1
             ;;
     esac
