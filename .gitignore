@@ -1,8 +1,4 @@
 
-# ai agent
-*.cursorrule.mdc
-!.cursor/**/*.cursorrule.mdc
-
 # dir```
 online/archive
 binary/archive

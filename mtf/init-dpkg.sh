@@ -158,7 +158,8 @@ for user in "${VALID_USER_LIST[@]}"; do
 		scapy shodan \
 		ollama \
 		watchdog psutil \
-		legacy-cgi
+		legacy-cgi \
+		pyinstaller staticx
 done
 
 # git

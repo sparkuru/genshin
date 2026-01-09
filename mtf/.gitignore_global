@@ -1,5 +1,6 @@
 .DS_Store
 *.gdb_history
+*.pdf
 
 .claude
 .cursor
@@ -16,6 +17,11 @@
 *.gz
 *.bz2
 
+# think
+*.pmt
+*.think.pmt
+
 # ai agent
+*.mdc
 *.cursorrule.mdc
 *.claudecode.md
