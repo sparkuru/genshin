@@ -973,6 +973,7 @@ fi
 
 ## alias_anchor
 
+alias fcmd="declare -f"
 alias l="ls -ah"
 alias ll="ls -alh"
 alias lt="ls -alht"
