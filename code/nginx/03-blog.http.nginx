@@ -15,9 +15,9 @@ server {
  ssl_certificate_key      /home/wkyuu/.acme.sh/majo.im_ecc/majo.im.key;
 
 
-map $cookie_has_visited $landing_redirect {
-    default 1;
-    "true"  0;
+map $cookie_eva $landing_redirect {
+    default               1;
+    "true"                0;
 }
 
 server {
@@ -48,13 +48,13 @@ server {
 
     location = /landing.html {
         alias             /home/www/kyoka-suigetsu/dist/landing.html;
-        add_header Set-Cookie "has_visited=true; Path=/; Max-Age=31536000; HttpOnly; SameSite=Strict";
+        add_header        Set-Cookie "eva=true; Path=/; Max-Age=7200; HttpOnly; SameSite=Strict";
     }
 
     location ^~ /_astro/ {
         alias             /home/www/kyoka-suigetsu/dist/_astro/;
-        expires 2h;
-        add_header Cache-Control "public, immutable";
+        expires           2h;
+        add_header        Cache-Control "public, immutable";
     }
 
     location / {
@@ -67,11 +67,11 @@ server {
         index             index.php index.html;
 
         if ($http_user_agent ~* "Googlebot|bingbot|Baiduspider|Yandex|DuckDuckBot") {
-            rewrite ^ /index.html last;
+            rewrite       ^ /index.html last;
         }
 
         if ($landing_redirect = 1) {
-            rewrite ^ /landing.html last;
+            rewrite       ^ /landing.html last;
         }
 
         if (-f $request_filename/index.html) {

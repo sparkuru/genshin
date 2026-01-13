@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-# Thanks to https://ip-api.com for providing the API
+# pip install colorama argparse
+# Thanks to https://ipapi.co for providing the API
 
 import subprocess
 import json
@@ -9,7 +10,9 @@ import sys
 
 if sys.platform == "win32":
     from colorama import init as colorama_init
+
     colorama_init(autoreset=True)
+
 
 # CLI Style Template
 class CLIStyle:
@@ -113,7 +116,7 @@ def create_example_text(script_name: str, examples: list, notes: list = None) ->
 
 
 class Config:
-    BASE_URL = "http://ip-api.com"
+    BASE_URL = "https://ipapi.co"
 
 
 def execute_curl(url):
@@ -160,26 +163,27 @@ class IPRSSClient:
 
     def get_ip_with_location(self):
         """Get public IP address with location details"""
-        url = f"{Config.BASE_URL}/json"
         if self.args["ip"] != "":
             self.ip = self.args["ip"]
-            url += f"/{self.ip}"
+            url = f"{Config.BASE_URL}/{self.ip}/json/"
+        else:
+            url = f"{Config.BASE_URL}/json/"
         response = execute_curl(url)
         response_json = json.loads(response)
 
-        if response_json.get("status", "") == "success":
+        if response_json.get("ip"):
             print(CLIStyle.color("IP with Location:", CLIStyle.COLORS["TITLE"]))
         else:
             print(CLIStyle.color("IP Query Result:", CLIStyle.COLORS["TITLE"]))
 
-        self.ip = response_json.get("query", self.ip)
+        self.ip = response_json.get("ip", self.ip)
         format_dict(response_json, indent=2, exclude_keys=[])
 
 
 def format_dict(data: dict, indent=0, exclude_keys=None):
     """Format dictionary output"""
     if exclude_keys is None:
-        exclude_keys = ["status", "query"]
+        exclude_keys = []
 
     for key, value in data.items():
         if key in exclude_keys:
@@ -204,10 +208,10 @@ def format_dict(data: dict, indent=0, exclude_keys=None):
 
 
 def check_ip_and_return_str(ip: str) -> str:
-    """Check if IP address is valid and extract it
+    """Check if IP address is valid and extract it, or resolve domain
 
     Args:
-        ip (str): Input IP address string
+        ip (str): Input IP address string or domain name
 
     Returns:
         str: Extracted valid IP address
@@ -216,9 +220,21 @@ def check_ip_and_return_str(ip: str) -> str:
         AssertionError: When no valid IP address is found
     """
     import re
+    import socket
 
-    assert re.search(r"\d+\.\d+\.\d+\.\d+", ip), "No valid IP address found"
-    return re.search(r"\d+\.\d+\.\d+\.\d+", ip).group()
+    ip_match = re.search(r"\d+\.\d+\.\d+\.\d+", ip)
+    if ip_match:
+        return ip_match.group()
+    
+    domain = re.sub(r"^(https?://)?", "", ip)
+    domain = re.sub(r"[:/].*$", "", domain)
+    
+    try:
+        resolved_ip = socket.gethostbyname(domain)
+        print(CLIStyle.color(f"Resolved {domain} -> {resolved_ip}", CLIStyle.COLORS["WARNING"]))
+        return resolved_ip
+    except socket.gaierror:
+        raise AssertionError(f"Cannot resolve domain or find valid IP: {domain}")
 
 
 def main():
@@ -241,7 +257,7 @@ def main():
 
     ap = ColoredArgumentParser(
         description=CLIStyle.color(
-            "IP Address Lookup Tool - Powered by ip-api.com", CLIStyle.COLORS["TITLE"]
+            "IP Address Lookup Tool - Powered by ipapi.co", CLIStyle.COLORS["TITLE"]
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=create_example_text(script_name, examples, notes),
@@ -284,19 +300,27 @@ def main():
 
     args = vars(ap.parse_args())
 
-    if args["cmd"]:
-        print(CLIStyle.color("curl command:", CLIStyle.COLORS["TITLE"]))
-        print(
-            CLIStyle.color(
-                f"{' ' * 2}curl {Config.BASE_URL}/json/<ip>", CLIStyle.COLORS["CONTENT"]
-            )
-        )
-        exit()
-
     if args["ip"]:
         args["ip"] = check_ip_and_return_str(args["ip"])
     else:
         args["ip"] = ""
+
+    if args["cmd"]:
+        print(CLIStyle.color("curl command:", CLIStyle.COLORS["TITLE"]))
+        if args["ip"]:
+            print(
+                CLIStyle.color(
+                    f"{' ' * 2}curl {Config.BASE_URL}/{args['ip']}/json/",
+                    CLIStyle.COLORS["CONTENT"],
+                )
+            )
+        else:
+            print(
+                CLIStyle.color(
+                    f"{' ' * 2}curl {Config.BASE_URL}/json/", CLIStyle.COLORS["CONTENT"]
+                )
+            )
+        exit()
 
     client = IPRSSClient(args)
     client.get_ip_with_location()
