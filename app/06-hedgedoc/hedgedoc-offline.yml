@@ -1,0 +1,56 @@
+services:
+  hedgedoc_db:
+    image: mariadb:10.11
+    container_name: hedgedoc_db
+    environment:
+      - TZ=Asia/Shanghai
+      - MARIADB_ROOT_PASSWORD=password
+      - MARIADB_DATABASE=hedgedoc
+      - MARIADB_USER=hedgedoc
+      - MARIADB_PASSWORD=password
+    volumes:
+      - ./db:/var/lib/mysql
+    restart: always
+    networks:
+      - hedgedoc_network
+
+  hedgedoc:
+    image: lscr.io/linuxserver/hedgedoc:latest
+    container_name: hedgedoc
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+      - CMD_PROTOCOL_USESSL=false
+      - CMD_PORT=9426
+      - CMD_EMAIL=true # 是否需要加 @email.com 后缀登录，若 false 则无法注册
+      - CMD_ALLOW_EMAIL_REGISTER=true # 是否允许用户注册，建议是在注册完后再关闭注册
+      - CMD_ALLOW_ORIGIN=['localhost','127.0.0.1']
+      - CMD_CSP_ENABLE=false
+      - CMD_DB_URL=mysql://hedgedoc:password@hedgedoc_db:3306/hedgedoc # 需要提前创建数据库 hedgedoc, 账密 hedgedoc / password
+      - UPLOADS_MODE=0744
+      - CMD_HSTS_ENABLE=false
+    volumes:
+      - ./config:/config
+    restart: always
+    networks:
+      - hedgedoc_network
+    depends_on:
+      - hedgedoc_db
+
+  nginx:
+    image: nginx:alpine
+    container_name: hedgedoc_nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - 9426:80
+    restart: always
+    networks:
+      - hedgedoc_network
+    depends_on:
+      - hedgedoc
+
+networks:
+  hedgedoc_network:
+# docker-compose -f $PWD/hedgedoc.yml up -d
