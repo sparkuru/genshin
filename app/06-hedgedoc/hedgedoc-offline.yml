@@ -22,6 +22,8 @@ services:
       - PGID=1000
       - TZ=Asia/Shanghai
       - CMD_PROTOCOL_USESSL=false
+      - CMD_URL_ADDPORT=true
+      - CMD_DOCUMENT_MAX_LENGTH=100000000
       - CMD_PORT=9426
       - CMD_EMAIL=true # 是否需要加 @email.com 后缀登录，若 false 则无法注册
       - CMD_ALLOW_EMAIL_REGISTER=true # 是否允许用户注册，建议是在注册完后再关闭注册

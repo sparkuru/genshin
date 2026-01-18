@@ -76,5 +76,10 @@
 	"files.associations": {
 		"*.pmt": "markdown",
 		"*.tldr": "toml"
-	}
+	},
+	"terminal.integrated.initialHint": false,
+	"workbench.editor.empty.hint": "hidden",
+	"terminal.integrated.stickyScroll.enabled": false,
+	"workbench.startupEditor": "none",
+	"workbench.secondarySideBar.defaultVisibility": "visible"
 }

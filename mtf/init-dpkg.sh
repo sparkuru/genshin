@@ -52,26 +52,31 @@ systemctl start ssh && systemctl enable ssh
 # deb-src https://mirrors.ustc.edu.cn/kali kali-rolling main non-free non-free-firmware contrib
 # EOF
 
+to_install_list=(
+  autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
+  g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
+  libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg libxml2 libguestfs-tools
+  zsh git asciidoc pandoc curl pkexec tree dkms aptitude
+  ack fd-find fzf ripgrep
+  glances iftop inotify-tools aria2 sshpass telnet network-manager-openvpn arch-install-scripts
+  docker-compose virt-manager qemu-system qemu-user bridge-utils
+  fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
+  fcitx5 fcitx5-table fcitx5-chinese-addons fcitx5-rime fcitx5-anthy fcitx5-frontend-all fcitx5-frontend-gtk* fcitx5-frontend-qt* kde-config-fcitx5
+  filezilla okteta putty picocom glow mtools epub-utils
+  upx p7zip p7zip-full python3-pip python3-venv python-is-python3
+  gnupg2 patchelf binwalk wireshark tcpdump
+  docker.io docker-compose
+  strace android-sdk-platform-tools
+  winetricks k3b gimp digikam krdc cups ffmpeg npm
+  genisoimage device-tree-compiler
+  antlr3 antlr4 swig
+  debsums msmtp xxd ftp shfmt rlwrap pdfgrep
+  wireguard resolvconf mariadb-client-compat
+  unrar
+)
+
 apt update
-apt install -y autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
-apt install -y g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
-apt install -y libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg libxml2 libguestfs-tools
-apt install -y zsh git asciidoc pandoc curl pkexec tree dkms aptitude
-apt install -y ack fd-find fzf ripgrep
-apt install -y glances iftop inotify-tools aria2 sshpass telnet network-manager-openvpn arch-install-scripts
-apt install -y docker-compose virt-manager qemu-system qemu-user bridge-utils
-apt install -y fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
-apt install -y fcitx5 fcitx5-table fcitx5-chinese-addons fcitx5-rime fcitx5-anthy fcitx5-frontend-all fcitx5-frontend-gtk* fcitx5-frontend-qt* kde-config-fcitx5
-apt install -y filezilla okteta putty picocom glow mtools epub-utils
-apt install -y upx p7zip p7zip-full python3-pip python3-venv python-is-python3
-apt install -y gnupg2 patchelf binwalk wireshark tcpdump
-apt install -y docker.io docker-compose
-apt install -y strace android-sdk-platform-tools
-apt install -y winetricks k3b gimp digikam krdc cups ffmpeg npm
-apt install -y genisoimage device-tree-compiler
-apt install -y antlr3 antlr4 swig
-apt install -y debsums msmtp xxd ftp shfmt rlwrap
-apt install -y wireguard resolvconf
+apt install -y ${to_install_list[@]}
 # apt install -y ibus ibus-gtk ibus-rime rime-data-emoji im-config
 
 python_version=$(python3 --version | awk '{print $2}' | awk -F. '{print "python"$1"."$2}')
