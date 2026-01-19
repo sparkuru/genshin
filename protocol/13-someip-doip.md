@@ -1,4 +1,0 @@
-
-## SOME/IP
-
-## DoIP

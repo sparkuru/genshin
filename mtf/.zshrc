@@ -425,15 +425,19 @@ tmp() {
 }
 
 tsh() {
-    new_shell_script=$1
-    if [[ "$new_shell_script" != /* ]]; then
-        new_shell_script="$PWD/$new_shell_script"
-    fi
-    if [[ ! -f "$new_shell_script" ]]; then
-        touch $new_shell_script
-        chmod +x $new_shell_script
-        echo $new_shell_script
-    fi
+    local created_paths=()
+    for arg in "$@"; do
+        local script_path=$arg
+        if [[ "$script_path" != /* ]]; then
+            script_path="$PWD/$script_path"
+        fi
+        if [[ ! -f "$script_path" ]]; then
+            touch "$script_path"
+            chmod +x "$script_path"
+            created_paths+=("$script_path")
+        fi
+    done
+    [[ ${#created_paths[@]} -gt 0 ]] && printf '%s\n' "${created_paths[@]}"
 }
 
 clean_history() {
