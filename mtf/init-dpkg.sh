@@ -72,7 +72,7 @@ to_install_list=(
   antlr3 antlr4 swig
   debsums msmtp xxd ftp shfmt rlwrap pdfgrep
   wireguard resolvconf mariadb-client-compat
-  unrar
+  unrar snmp snmp-mibs-downloader
 )
 
 apt update

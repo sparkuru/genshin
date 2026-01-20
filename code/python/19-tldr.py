@@ -514,6 +514,7 @@ def main() -> int:
             'add magick --cmd "magick -resize 256x256 src.png dst.ico" --desc "Resize and convert"',
         ),
         ("Use custom config directory", "--config-dir /dir/path/to/*.tldr help ip"),
+        ("Show current config directory", "--show-config"),
     ]
 
     notes = [
@@ -537,6 +538,13 @@ def main() -> int:
         metavar=CLIStyle.color("DIR", CLIStyle.COLORS["WARNING"]),
         help=CLIStyle.color(
             "Custom configuration directory", CLIStyle.COLORS["CONTENT"]
+        ),
+    )
+    parser.add_argument(
+        "--show-config",
+        action="store_true",
+        help=CLIStyle.color(
+            "Display current configuration directory", CLIStyle.COLORS["CONTENT"]
         ),
     )
 
@@ -609,6 +617,16 @@ def main() -> int:
 
     global DEBUG_MODE
     DEBUG_MODE = args.log
+
+    if args.show_config:
+        config_dir = args.config_dir or os.path.expanduser("~/.config/tldr")
+        print(CLIStyle.color("Configuration directory:", CLIStyle.COLORS["TITLE"]))
+        print(CLIStyle.color(f"  {config_dir}", CLIStyle.COLORS["CONTENT"]))
+        if os.path.exists(config_dir):
+            print(CLIStyle.color("  (exists)", CLIStyle.COLORS["CONTENT"]))
+        else:
+            print(CLIStyle.color("  (not exists)", CLIStyle.COLORS["WARNING"]))
+        return 0
 
     if not args.command:
         parser.print_help()
