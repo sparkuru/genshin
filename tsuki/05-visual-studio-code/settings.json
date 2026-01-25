@@ -81,5 +81,26 @@
 	"workbench.editor.empty.hint": "hidden",
 	"terminal.integrated.stickyScroll.enabled": false,
 	"workbench.startupEditor": "none",
-	"workbench.secondarySideBar.defaultVisibility": "visible"
+	"workbench.secondarySideBar.defaultVisibility": "visible",
+	"search.followSymlinks": false,
+	// "files.watcherExclude": {
+	// 	"**/archive/**": true,
+	// 	"**/.git/objects/**": true,
+	// 	"**/.git/subtree-cache/**": true,
+	// 	"**/__pycache__/**": true,
+	// 	"**/node_modules/**": true,
+	// 	"**/.venv/**": true,
+	// 	"**/venv/**": true
+	// },
+	// "search.exclude": {
+	// 	"**/archive/**": true,
+	// 	"**/__pycache__/**": true,
+	// 	"**/node_modules/**": true,
+	// 	"**/.venv/**": true,
+	// 	"**/venv/**": true
+	// },
+	// "files.exclude": {
+	// 	"**/archive": true,
+	// 	"**/__pycache__": true
+	// }
 }
