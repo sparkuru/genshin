@@ -472,7 +472,7 @@ update_zshrc() {
     fi
 }
 
-find_path() {
+fp() {
     current_dir=$(pwd)
 
     while getopts "fh" opt; do
@@ -481,7 +481,7 @@ find_path() {
                 fuzzy_match=true
                 ;;
             h )
-                echo "Usage: ${GREEN}find_path [-f for fuzzy match] [target_path_name]${NC}"
+                echo "Usage: ${GREEN}fp [-f for fuzzy match] [target_path_name]${NC}"
                 return 0
                 ;;
         esac
@@ -994,7 +994,7 @@ alias p="ipython3"
 alias ipa="ip -br a"
 alias ima="date '+%Y-%m-%d-%H%M%S'"
 alias count="wc -l"
-alias nsp="netstat -plantu"
+alias nsp="netstat -plantuev"
 
 alias reg="grep -ir --color=always"
     # grep with pattern: `reg -e 'pattern'`, like `reg -e "test*"`
@@ -1008,8 +1008,9 @@ alias ssize="du -abh --time -d 1 | sort -h"
     # exclude reg files: `size --exclude=*backups*`;
     # sort by size: `size | sort -h`
 
-alias rcp="rsync -avtz --progress"
+alias rcp="rsync -avz --progress"
     # use ssh option: `rcp -e "ssh -p 22000 -i ~/.ssh/id_rsa" src user@host:/path/to/dst`
+    # exclude file: `rcp --exclude='*.pyc' src user@host:/path/to/dst`
 
 alias transfer="sd search http.favicon.hash:-620522584"
     # refresh the cache: `transfer --d`

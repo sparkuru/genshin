@@ -1,0 +1,9 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Type=Application
+Name=Ghidra Software Reverse Engineering Framework
+Exec="/home/wkyuu/cargo/bin/ghidra/ghidraRun" %U
+MimeType=application/x-extension-burp;
+Icon=/home/wkyuu/cargo/bin/ghidra/docs/GhidraClass/AdvancedDevelopment/Images/GhidraLogo64.png
+Categories=Application;
+StartupWMClass=ghidra

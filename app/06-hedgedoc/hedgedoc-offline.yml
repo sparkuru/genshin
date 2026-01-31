@@ -21,11 +21,11 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Asia/Shanghai
-      - CMD_DOMAIN=localhost  # nginx 会动态替换为实际访问的 host, 实现 docker network 内网隔离, 对外只暴露一个 port
+      - CMD_DOMAIN=localhost # nginx 会动态替换为实际访问的 host, 实现 docker network 内网隔离, 对外只暴露一个 port
       - CMD_PROTOCOL_USESSL=false
       - CMD_URL_ADDPORT=true
       - CMD_DOCUMENT_MAX_LENGTH=100000000
-      - CMD_PORT=${HEDGEDOC_PORT:-9426}
+      - CMD_PORT=${HEDGEDOC_PORT:-3000}
       - CMD_EMAIL=true # 是否需要加 @email.com 后缀登录，若 false 则无法注册
       - CMD_ALLOW_EMAIL_REGISTER=true # 是否允许用户注册，建议是在注册完后再关闭注册
       - CMD_ALLOW_ORIGIN=['localhost','127.0.0.1']
@@ -45,14 +45,14 @@ services:
     image: nginx:alpine
     container_name: hedgedoc_nginx
     environment:
-      - HEDGEDOC_PORT=${HEDGEDOC_PORT:-9426}
+      - HEDGEDOC_PORT=${HEDGEDOC_PORT:-3000}
       - NGINX_LISTEN_PORT=${NGINX_LISTEN_PORT:-80}
     volumes:
       - ./nginx.conf:/etc/nginx/templates/nginx.conf.template:ro
     command: >
       sh -c "envsubst '$$HEDGEDOC_PORT $$NGINX_LISTEN_PORT' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
     ports:
-      - ${HEDGEDOC_PORT:-9426}:${NGINX_LISTEN_PORT:-80}
+      - ${HEDGEDOC_PORT:-3000}:${NGINX_LISTEN_PORT:-80}
     restart: always
     networks:
       - hedgedoc_network

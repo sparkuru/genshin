@@ -518,5 +518,14 @@ $INSTALL4J_JAVA_PREFIX exec "$app_java_home/bin/java" "-Djdk.net.hosts.file=$BP_
 return_code=$?
 fi
 
+# return_code=0
+# if [ "$has_space_options" = "true" ]; then
+# $INSTALL4J_JAVA_PREFIX exec "$app_java_home/bin/java" "-splash:$app_home/.install4j/s_fukc9n.png" "--add-opens" "java.base/java.lang=ALL-UNNAMED" "--add-opens" "java.base/javax.crypto=ALL-UNNAMED" "--add-opens" "java.desktop/javax.swing=ALL-UNNAMED" "--add-opens" "java.desktop/java.awt=ALL-UNNAMED" "--add-opens" "java.desktop/java.awt.color=ALL-UNNAMED" "--add-opens" "jdk.crypto.cryptoki/sun.security.pkcs11=ALL-UNNAMED" "$vmov_1" "$vmov_2" "$vmov_3" "$vmov_4" "$vmov_5" $INSTALL4J_ADD_VM_PARAMS -classpath "$local_classpath" install4j.burp.StartBurp  "$@"
+# return_code=$?
+# else
+# $INSTALL4J_JAVA_PREFIX exec "$app_java_home/bin/java" "-splash:$app_home/.install4j/s_fukc9n.png" "--add-opens" "java.base/java.lang=ALL-UNNAMED" "--add-opens" "java.base/javax.crypto=ALL-UNNAMED" "--add-opens" "java.desktop/javax.swing=ALL-UNNAMED" "--add-opens" "java.desktop/java.awt=ALL-UNNAMED" "--add-opens" "java.desktop/java.awt.color=ALL-UNNAMED" "--add-opens" "jdk.crypto.cryptoki/sun.security.pkcs11=ALL-UNNAMED" $INSTALL4J_ADD_VM_PARAMS -classpath "$local_classpath" install4j.burp.StartBurp  "$@"
+# return_code=$?
+# fi
+
 
 exit $return_code

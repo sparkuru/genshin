@@ -83,6 +83,12 @@
 	"workbench.startupEditor": "none",
 	"workbench.secondarySideBar.defaultVisibility": "visible",
 	"search.followSymlinks": false,
+	"chat.disableAIFeatures": true,
+	"chat.extensionUnification.enabled": false,
+	"remote.SSH.experimental.chat": false,
+	"dev.containers.dockerComposePath": "docker compose",
+	"docker.enableDockerComposeLanguageService": false,
+	"claudeCode.preferredLocation": "panel",
 	// "files.watcherExclude": {
 	// 	"**/archive/**": true,
 	// 	"**/.git/objects/**": true,
