@@ -400,9 +400,7 @@ class TLDRTool:
 
             if "hit" not in config or not config["hit"]:
                 print(
-                    CLIStyle.color(
-                        "No hit entries found", CLIStyle.COLORS["WARNING"]
-                    )
+                    CLIStyle.color("No hit entries found", CLIStyle.COLORS["WARNING"])
                 )
                 return False
 
@@ -416,7 +414,7 @@ class TLDRTool:
                 return False
 
             config["hit"].pop(index - 1)
-            
+
             with open(config_file, "w", encoding="utf-8") as f:
                 toml.dump(config, f)
 
@@ -463,6 +461,12 @@ class TLDRTool:
         if not config:
             return False
 
+        config_path = os.path.abspath(config_file)
+        print(
+            CLIStyle.color(
+                f"> load config from: {config_path}", CLIStyle.COLORS["CONTENT"]
+            )
+        )
         output = self.parser.format_output(config)
         print(output)
         return True
@@ -567,7 +571,9 @@ def main() -> int:
         "--delete",
         type=int,
         metavar=CLIStyle.color("INDEX", CLIStyle.COLORS["WARNING"]),
-        help=CLIStyle.color("Delete hit entry at specified index", CLIStyle.COLORS["CONTENT"]),
+        help=CLIStyle.color(
+            "Delete hit entry at specified index", CLIStyle.COLORS["CONTENT"]
+        ),
     )
 
     list_parser = subparsers.add_parser(
