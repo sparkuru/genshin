@@ -73,11 +73,15 @@ clean_text_file() {
 	local size
 	size=$(stat -c %s "$f" 2>/dev/null || echo 0)
 	[[ "$size" -gt 52428800 ]] && echo -e "  ${yellow}(large file, may take a while)${nc}"
+	local orig_uid orig_gid
+	orig_uid=$(stat -c %u "$f" 2>/dev/null) || true
+	orig_gid=$(stat -c %g "$f" 2>/dev/null) || true
 	if [[ "$f" == *.gz ]]; then
 		zcat "$f" 2>/dev/null | grep -vE "$pattern_regex" | gzip >"${f}.tmp" && mv "${f}.tmp" "$f" || rm -f "${f}.tmp"
 	else
 		grep -vE "$pattern_regex" "$f" >"${f}.tmp" && mv "${f}.tmp" "$f" || rm -f "${f}.tmp"
 	fi
+	[[ -n "$orig_uid" && -n "$orig_gid" && -f "$f" ]] && chown "${orig_uid}:${orig_gid}" "$f" 2>/dev/null || true
 }
 
 do_clean_file() {
@@ -132,7 +136,10 @@ if command -v utmpdump &>/dev/null; then
 	for binary in /var/log/wtmp /var/log/btmp; do
 		[[ -f "$binary" ]] || continue
 		echo -e "${green}cleaning (binary)${nc} ${cyan}$binary${nc}"
+		utmp_uid=$(stat -c %u "$binary" 2>/dev/null) || true
+		utmp_gid=$(stat -c %g "$binary" 2>/dev/null) || true
 		utmpdump "$binary" 2>/dev/null | grep -vE "$pattern_regex" | utmpdump -r >"${binary}.tmp" && mv "${binary}.tmp" "$binary"
+		[[ -n "$utmp_uid" && -n "$utmp_gid" && -f "$binary" ]] && chown "${utmp_uid}:${utmp_gid}" "$binary" 2>/dev/null || true
 	done
 else
 	echo -e "${yellow}utmpdump not found, skipping wtmp/btmp (binary)${nc}"

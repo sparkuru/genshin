@@ -73,6 +73,7 @@ to_install_list=(
   debsums msmtp xxd ftp shfmt rlwrap pdfgrep
   wireguard resolvconf mariadb-client-compat
   unrar snmp snmp-mibs-downloader sqlmap sqlitebrowser
+  enca dos2unix
 )
 
 apt update
