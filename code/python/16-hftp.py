@@ -3,6 +3,7 @@
 
 import argparse
 import atexit
+import base64
 import http.server
 import html
 import io
@@ -1635,39 +1636,155 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
             self.send_error(500, str(e))
 
     def do_POST(self) -> None:
-        """Handle POST requests for form file uploads"""
+        """Handle POST requests for file uploads via multiple methods
+
+        Supported upload methods:
+          - multipart/form-data: browser upload, curl -F "file=@path"
+          - application/x-www-form-urlencoded: wget --post-data="data=<base64>&filename=name"
+          - raw body: curl --data-binary @path -H "Content-Type: application/octet-stream"
+        """
+        content_type = self.headers.get("Content-Type", "")
         try:
-            form = cgi.FieldStorage(
-                fp=self.rfile,
-                headers=self.headers,
-                environ={
-                    "REQUEST_METHOD": "POST",
-                    "CONTENT_TYPE": self.headers["Content-Type"],
-                },
-            )
+            if "multipart/form-data" in content_type:
+                self._handle_multipart_upload()
+            elif "application/x-www-form-urlencoded" in content_type:
+                self._handle_urlencoded_upload()
+            else:
+                self._handle_raw_upload()
+        except Exception as e:
+            debug("POST error", error=str(e))
+            self.send_error(500, str(e))
 
-            fileitem = form["file"]
-            if fileitem.filename:
-                fn = os.path.basename(fileitem.filename)
-                current_dir = self.translate_path(self.path)
-                path = os.path.join(current_dir, fn)
+    def _resolve_upload_path(self, filename: str = None) -> str:
+        """Resolve upload destination from URL path and optional filename
 
-                file_exists = os.path.exists(path)
-                if file_exists:
-                    debug("File already exists", path=path)
+        Priority: provided filename > query param ?filename= > URL path basename > generated name
+        """
+        parsed = urlparse(self.path)
+        fs_path = self.translate_path(parsed.path)
 
-                with open(path, "wb") as f:
-                    f.write(fileitem.file.read())
+        if os.path.isdir(fs_path) or fs_path.endswith(os.sep):
+            if not filename:
+                query = parse_qs(parsed.query)
+                filename = query.get("filename", [None])[0]
+            if not filename:
+                filename = f"upload_{int(time.time())}"
+            return os.path.join(fs_path, os.path.basename(filename))
+        return fs_path
 
-                debug("File uploaded via POST", path=path, size=os.path.getsize(path))
+    def _send_cli_response(self, filepath: str, existed: bool = False) -> None:
+        """Send plain text response for CLI uploads"""
+        fn = os.path.basename(filepath)
+        size_str = self._format_size(os.path.getsize(filepath))
+        status = "replaced" if existed else "uploaded"
 
-                self.send_response(200)
-                self.send_header("Content-type", "text/html; charset=utf-8")
-                self.end_headers()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(f"OK {status} {fn} ({size_str})\n".encode("utf-8"))
 
-                status = "replaced" if file_exists else "uploaded"
-                size_str = self._format_size(os.path.getsize(path))
-                response_html = f"""<!DOCTYPE html>
+    def _handle_multipart_upload(self) -> None:
+        """Handle multipart/form-data uploads (browser, curl -F)"""
+        form = cgi.FieldStorage(
+            fp=self.rfile,
+            headers=self.headers,
+            environ={
+                "REQUEST_METHOD": "POST",
+                "CONTENT_TYPE": self.headers["Content-Type"],
+            },
+        )
+
+        fileitem = form["file"]
+        if not fileitem.filename:
+            self.send_error(400, "No file uploaded")
+            return
+
+        fn = os.path.basename(fileitem.filename)
+        save_path = self._resolve_upload_path(fn)
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        file_exists = os.path.exists(save_path)
+
+        with open(save_path, "wb") as f:
+            f.write(fileitem.file.read())
+
+        debug(
+            "File uploaded via multipart",
+            path=save_path,
+            size=os.path.getsize(save_path),
+        )
+        self._send_html_upload_response(fn, save_path, file_exists)
+
+    def _handle_urlencoded_upload(self) -> None:
+        """Handle URL-encoded uploads with base64 data (wget --post-data)
+
+        Expected POST body: data=<base64_content>&filename=<optional_name>
+        """
+        length = int(self.headers.get("Content-Length", 0))
+        if length == 0:
+            self.send_error(400, "Empty request body")
+            return
+
+        body = self.rfile.read(length).decode("utf-8", errors="replace")
+        params = parse_qs(body)
+
+        data_field = params.get("data", [None])[0]
+        if not data_field:
+            self.send_error(400, "Missing 'data' field in POST body")
+            return
+
+        file_content = base64.b64decode(data_field)
+        filename = params.get("filename", [None])[0]
+        save_path = self._resolve_upload_path(filename)
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        file_exists = os.path.exists(save_path)
+
+        with open(save_path, "wb") as f:
+            f.write(file_content)
+
+        debug(
+            "File uploaded via urlencoded",
+            path=save_path,
+            size=os.path.getsize(save_path),
+        )
+        self._send_cli_response(save_path, file_exists)
+
+    def _handle_raw_upload(self) -> None:
+        """Handle raw binary body uploads (curl --data-binary, etc.)
+
+        Target filename resolved from URL path or ?filename= query param.
+        """
+        length = int(self.headers.get("Content-Length", 0))
+        if length == 0:
+            self.send_error(400, "Empty request body")
+            return
+
+        save_path = self._resolve_upload_path()
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        file_exists = os.path.exists(save_path)
+
+        with open(save_path, "wb") as f:
+            f.write(self.rfile.read(length))
+
+        debug(
+            "File uploaded via raw body",
+            path=save_path,
+            size=os.path.getsize(save_path),
+        )
+        self._send_cli_response(save_path, file_exists)
+
+    def _send_html_upload_response(
+        self, filename: str, filepath: str, file_exists: bool
+    ) -> None:
+        """Send HTML upload success response for browser clients"""
+        status = "replaced" if file_exists else "uploaded"
+        size_str = self._format_size(os.path.getsize(filepath))
+        fn_escaped = html.escape(filename)
+
+        self.send_response(200)
+        self.send_header("Content-type", "text/html; charset=utf-8")
+        self.end_headers()
+
+        response_html = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -1735,19 +1852,13 @@ document.documentElement.setAttribute('data-theme', theme);
 <div class="card">
     <div class="icon">✅</div>
     <h2>File {status} successfully!</h2>
-    <p class="info">📄 {html.escape(fn)}</p>
+    <p class="info">📄 {fn_escaped}</p>
     <p class="info">📏 {size_str}</p>
     <a href="./" class="btn">Return to directory</a>
 </div>
 </body>
 </html>"""
-                self.wfile.write(response_html.encode("utf-8"))
-            else:
-                debug("No file in upload")
-                self.send_error(400, "No file uploaded")
-        except Exception as e:
-            debug("POST error", error=str(e))
-            self.send_error(500, str(e))
+        self.wfile.write(response_html.encode("utf-8"))
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
