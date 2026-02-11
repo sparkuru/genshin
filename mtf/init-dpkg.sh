@@ -75,6 +75,7 @@ to_install_list=(
   unrar snmp snmp-mibs-downloader sqlmap sqlitebrowser
   enca dos2unix
   kile kile-l10n
+  obs-studio simplescreenrecorder
 )
 
 apt update
@@ -178,6 +179,7 @@ for user in "${VALID_USER_LIST[@]}"; do
 		sudo -u $user git config --global init.defaultbranch main
 		sudo -u $user git config --global core.editor vim
 		sudo -u $user git config --global core.autocrlf false
+		sudo -u $user git config --global core.quotepath false
 		sudo -u $user git config --global pull.rebase true
 
 		sudo -u $user _curl "/home/$user/.gitignore_global" $GITHUB_URL_BASE/mtf/.gitignore_global
