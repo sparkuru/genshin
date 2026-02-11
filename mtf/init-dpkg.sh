@@ -74,6 +74,7 @@ to_install_list=(
   wireguard resolvconf mariadb-client-compat
   unrar snmp snmp-mibs-downloader sqlmap sqlitebrowser
   enca dos2unix
+  kile kile-l10n
 )
 
 apt update
