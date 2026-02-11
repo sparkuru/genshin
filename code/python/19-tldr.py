@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# pip install toml argparse
+# pip install toml
 # get *.tldr from https://github.com/sparkuru/tldr.git
 
 import os
@@ -14,27 +14,38 @@ if sys.platform == "win32":
     colorama_init(autoreset=True)
 
 DEBUG_MODE = False
+TLDR_EXTENSION = ".tldr"
 
 
-def clean_path(path: str) -> str:
-    """Extract filename from full path"""
-    return os.path.basename(path)
+class CLIStyle:
+    """CLI styling and color management"""
 
-
-def color(text: str, color_code: int = 0) -> str:
-    """Apply ANSI color codes to text"""
-    color_table = {
-        0: "{}",  # No color
-        1: "\033[1;30m{}\033[0m",  # Black bold
-        2: "\033[1;31m{}\033[0m",  # Red bold
-        3: "\033[1;32m{}\033[0m",  # Green bold
-        4: "\033[1;33m{}\033[0m",  # Yellow bold
-        5: "\033[1;34m{}\033[0m",  # Blue bold
-        6: "\033[1;35m{}\033[0m",  # Purple bold
-        7: "\033[1;36m{}\033[0m",  # Cyan bold
-        8: "\033[1;37m{}\033[0m",  # White bold
+    COLORS = {
+        "TITLE": 7,
+        "SUB_TITLE": 2,
+        "CONTENT": 3,
+        "EXAMPLE": 7,
+        "WARNING": 4,
+        "ERROR": 2,
     }
-    return color_table[color_code].format(text)
+
+    _COLOR_TABLE = {
+        0: "{}",
+        1: "\033[1;30m{}\033[0m",
+        2: "\033[1;31m{}\033[0m",
+        3: "\033[1;32m{}\033[0m",
+        4: "\033[1;33m{}\033[0m",
+        5: "\033[1;34m{}\033[0m",
+        6: "\033[1;35m{}\033[0m",
+        7: "\033[1;36m{}\033[0m",
+        8: "\033[1;37m{}\033[0m",
+    }
+
+    @staticmethod
+    def color(text: str = "", color_code: int = None) -> str:
+        if color_code is None:
+            color_code = CLIStyle.COLORS["CONTENT"]
+        return CLIStyle._COLOR_TABLE[color_code].format(text)
 
 
 def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> None:
@@ -53,7 +64,7 @@ def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> N
     import inspect
 
     frame = inspect.currentframe().f_back
-    filename = clean_path(frame.f_code.co_filename)
+    filename = os.path.basename(frame.f_code.co_filename)
     line_number = frame.f_lineno
 
     debug_info = f"[{filename}:{line_number}]"
@@ -63,7 +74,7 @@ def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> N
         kwargs_str = ", ".join([f"{k}={v}" for k, v in kwargs.items()])
         message_parts.append(f"({kwargs_str})")
 
-    message = f"{color(debug_info, 6)} {' '.join(message_parts)}"
+    message = f"{CLIStyle.color(debug_info, 6)} {' '.join(message_parts)}"
 
     if file:
         mode = "a" if append else "w"
@@ -71,37 +82,6 @@ def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> N
             f.write(message + "\n")
     else:
         print(message)
-
-
-class CLIStyle:
-    """CLI styling and color management"""
-
-    COLORS = {
-        "TITLE": 7,  # Cyan - Main title
-        "SUB_TITLE": 2,  # Red - Subtitle
-        "CONTENT": 3,  # Green - Normal content
-        "EXAMPLE": 7,  # Cyan - Example
-        "WARNING": 4,  # Yellow - Warning
-        "ERROR": 2,  # Red - Error
-    }
-
-    @staticmethod
-    def color(text: str = "", color: int = None) -> str:
-        """Apply color formatting to text"""
-        if color is None:
-            color = CLIStyle.COLORS["CONTENT"]
-        color_table = {
-            0: "{}",  # No color
-            1: "\033[1;30m{}\033[0m",  # Black bold
-            2: "\033[1;31m{}\033[0m",  # Red bold
-            3: "\033[1;32m{}\033[0m",  # Green bold
-            4: "\033[1;33m{}\033[0m",  # Yellow bold
-            5: "\033[1;34m{}\033[0m",  # Blue bold
-            6: "\033[1;35m{}\033[0m",  # Purple bold
-            7: "\033[1;36m{}\033[0m",  # Cyan bold
-            8: "\033[1;37m{}\033[0m",  # White bold
-        }
-        return color_table[color].format(text)
 
 
 class ColoredArgumentParser(argparse.ArgumentParser):
@@ -189,9 +169,6 @@ class TLDRParser:
             return ""
 
         parts = command.split(None, 1)
-        if len(parts) == 0:
-            return ""
-
         cmd_name = parts[0]
         rest = parts[1] if len(parts) > 1 else ""
 
@@ -203,13 +180,13 @@ class TLDRParser:
 
     def find_config_file(self, command: str) -> Optional[str]:
         """Locate configuration file for specified command"""
-        config_file = os.path.join(self.config_dir, f"{command}.tldr")
+        config_file = os.path.join(self.config_dir, f"{command}{TLDR_EXTENSION}")
         debug("Looking for config file", path=config_file)
 
         if os.path.exists(config_file):
             return config_file
 
-        local_config = f"{command}.tldr"
+        local_config = f"{command}{TLDR_EXTENSION}"
         if os.path.exists(local_config):
             debug("Found local config file", path=local_config)
             return local_config
@@ -310,6 +287,45 @@ class TLDRTool:
         self.parser = TLDRParser(config_dir)
         debug("Initialized TLDRTool")
 
+    def _get_all_commands(self) -> List[str]:
+        """Get sorted list of all available command names"""
+        if not os.path.exists(self.parser.config_dir):
+            return []
+        return sorted(
+            f[: -len(TLDR_EXTENSION)]
+            for f in os.listdir(self.parser.config_dir)
+            if f.endswith(TLDR_EXTENSION)
+        )
+
+    def _search_commands(self, query: str) -> List[str]:
+        """Filter available commands by substring"""
+        return [cmd for cmd in self._get_all_commands() if query in cmd]
+
+    @staticmethod
+    def _highlight_match(name: str, query: str) -> str:
+        """Highlight matching substring in command name (grep-like)"""
+        idx = name.find(query)
+        if idx == -1:
+            return CLIStyle.color(name, CLIStyle.COLORS["CONTENT"])
+        before = CLIStyle.color(name[:idx], CLIStyle.COLORS["CONTENT"])
+        match = CLIStyle.color(query, CLIStyle.COLORS["WARNING"])
+        after = CLIStyle.color(name[idx + len(query) :], CLIStyle.COLORS["CONTENT"])
+        return before + match + after
+
+    def _display_matching_commands(self, query: str, matches: List[str]) -> None:
+        """Display matching commands with highlighted query"""
+        print(CLIStyle.color(f"Commands matching '{query}':", CLIStyle.COLORS["TITLE"]))
+        for cmd in matches:
+            print(f"  - {self._highlight_match(cmd, query)}")
+
+    def _print_resolve(self, query: str, resolved: str) -> None:
+        """Print auto-resolve message with highlighted match"""
+        query_hl = CLIStyle.color(query, CLIStyle.COLORS["WARNING"])
+        resolved_hl = self._highlight_match(resolved, query)
+        arrow = CLIStyle.color("->", CLIStyle.COLORS["CONTENT"])
+        quote = CLIStyle.color("'", CLIStyle.COLORS["CONTENT"])
+        print(f"{quote}{query_hl}{quote} {arrow} {resolved_hl}")
+
     def _create_default_config(self, command: str, config_file: str) -> None:
         """Create default TLDR configuration file"""
         default_config = {
@@ -336,7 +352,9 @@ class TLDRTool:
         config_file = self.parser.find_config_file(command)
 
         if not config_file:
-            config_file = os.path.join(self.parser.config_dir, f"{command}.tldr")
+            config_file = os.path.join(
+                self.parser.config_dir, f"{command}{TLDR_EXTENSION}"
+            )
             print(
                 CLIStyle.color(
                     f"Configuration file not found, creating: {config_file}",
@@ -365,7 +383,7 @@ class TLDRTool:
 
             print(
                 CLIStyle.color(
-                    f"Successfully added example to {command}.tldr",
+                    f"Successfully added example to {command}{TLDR_EXTENSION}",
                     CLIStyle.COLORS["CONTENT"],
                 )
             )
@@ -435,27 +453,36 @@ class TLDRTool:
             return False
 
     def show_help(self, command: str, delete_index: Optional[int] = None) -> bool:
-        """Display help information for specified command"""
+        """Display help information for specified command, with substring matching fallback"""
         debug("Showing help for command", command=command)
 
-        if delete_index is not None:
-            return self.delete_hit(command, delete_index)
-
         config_file = self.parser.find_config_file(command)
+
         if not config_file:
+            matches = self._search_commands(command)
+            if len(matches) == 1:
+                self._print_resolve(command, matches[0])
+                return self.show_help(matches[0], delete_index)
+            if matches:
+                self._display_matching_commands(command, matches)
+                return True
+
             print(
                 CLIStyle.color(
-                    f"Error: No configuration found for command '{command}'",
+                    f"No configuration found for '{command}'",
                     CLIStyle.COLORS["ERROR"],
                 )
             )
             print(
                 CLIStyle.color(
-                    f"Looking for: {command}.tldr in {self.parser.config_dir} or current directory",
+                    f"Looking for: {command}{TLDR_EXTENSION} in {self.parser.config_dir} or current directory",
                     CLIStyle.COLORS["CONTENT"],
                 )
             )
             return False
+
+        if delete_index is not None:
+            return self.delete_hit(command, delete_index)
 
         config = self.parser.parse_config(config_file)
         if not config:
@@ -471,9 +498,9 @@ class TLDRTool:
         print(output)
         return True
 
-    def list_available(self) -> None:
-        """Display all available TLDR configurations"""
-        debug("Listing available configurations")
+    def list_available(self, query: str = None) -> None:
+        """Display available TLDR configurations, optionally filtered by substring"""
+        debug("Listing available configurations", query=query)
 
         if not os.path.exists(self.parser.config_dir):
             print(
@@ -484,11 +511,20 @@ class TLDRTool:
             )
             return
 
-        tldr_files = [
-            f for f in os.listdir(self.parser.config_dir) if f.endswith(".tldr")
-        ]
+        if query:
+            matches = self._search_commands(query)
+            if not matches:
+                print(
+                    CLIStyle.color(
+                        f"No commands matching '{query}'", CLIStyle.COLORS["WARNING"]
+                    )
+                )
+                return
+            self._display_matching_commands(query, matches)
+            return
 
-        if not tldr_files:
+        commands = self._get_all_commands()
+        if not commands:
             print(
                 CLIStyle.color(
                     "No TLDR configurations found", CLIStyle.COLORS["WARNING"]
@@ -499,9 +535,8 @@ class TLDRTool:
         print(
             CLIStyle.color("Available TLDR configurations:", CLIStyle.COLORS["TITLE"])
         )
-        for tldr_file in sorted(tldr_files):
-            command_name = tldr_file[:-5]
-            print(CLIStyle.color(f"  - {command_name}", CLIStyle.COLORS["CONTENT"]))
+        for cmd in commands:
+            print(CLIStyle.color(f"  - {cmd}", CLIStyle.COLORS["CONTENT"]))
 
 
 def main() -> int:
@@ -511,8 +546,10 @@ def main() -> int:
     examples = [
         ("Show help for ip command", "help ip"),
         ("Show help for git command", "help git"),
+        ("Substring match: auto-resolve or list candidates", "help i"),
         ("Delete hit entry at index 3", "help uv --delete 3"),
-        ("List available configurations", "list"),
+        ("List available configurations", "list/ls"),
+        ("List commands matching pattern", "list i"),
         (
             "Add command example",
             'add magick --cmd "magick -resize 256x256 src.png dst.ico" --desc "Resize and convert"',
@@ -586,6 +623,26 @@ def main() -> int:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    list_parser.add_argument(
+        "query",
+        nargs="?",
+        default=None,
+        metavar=CLIStyle.color("PATTERN", CLIStyle.COLORS["WARNING"]),
+        help=CLIStyle.color("Filter commands by substring", CLIStyle.COLORS["CONTENT"]),
+    )
+    ls_parser = subparsers.add_parser(
+        "ls",
+        help=argparse.SUPPRESS,
+        description=list_parser.description,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    ls_parser.add_argument(
+        "query",
+        nargs="?",
+        default=None,
+        metavar=CLIStyle.color("PATTERN", CLIStyle.COLORS["WARNING"]),
+        help=CLIStyle.color("Filter commands by substring", CLIStyle.COLORS["CONTENT"]),
+    )
 
     add_parser = subparsers.add_parser(
         "add",
@@ -644,8 +701,8 @@ def main() -> int:
         if args.command == "help":
             success = tldr_tool.show_help(args.target_command, args.delete)
             return 0 if success else 1
-        elif args.command == "list":
-            tldr_tool.list_available()
+        elif args.command in ("list", "ls"):
+            tldr_tool.list_available(args.query)
             return 0
         elif args.command == "add":
             success = tldr_tool.add_example(args.command_name, args.cmd, args.desc)

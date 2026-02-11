@@ -221,5 +221,24 @@
         "key": "ctrl+shift+v",
         "command": "-planEditor.toggleMode",
         "when": "markdownPlanEditorActive"
+    },
+    {
+        "key": "ctrl+r",
+        "command": "-workbench.action.reloadBrowserTab",
+        "when": "cursor.browserTabEnabled && activeEditor == 'workbench.editor.browserEditor'"
+    },
+    {
+        "key": "ctrl+r",
+        "command": "-workbench.action.quickOpenNavigateNextInRecentFilesPicker",
+        "when": "inQuickOpen && inRecentFilesPicker"
+    },
+    {
+        "key": "ctrl+r",
+        "command": "-workbench.action.terminal.chat.rerunRequest",
+        "when": "chatIsEnabled && terminalChatFocus && terminalHasBeenCreated && !terminalChatActiveRequest || chatIsEnabled && terminalChatFocus && terminalProcessSupported && !terminalChatActiveRequest"
+    },
+    {
+        "key": "ctrl+r",
+        "command": "-workbench.action.openRecent"
     }
 ]

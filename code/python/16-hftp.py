@@ -2,37 +2,37 @@
 # pip install ifaddr colorama legacy-cgi
 
 import argparse
-import http.server
-import socketserver
-import os
-import sys
-import io
-import cgi
-import html
-import threading
-import socket
-import time
 import atexit
-import subprocess
+import http.server
+import html
+import io
 import mimetypes
-from typing import List, Optional, Tuple
-from urllib.parse import unquote, quote
-import ifaddr
+import os
+import shutil
 import signal
+import socket
+import socketserver
+import subprocess
+import sys
+import threading
+import time
+from typing import List, Optional, Tuple
+from urllib.parse import parse_qs, quote, unquote, urlparse
+
+import cgi
+import ifaddr
 
 if sys.platform == "win32":
     from colorama import init as colorama_init
 
     colorama_init(autoreset=True)
 
-# Global variables and constants
 DEBUG_MODE = False
 BATCH_MODE = False
 SERVER_INSTANCE = None
 DEFAULT_PORT = 7888
 EXIT_EVENT = threading.Event()
 
-# Text file extensions that can be previewed
 TEXT_EXTENSIONS = {
     ".txt",
     ".md",
@@ -101,7 +101,6 @@ TEXT_EXTENSIONS = {
     "Rakefile",
 }
 
-# MIME types for text files
 TEXT_MIME_PREFIXES = (
     "text/",
     "application/json",
@@ -167,18 +166,17 @@ def get_syntax_language(filepath: str) -> str:
     return lang_map.get(ext, "plaintext")
 
 
-# CLI Style class
 class CLIStyle:
     """CLI tool unified style config"""
 
     COLORS = {
-        "TITLE": 7,  # Cyan - Main title
-        "SUB_TITLE": 2,  # Red - Subtitle
-        "CONTENT": 3,  # Green - Normal content
-        "EXAMPLE": 7,  # Cyan - Example
-        "WARNING": 4,  # Yellow - Warning
-        "ERROR": 2,  # Red - Error
-        "SUCCESS": 3,  # Green - Success
+        "TITLE": 7,
+        "SUB_TITLE": 2,
+        "CONTENT": 3,
+        "EXAMPLE": 7,
+        "WARNING": 4,
+        "ERROR": 2,
+        "SUCCESS": 3,
     }
 
     @staticmethod
@@ -187,34 +185,21 @@ class CLIStyle:
         if color is None:
             color = CLIStyle.COLORS["CONTENT"]
         color_table = {
-            0: "{}",  # No color
-            1: "\033[1;30m{}\033[0m",  # Bold black
-            2: "\033[1;31m{}\033[0m",  # Bold red
-            3: "\033[1;32m{}\033[0m",  # Bold green
-            4: "\033[1;33m{}\033[0m",  # Bold yellow
-            5: "\033[1;34m{}\033[0m",  # Bold blue
-            6: "\033[1;35m{}\033[0m",  # Bold purple
-            7: "\033[1;36m{}\033[0m",  # Bold cyan
-            8: "\033[1;37m{}\033[0m",  # Bold white
+            0: "{}",
+            1: "\033[1;30m{}\033[0m",
+            2: "\033[1;31m{}\033[0m",
+            3: "\033[1;32m{}\033[0m",
+            4: "\033[1;33m{}\033[0m",
+            5: "\033[1;34m{}\033[0m",
+            6: "\033[1;35m{}\033[0m",
+            7: "\033[1;36m{}\033[0m",
+            8: "\033[1;37m{}\033[0m",
         }
         return color_table[color].format(text)
 
 
 def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> None:
-    """
-    Print debug information with source file and line number
-    ```python
-    debug(
-        'Hello',    # Parameter 1 to print
-        'World',    # Parameter 2 to print
-        file='debug.log',  # Output file path, default is None (console output)
-        append=False,  # Whether to append to file, default is True
-        **kwargs  # Key-value parameters to print
-    )
-
-    return = None
-    ```
-    """
+    """Print debug information with source file and line number."""
     if not DEBUG_MODE:
         return
 
@@ -249,7 +234,7 @@ def emergency_exit():
     """Force process termination with extreme prejudice"""
     debug("Emergency exit called")
     print(CLIStyle.color("Server stopped", CLIStyle.COLORS["SUCCESS"]))
-    # On Windows, use os._exit which doesn't clean up resources but ensures termination
+    # os._exit bypasses cleanup but guarantees termination on all platforms
     os._exit(0)
 
 
@@ -261,18 +246,7 @@ def force_exit_after(seconds: int = 2):
 
 
 def divider(title: str = "", width: int = 80, char: str = "-") -> str:
-    """
-    Create a divider with optional title
-    ```python
-    divider(
-        "Section Title",  # Center title, default is empty
-        80,              # Total divider width, default is 80
-        "-"              # Divider character, default is "-"
-    )
-
-    return = "---- Section Title ----"  # Formatted divider
-    ```
-    """
+    """Create a divider with optional centered title."""
     if not title:
         return char * width
 
@@ -284,14 +258,7 @@ def divider(title: str = "", width: int = 80, char: str = "-") -> str:
 
 
 def get_all_ips() -> List[str]:
-    """
-    Get all local non-loopback IPv4 addresses
-    ```python
-    get_all_ips()
-
-    return = ["192.168.1.100", "10.0.0.5"]  # List of all local IPv4 addresses
-    ```
-    """
+    """Get all local non-loopback IPv4 addresses."""
     ips = []
     adapters = ifaddr.get_adapters()
     for adapter in adapters:
@@ -303,16 +270,7 @@ def get_all_ips() -> List[str]:
 
 
 def confirm_action(prompt: str) -> bool:
-    """
-    Request user confirmation for an action
-    ```python
-    confirm_action(
-        "Do you want to proceed?"  # Confirmation prompt
-    )
-
-    return = True  # Returns True if user confirms, False otherwise
-    ```
-    """
+    """Request user confirmation, auto-confirms in batch mode."""
     if BATCH_MODE:
         debug(f"Batch mode: auto-confirming: {prompt}")
         print(
@@ -322,26 +280,14 @@ def confirm_action(prompt: str) -> bool:
         )
         return True
     response = input(f"{prompt} (y/n): ").lower().strip()
-    return response == "y" or response == "yes"
+    return response in ("y", "yes")
 
 
 def signal_handler(sig, frame):
-    """
-    Handle interrupt signals
-    ```python
-    signal_handler(
-        signal.SIGINT,  # Signal received
-        frame           # Current stack frame
-    )
-
-    return = None
-    ```
-    """
+    """Handle interrupt signals for graceful shutdown."""
     print(CLIStyle.color("\nShutting down server...", CLIStyle.COLORS["WARNING"]))
-    # Immediately start a thread that will force exit after a short delay
     threading.Thread(target=force_exit_after, args=(1,), daemon=True).start()
 
-    # Try to clean up, but don't rely on it
     try:
         global SERVER_INSTANCE, EXIT_EVENT
         EXIT_EVENT.set()
@@ -351,23 +297,12 @@ def signal_handler(sig, frame):
     except Exception as e:
         debug("Error in signal handler", error=str(e))
 
-    # Don't wait for the delayed exit - try to exit now
     emergency_exit()
 
 
 def get_process_using_port(port: int) -> Optional[Tuple[str, str]]:
-    """
-    Find process occupying specified port
-    ```python
-    get_process_using_port(
-        8080  # Port number
-    )
-
-    return = ("1234", "python server.py")  # Returns (process_id, process_command) or None
-    ```
-    """
+    """Find process occupying specified port, returns (pid, command) or None."""
     try:
-        # Priority: use lsof command
         try:
             result = subprocess.run(
                 ["lsof", "-i", f":{port}", "-t"],
@@ -377,7 +312,6 @@ def get_process_using_port(port: int) -> Optional[Tuple[str, str]]:
             )
             if result.returncode == 0 and result.stdout.strip():
                 pid = result.stdout.strip().split("\n")[0]
-                # Get process command
                 cmd_result = subprocess.run(
                     ["ps", "-p", pid, "-o", "comm="],
                     capture_output=True,
@@ -391,7 +325,7 @@ def get_process_using_port(port: int) -> Optional[Tuple[str, str]]:
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
 
-        # Backup plan: use netstat
+        # Fallback: netstat
         try:
             result = subprocess.run(
                 ["netstat", "-tlnp"], capture_output=True, text=True, timeout=5
@@ -407,7 +341,7 @@ def get_process_using_port(port: int) -> Optional[Tuple[str, str]]:
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
 
-        # Last resort: use ss command
+        # Fallback: ss
         try:
             result = subprocess.run(
                 ["ss", "-tlnp", f"sport = :{port}"],
@@ -419,7 +353,6 @@ def get_process_using_port(port: int) -> Optional[Tuple[str, str]]:
                 for line in result.stdout.split("\n"):
                     if f":{port} " in line:
                         if "users:" in line:
-                            # Parse ss output format
                             users_part = line.split("users:")[1]
                             if "pid=" in users_part:
                                 pid = (
@@ -441,35 +374,18 @@ def get_process_using_port(port: int) -> Optional[Tuple[str, str]]:
 
 
 def kill_process_by_pid(pid: str) -> bool:
-    """
-    Force terminate process by specified PID
-    ```python
-    kill_process_by_pid(
-        "1234"  # Process ID
-    )
-
-    return = True  # Returns whether process termination was successful
-    ```
-    """
+    """Force terminate process by PID, returns True on success."""
     try:
-        # First attempt graceful termination
-        result = subprocess.run(
-            ["kill", pid], capture_output=True, text=True, timeout=5
-        )
-
-        # Wait a moment to see if process ends
+        subprocess.run(["kill", pid], capture_output=True, text=True, timeout=5)
         time.sleep(1)
 
-        # Check if process still exists
         check_result = subprocess.run(
             ["kill", "-0", pid], capture_output=True, text=True, timeout=5
         )
-
         if check_result.returncode != 0:
-            # Process no longer exists
             return True
 
-        # If process still exists, force terminate
+        # Graceful kill failed, force terminate
         force_result = subprocess.run(
             ["kill", "-9", pid], capture_output=True, text=True, timeout=5
         )
@@ -481,7 +397,6 @@ def kill_process_by_pid(pid: str) -> bool:
         return False
 
 
-# Custom argument parser for consistent CLI style
 class ColoredArgumentParser(argparse.ArgumentParser):
     """Unified command line argument parser"""
 
@@ -543,8 +458,6 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         """Handle GET requests with text file preview support"""
-        from urllib.parse import urlparse, parse_qs
-
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
         path = self.translate_path(parsed.path)
@@ -1347,7 +1260,7 @@ footer {{
 '''
 
         if displaypath != "/":
-            html_content += f"""
+            html_content += """
         <div class="file-item">
             <div class="file-name">
                 <span class="file-icon folder">📂</span>
@@ -1365,7 +1278,7 @@ footer {{
                 mtime = time.strftime(
                     "%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(fullname))
                 )
-            except:
+            except OSError:
                 mtime = "-"
 
             escaped_name = html.escape(name).replace("'", "\\'")
@@ -1391,7 +1304,7 @@ footer {{
                 mtime = time.strftime(
                     "%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(fullname))
                 )
-            except:
+            except OSError:
                 size_str = "-"
                 mtime = "-"
 
@@ -1699,14 +1612,12 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
 
     def do_DELETE(self) -> None:
         """Handle DELETE requests for file/folder deletion"""
-        import shutil
-        
         path = self.translate_path(self.path)
-        
+
         if not os.path.exists(path):
             self.send_error(404, "File not found")
             return
-        
+
         try:
             if os.path.isdir(path):
                 shutil.rmtree(path)
@@ -1714,7 +1625,7 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
             else:
                 os.remove(path)
                 debug("File deleted", path=path)
-            
+
             self.send_response(204)
             self.end_headers()
         except PermissionError:
@@ -1741,7 +1652,6 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
                 current_dir = self.translate_path(self.path)
                 path = os.path.join(current_dir, fn)
 
-                # Check if file already exists
                 file_exists = os.path.exists(path)
                 if file_exists:
                     debug("File already exists", path=path)
@@ -1849,7 +1759,6 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     def __init__(self, server_address, RequestHandlerClass):
         super().__init__(server_address, RequestHandlerClass)
         self.running = True
-        # Set a short timeout to avoid blocking in handle_request
         self.timeout = 0.1
 
     def shutdown(self) -> None:
@@ -1859,23 +1768,14 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
         try:
             super().shutdown()
-        except:
+        except Exception:
             debug("Error in server shutdown")
 
         debug("Server shutdown completed")
 
 
 def run_server(server: ThreadedTCPServer) -> None:
-    """
-    Run server in a separate thread
-    ```python
-    run_server(
-        server  # ThreadedTCPServer instance
-    )
-
-    return = None
-    ```
-    """
+    """Run server request loop in a separate thread."""
     debug("Starting server thread")
     try:
         while server.running and not EXIT_EVENT.is_set():
@@ -1894,21 +1794,7 @@ def run_server(server: ThreadedTCPServer) -> None:
 def create_example_text(
     script_name: str, examples: List[Tuple[str, str]], notes: Optional[List[str]] = None
 ) -> str:
-    """
-    Create unified example text
-    ```python
-    create_example_text(
-        "server.py",             # Script name
-        [                        # Examples list, each example is a (description, command) tuple
-            ("Start server", "--port 8080"),
-            ("Debug mode", "--port 8080 --debug")
-        ],
-        ["Note 1", "Note 2"]     # Optional notes list
-    )
-
-    return = "formatted text with examples and notes"
-    ```
-    """
+    """Create formatted example text for CLI help output."""
     text = f"\n{CLIStyle.color('Examples:', CLIStyle.COLORS['SUB_TITLE'])}"
 
     for desc, cmd in examples:
@@ -1927,37 +1813,17 @@ def create_example_text(
 
 
 def safe_port_check(port: int) -> bool:
-    """
-    Check if port is available
-    ```python
-    safe_port_check(
-        8080  # Port number to check
-    )
-
-    return = True  # Returns True if port is available, False otherwise
-    ```
-    """
+    """Check if port is available for binding."""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("", port))
             return True
-    except:
+    except OSError:
         return False
 
 
 def generate_systemd_service(port: int, work_dir: str, script_path: str) -> str:
-    """
-    Generate systemd service file content
-    ```python
-    generate_systemd_service(
-        8080,                           # Port number
-        "/opt/fileserver",              # Working directory
-        "/usr/local/bin/hftp.py"        # Script absolute path
-    )
-
-    return = "service_file_content"     # Returns service file content
-    ```
-    """
+    """Generate systemd service file content."""
     service_content = f"""[Unit]
 Description=HTTP File Transfer Protocol Server
 After=network.target
@@ -1977,36 +1843,16 @@ StartLimitIntervalSec=300
 StartLimitBurst=5
 TimeoutStartSec=30s
 TimeoutStopSec=10s
-User={os.getenv("USER", "root")}
-Group={os.getenv("USER", "root")}
 Environment="PYTHONUNBUFFERED=1"
 
 [Install]
 WantedBy=multi-user.target
-
-# Installation and usage:
-# mkdir -p /etc/systemd/system/
-# ln -sf hftp.service /etc/systemd/system/hftp.service
-# systemctl daemon-reload
-# systemctl enable hftp.service --now
-# systemctl status hftp.service
-# journalctl -u hftp.service -f
 """
     return service_content
 
 
 def display_server_info(ips: List[str], port: int) -> None:
-    """
-    Display server access information
-    ```python
-    display_server_info(
-        ["192.168.1.100", "10.0.0.5"],  # IP address list
-        8080                            # Port number
-    )
-
-    return = None
-    ```
-    """
+    """Display server access URLs and connection info."""
     print(divider("Server Information", 60, "="))
     print(
         f"Server started at port: {CLIStyle.color(str(port), CLIStyle.COLORS['CONTENT'])}"
@@ -2032,8 +1878,8 @@ def display_server_info(ips: List[str], port: int) -> None:
     )
 
 
-def main() -> None:
-    """Main function to handle command line arguments and start server"""
+def main() -> int:
+    """Main entry point for the HTTP file server."""
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
@@ -2091,7 +1937,6 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # Set global debug mode
     global DEBUG_MODE, BATCH_MODE
     DEBUG_MODE = args.debug
     BATCH_MODE = args.batch
@@ -2104,7 +1949,6 @@ def main() -> None:
         print(CLIStyle.color("Batch mode enabled", CLIStyle.COLORS["WARNING"]))
         debug("Batch mode: all prompts will be auto-confirmed")
 
-    # Handle service file generation
     if args.generate_service:
         script_path = os.path.abspath(sys.argv[0])
         work_dir = os.getcwd()
@@ -2147,7 +1991,7 @@ def main() -> None:
             print(
                 f"  - Logs:   {CLIStyle.color('sudo journalctl -u hftp.service -f', CLIStyle.COLORS['CONTENT'])}"
             )
-            return
+            return 0
         except Exception as e:
             print(
                 CLIStyle.color(
@@ -2158,9 +2002,8 @@ def main() -> None:
                 import traceback
 
                 traceback.print_exc()
-            return
+            return 1
 
-    # Check if port is available
     if not safe_port_check(args.port):
         print(
             CLIStyle.color(
@@ -2168,7 +2011,6 @@ def main() -> None:
             )
         )
 
-        # Find process occupying the port
         process_info = get_process_using_port(args.port)
         if process_info:
             pid, command = process_info
@@ -2179,7 +2021,6 @@ def main() -> None:
                 )
             )
 
-            # Ask whether to force close the occupying process
             if confirm_action("Force close the process occupying this port?"):
                 print(
                     CLIStyle.color(
@@ -2194,10 +2035,7 @@ def main() -> None:
                         )
                     )
 
-                    # Wait a moment to ensure port is released
                     time.sleep(1)
-
-                    # Check port again
                     if safe_port_check(args.port):
                         print(
                             CLIStyle.color(
@@ -2249,7 +2087,6 @@ def main() -> None:
                 )
             )
 
-        # If port is still unavailable, suggest using alternative port
         if not safe_port_check(args.port):
             port_suggestion = args.port + 1
             while (
@@ -2273,41 +2110,34 @@ def main() -> None:
                             "Server startup cancelled", CLIStyle.COLORS["ERROR"]
                         )
                     )
-                    return
+                    return 1
             else:
                 print(
                     CLIStyle.color("Server startup cancelled", CLIStyle.COLORS["ERROR"])
                 )
-                return
+                return 1
 
-    # Get all available IP addresses
     ips = get_all_ips()
     debug("Available IPs", ips=ips)
 
     try:
-        # Display server information
         display_server_info(ips, args.port)
-
-        # Register atexit handler before starting server
         atexit.register(
             lambda: print(
                 CLIStyle.color("Server fully stopped", CLIStyle.COLORS["SUCCESS"])
             )
         )
 
-        # Create server
         global SERVER_INSTANCE
         SERVER_INSTANCE = ThreadedTCPServer(
             ("0.0.0.0", args.port), EnhancedHTTPRequestHandler
         )
 
-        # Run server in a new thread
         server_thread = threading.Thread(
             target=run_server, args=(SERVER_INSTANCE,), daemon=True
         )
         server_thread.start()
 
-        # If needed, automatically open browser
         if args.preview:
             import webbrowser
 
@@ -2317,13 +2147,10 @@ def main() -> None:
             )
             webbrowser.open(url)
 
-        # The main thread now just waits - signal handler will handle Ctrl+C
-        # We use a shorter sleep interval for better responsiveness
         try:
             while SERVER_INSTANCE.running and not EXIT_EVENT.is_set():
                 time.sleep(0.05)
         except KeyboardInterrupt:
-            # Direct handling of keyboard interrupt
             print(
                 CLIStyle.color(
                     "\nShutting down server directly...", CLIStyle.COLORS["WARNING"]
@@ -2342,4 +2169,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
