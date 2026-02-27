@@ -34,6 +34,43 @@ SERVER_INSTANCE = None
 DEFAULT_PORT = 7888
 EXIT_EVENT = threading.Event()
 
+
+class NewFileTracker:
+    """Track files created or uploaded during the current server session.
+
+    A file is considered "new" if:
+    - It was explicitly registered (uploaded via this server), or
+    - Its mtime is >= the server start time (externally added while running).
+
+    Uses os.path.realpath for cross-platform path normalization (Windows included).
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._registered: set = set()
+        self._start_time: float = time.time()
+
+    def register(self, filepath: str) -> None:
+        with self._lock:
+            self._registered.add(os.path.realpath(filepath))
+
+    def remove(self, filepath: str) -> None:
+        with self._lock:
+            self._registered.discard(os.path.realpath(filepath))
+
+    def is_new(self, filepath: str) -> bool:
+        real = os.path.realpath(filepath)
+        with self._lock:
+            if real in self._registered:
+                return True
+        try:
+            return os.path.getmtime(filepath) >= self._start_time
+        except OSError:
+            return False
+
+
+NEW_FILE_TRACKER = NewFileTracker()
+
 TEXT_EXTENSIONS = {
     ".txt",
     ".md",
@@ -109,6 +146,42 @@ TEXT_MIME_PREFIXES = (
     "application/javascript",
 )
 
+IMAGE_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".bmp",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".tiff",
+    ".tif",
+    ".avif",
+}
+
+VIDEO_EXTENSIONS = {
+    ".mp4",
+    ".webm",
+    ".ogg",
+    ".ogv",
+    ".mov",
+    ".m4v",
+    ".3gp",
+    ".3g2",
+}
+
+VIDEO_MIME_TYPES = {
+    ".mp4": "video/mp4",
+    ".m4v": "video/mp4",
+    ".webm": "video/webm",
+    ".ogg": "video/ogg",
+    ".ogv": "video/ogg",
+    ".mov": "video/quicktime",
+    ".3gp": "video/3gpp",
+    ".3g2": "video/3gpp2",
+}
+
 
 def is_text_file(filepath: str) -> bool:
     """Check if a file is a text file that can be previewed"""
@@ -123,6 +196,18 @@ def is_text_file(filepath: str) -> bool:
         return True
 
     return False
+
+
+def is_image_file(filepath: str) -> bool:
+    """Check if a file is an image that can be previewed inline."""
+    ext = os.path.splitext(filepath)[1].lower()
+    return ext in IMAGE_EXTENSIONS
+
+
+def is_video_file(filepath: str) -> bool:
+    """Check if a file is a browser-playable video."""
+    ext = os.path.splitext(filepath)[1].lower()
+    return ext in VIDEO_EXTENSIONS
 
 
 def get_syntax_language(filepath: str) -> str:
@@ -234,6 +319,12 @@ def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> N
 def emergency_exit():
     """Force process termination with extreme prejudice"""
     debug("Emergency exit called")
+    global SERVER_INSTANCE
+    if SERVER_INSTANCE:
+        try:
+            SERVER_INSTANCE.socket.close()
+        except Exception:
+            pass
     print(CLIStyle.color("Server stopped", CLIStyle.COLORS["SUCCESS"]))
     # os._exit bypasses cleanup but guarantees termination on all platforms
     os._exit(0)
@@ -458,20 +549,92 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     """Enhanced HTTP request handler with file upload and download support"""
 
     def do_GET(self) -> None:
-        """Handle GET requests with text file preview support"""
+        """Handle GET requests with preview and Range support."""
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
         path = self.translate_path(parsed.path)
 
-        if (
-            os.path.isfile(path)
-            and query.get("preview", ["0"])[0] == "1"
-            and is_text_file(path)
-        ):
-            self.serve_text_preview(path)
+        if os.path.isfile(path):
+            if query.get("preview", ["0"])[0] == "1":
+                if is_text_file(path):
+                    self.serve_text_preview(path)
+                elif is_image_file(path):
+                    self.serve_image_preview(path)
+                elif is_video_file(path):
+                    self.serve_video_preview(path)
+                else:
+                    self._serve_ranged(path)
+            else:
+                self._serve_ranged(path)
         else:
             self.path = parsed.path
             super().do_GET()
+
+    def _serve_ranged(self, filepath: str) -> None:
+        """Serve a file with HTTP Range request support."""
+        try:
+            file_size = os.path.getsize(filepath)
+        except OSError:
+            self.send_error(404, "File not found")
+            return
+
+        mime_type, _ = mimetypes.guess_type(filepath)
+        if not mime_type:
+            mime_type = "application/octet-stream"
+        if mime_type.startswith("text/") and "charset" not in mime_type:
+            mime_type += "; charset=utf-8"
+
+        range_header = self.headers.get("Range")
+        if not range_header:
+            self.send_response(200)
+            self.send_header("Content-Type", mime_type)
+            self.send_header("Content-Length", str(file_size))
+            self.send_header("Accept-Ranges", "bytes")
+            self.end_headers()
+            try:
+                with open(filepath, "rb") as f:
+                    shutil.copyfileobj(f, self.wfile)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            return
+
+        try:
+            spec = range_header.replace("bytes=", "")
+            start_str, end_str = spec.split("-", 1)
+            start = int(start_str) if start_str else 0
+            end = int(end_str) if end_str else file_size - 1
+        except (ValueError, AttributeError):
+            self.send_error(416, "Range Not Satisfiable")
+            return
+
+        end = min(end, file_size - 1)
+        if start < 0 or start > end or start >= file_size:
+            self.send_response(416)
+            self.send_header("Content-Range", f"bytes */{file_size}")
+            self.end_headers()
+            return
+
+        length = end - start + 1
+        self.send_response(206)
+        self.send_header("Content-Type", mime_type)
+        self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+        self.send_header("Content-Length", str(length))
+        self.send_header("Accept-Ranges", "bytes")
+        self.end_headers()
+
+        try:
+            with open(filepath, "rb") as f:
+                f.seek(start)
+                remaining = length
+                chunk = 64 * 1024
+                while remaining > 0:
+                    data = f.read(min(chunk, remaining))
+                    if not data:
+                        break
+                    self.wfile.write(data)
+                    remaining -= len(data)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
 
     def serve_text_preview(self, filepath: str) -> None:
         """Serve a text file with syntax highlighting preview"""
@@ -494,7 +657,22 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{html.escape(filename)} - Preview</title>
+<script>
+(function() {{
+    const t = localStorage.getItem('hftp-theme') || 'light';
+    document.documentElement.setAttribute('data-theme', t);
+}})();
+</script>
 <link rel="stylesheet" id="hljs-theme" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script>
+(function() {{
+    const t = localStorage.getItem('hftp-theme');
+    if (t === 'dark') {{
+        document.getElementById('hljs-theme').href =
+            'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
+    }}
+}})();
+</script>
 <style>
 :root {{
     --bg-primary: #ffffff;
@@ -755,6 +933,530 @@ function applyTheme(theme) {{
         self.end_headers()
         self.wfile.write(encoded)
 
+    def serve_image_preview(self, filepath: str) -> None:
+        """Serve an image file with an inline preview page."""
+        filename = os.path.basename(filepath)
+        file_size = self._format_size(os.path.getsize(filepath))
+        ext = os.path.splitext(filename)[1].lower()
+        img_url = quote(filename)
+
+        html_content = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{html.escape(filename)} - Preview</title>
+<script>(function(){{const t=localStorage.getItem('hftp-theme')||'light';document.documentElement.setAttribute('data-theme',t);}})();</script>
+<style>
+:root {{
+    --bg-primary: #ffffff;
+    --bg-secondary: #f6f8fa;
+    --bg-tertiary: #eaeef2;
+    --border-color: #d0d7de;
+    --text-primary: #1f2328;
+    --text-secondary: #656d76;
+    --accent-green: #1a7f37;
+    --hover-bg: rgba(208, 215, 222, 0.32);
+    --checker-a: #c8c8c8;
+    --checker-b: #f0f0f0;
+}}
+[data-theme="dark"] {{
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #21262d;
+    --border-color: #30363d;
+    --text-primary: #c9d1d9;
+    --text-secondary: #8b949e;
+    --accent-green: #3fb950;
+    --hover-bg: rgba(48, 54, 61, 0.5);
+    --checker-a: #3a3a3a;
+    --checker-b: #2a2a2a;
+}}
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+html {{ font-size: 18px; }}
+body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: background 0.3s, color 0.3s;
+}}
+.container {{
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}}
+.toolbar {{
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}}
+.file-info {{ display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }}
+.file-info h1 {{ font-size: 1rem; font-weight: 600; }}
+.file-meta {{
+    display: flex;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}}
+.toolbar-actions {{ display: flex; gap: 0.5rem; align-items: center; }}
+.btn {{
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    transition: all 0.15s;
+    user-select: none;
+}}
+.btn:hover {{ background: var(--hover-bg); }}
+.btn-primary {{
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+    color: #fff;
+}}
+.btn-primary:hover {{ opacity: 0.9; }}
+.zoom-controls {{
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.2rem 0.4rem;
+}}
+.zoom-btn {{
+    width: 1.6rem;
+    height: 1.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.15s;
+    line-height: 1;
+}}
+.zoom-btn:hover {{ background: var(--hover-bg); }}
+.zoom-label {{
+    font-size: 0.75rem;
+    min-width: 3rem;
+    text-align: center;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}}
+.image-container {{
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-image: linear-gradient(45deg, var(--checker-a) 25%, transparent 25%),
+                      linear-gradient(-45deg, var(--checker-a) 25%, transparent 25%),
+                      linear-gradient(45deg, transparent 75%, var(--checker-a) 75%),
+                      linear-gradient(-45deg, transparent 75%, var(--checker-a) 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    background-color: var(--checker-b);
+    min-height: 200px;
+    height: 80vh;
+    cursor: grab;
+    position: relative;
+}}
+.image-container.dragging {{ cursor: grabbing; }}
+.image-container img {{
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+    transform-origin: center center;
+    transition: transform 0.05s ease-out;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+}}
+@media (max-width: 768px) {{
+    html {{ font-size: 16px; }}
+    .toolbar {{ flex-direction: column; align-items: flex-start; }}
+}}
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="toolbar">
+        <div class="file-info">
+            <h1>🖼️ {html.escape(filename)}</h1>
+            <div class="file-meta">
+                <span>📏 {file_size}</span>
+                <span>🎨 {ext.lstrip(".").upper()}</span>
+            </div>
+        </div>
+        <div class="toolbar-actions">
+            <div class="zoom-controls">
+                <button class="zoom-btn" onclick="zoomBy(1/1.25)" title="Zoom out">−</button>
+                <span class="zoom-label" id="zoomLabel">100%</span>
+                <button class="zoom-btn" onclick="zoomBy(1.25)" title="Zoom in">+</button>
+                <button class="zoom-btn" onclick="resetZoom()" title="Reset (double-click image)">⟲</button>
+            </div>
+            <a href="./" class="btn">← Back</a>
+            <button class="btn" onclick="toggleTheme()"><span id="themeIcon">🌙</span></button>
+            <a href="{img_url}" class="btn btn-primary" download>⬇️ Download</a>
+        </div>
+    </div>
+    <div class="image-container" id="imgContainer">
+        <img src="{img_url}" alt="{html.escape(filename)}" id="previewImg"
+             onload="onImageLoad(this)">
+    </div>
+</div>
+<script>
+let scale = 1, tx = 0, ty = 0;
+let dragging = false, lastX = 0, lastY = 0;
+let pinchDist = 0;
+const MIN_SCALE = 0.05, MAX_SCALE = 20;
+
+const img = document.getElementById('previewImg');
+const container = document.getElementById('imgContainer');
+const zoomLabel = document.getElementById('zoomLabel');
+
+function applyTransform(animate) {{
+    img.style.transition = animate ? 'transform 0.2s ease-out' : 'none';
+    img.style.transform = `translate(${{tx}}px, ${{ty}}px) scale(${{scale}})`;
+    zoomLabel.textContent = Math.round(scale * 100) + '%';
+}}
+
+function zoomAt(cx, cy, factor) {{
+    const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * factor));
+    const ratio = newScale / scale;
+    tx = cx - ratio * (cx - tx);
+    ty = cy - ratio * (cy - ty);
+    scale = newScale;
+    applyTransform(false);
+}}
+
+function zoomBy(factor) {{
+    zoomAt(0, 0, factor);
+    applyTransform(true);
+}}
+
+function resetZoom() {{
+    scale = 1; tx = 0; ty = 0;
+    applyTransform(true);
+}}
+
+container.addEventListener('wheel', (e) => {{
+    e.preventDefault();
+    const rect = container.getBoundingClientRect();
+    const cx = e.clientX - rect.left - rect.width / 2;
+    const cy = e.clientY - rect.top - rect.height / 2;
+    zoomAt(cx, cy, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+}}, {{ passive: false }});
+
+container.addEventListener('mousedown', (e) => {{
+    dragging = true;
+    lastX = e.clientX; lastY = e.clientY;
+    container.classList.add('dragging');
+}});
+
+document.addEventListener('mousemove', (e) => {{
+    if (!dragging) return;
+    tx += e.clientX - lastX;
+    ty += e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    applyTransform(false);
+}});
+
+document.addEventListener('mouseup', () => {{
+    dragging = false;
+    container.classList.remove('dragging');
+}});
+
+container.addEventListener('dblclick', resetZoom);
+
+container.addEventListener('touchstart', (e) => {{
+    if (e.touches.length === 2) {{
+        pinchDist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+        );
+    }} else if (e.touches.length === 1) {{
+        dragging = true;
+        lastX = e.touches[0].clientX;
+        lastY = e.touches[0].clientY;
+    }}
+}}, {{ passive: true }});
+
+container.addEventListener('touchmove', (e) => {{
+    e.preventDefault();
+    if (e.touches.length === 2) {{
+        const dist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+        );
+        const rect = container.getBoundingClientRect();
+        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left - rect.width / 2;
+        const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top - rect.height / 2;
+        zoomAt(cx, cy, dist / pinchDist);
+        pinchDist = dist;
+    }} else if (e.touches.length === 1 && dragging) {{
+        tx += e.touches[0].clientX - lastX;
+        ty += e.touches[0].clientY - lastY;
+        lastX = e.touches[0].clientX;
+        lastY = e.touches[0].clientY;
+        applyTransform(false);
+    }}
+}}, {{ passive: false }});
+
+container.addEventListener('touchend', () => {{ dragging = false; }});
+
+function onImageLoad(img) {{
+    const meta = document.querySelector('.file-meta');
+    const span = document.createElement('span');
+    span.textContent = '📐 ' + img.naturalWidth + ' × ' + img.naturalHeight;
+    meta.appendChild(span);
+}}
+
+function initTheme() {{
+    const saved = localStorage.getItem('hftp-theme') || 'light';
+    applyTheme(saved);
+}}
+
+function toggleTheme() {{
+    const current = document.documentElement.getAttribute('data-theme') || 'light';
+    const next = current === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    localStorage.setItem('hftp-theme', next);
+}}
+
+function applyTheme(theme) {{
+    document.documentElement.setAttribute('data-theme', theme);
+    document.getElementById('themeIcon').textContent = theme === 'dark' ? '☀️' : '🌙';
+}}
+
+initTheme();
+</script>
+</body>
+</html>'''
+
+        encoded = html_content.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def serve_video_preview(self, filepath: str) -> None:
+        """Serve a browser-native video player preview page."""
+        filename = os.path.basename(filepath)
+        file_size = self._format_size(os.path.getsize(filepath))
+        ext = os.path.splitext(filename)[1].lower()
+        mime_type = VIDEO_MIME_TYPES.get(ext, "video/mp4")
+        video_url = quote(filename)
+
+        html_content = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{html.escape(filename)} - Preview</title>
+<script>(function(){{const t=localStorage.getItem('hftp-theme')||'light';document.documentElement.setAttribute('data-theme',t);}})();</script>
+<style>
+:root {{
+    --bg-primary: #ffffff;
+    --bg-secondary: #f6f8fa;
+    --bg-tertiary: #eaeef2;
+    --border-color: #d0d7de;
+    --text-primary: #1f2328;
+    --text-secondary: #656d76;
+    --accent-green: #1a7f37;
+    --hover-bg: rgba(208, 215, 222, 0.32);
+}}
+[data-theme="dark"] {{
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #21262d;
+    --border-color: #30363d;
+    --text-primary: #c9d1d9;
+    --text-secondary: #8b949e;
+    --accent-green: #3fb950;
+    --hover-bg: rgba(48, 54, 61, 0.5);
+}}
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+html {{ font-size: 18px; }}
+body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: background 0.3s, color 0.3s;
+}}
+.container {{
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}}
+.toolbar {{
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}}
+.file-info {{ display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }}
+.file-info h1 {{ font-size: 1rem; font-weight: 600; }}
+.file-meta {{
+    display: flex;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}}
+.toolbar-actions {{ display: flex; gap: 0.5rem; }}
+.btn {{
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    transition: all 0.15s;
+}}
+.btn:hover {{ background: var(--hover-bg); }}
+.btn-primary {{
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+    color: #fff;
+}}
+.btn-primary:hover {{ opacity: 0.9; }}
+.video-container {{
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}}
+video {{
+    width: 100%;
+    max-height: 80vh;
+    display: block;
+    outline: none;
+}}
+@media (max-width: 768px) {{
+    html {{ font-size: 16px; }}
+    .toolbar {{ flex-direction: column; align-items: flex-start; }}
+}}
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="toolbar">
+        <div class="file-info">
+            <h1>🎬 {html.escape(filename)}</h1>
+            <div class="file-meta">
+                <span>📏 {file_size}</span>
+                <span>🎞️ {ext.lstrip(".").upper()}</span>
+                <span id="durInfo"></span>
+            </div>
+        </div>
+        <div class="toolbar-actions">
+            <a href="./" class="btn">← Back</a>
+            <button class="btn" onclick="toggleTheme()"><span id="themeIcon">🌙</span></button>
+            <a href="{video_url}" class="btn btn-primary" download>⬇️ Download</a>
+        </div>
+    </div>
+    <div class="video-container">
+        <video controls preload="metadata" id="videoPlayer">
+            <source src="{video_url}" type="{mime_type}">
+        </video>
+    </div>
+</div>
+<script>
+function initTheme() {{
+    const saved = localStorage.getItem('hftp-theme') || 'light';
+    applyTheme(saved);
+}}
+
+function toggleTheme() {{
+    const current = document.documentElement.getAttribute('data-theme') || 'light';
+    const next = current === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    localStorage.setItem('hftp-theme', next);
+}}
+
+function applyTheme(theme) {{
+    document.documentElement.setAttribute('data-theme', theme);
+    document.getElementById('themeIcon').textContent = theme === 'dark' ? '☀️' : '🌙';
+}}
+
+document.getElementById('videoPlayer').addEventListener('loadedmetadata', function() {{
+    const dur = this.duration;
+    if (isFinite(dur)) {{
+        const h = Math.floor(dur / 3600);
+        const m = Math.floor((dur % 3600) / 60);
+        const s = Math.floor(dur % 60);
+        const parts = h > 0 ? [h, m, s] : [m, s];
+        const fmt = parts.map((v, i) => (i > 0 ? String(v).padStart(2, '0') : v)).join(':');
+        document.getElementById('durInfo').textContent = '⏱ ' + fmt;
+    }}
+    const w = this.videoWidth, h = this.videoHeight;
+    if (w && h) {{
+        document.querySelector('.file-meta').innerHTML +=
+            '<span>📐 ' + w + ' × ' + h + '</span>';
+    }}
+}});
+
+initTheme();
+</script>
+</body>
+</html>'''
+
+        encoded = html_content.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
     def do_PUT(self) -> None:
         """Handle PUT requests for file uploads"""
         path = self.translate_path(self.path)
@@ -768,6 +1470,7 @@ function applyTheme(theme) {{
             with open(path, "wb") as f:
                 f.write(self.rfile.read(length))
 
+            NEW_FILE_TRACKER.register(path)
             self.send_response(201)
             self.end_headers()
             debug("File uploaded via PUT", path=path)
@@ -776,10 +1479,14 @@ function applyTheme(theme) {{
             self.send_error(500, str(e))
 
     def translate_path(self, path: str) -> str:
-        """Convert URL path to filesystem path"""
+        """Convert URL path to filesystem path, constrained to server root."""
         path = unquote(path)
         path = path.lstrip("/")
-        return os.path.join(os.getcwd(), path)
+        root = self.server.root_dir
+        resolved = os.path.realpath(os.path.join(root, path))
+        if resolved != root and not resolved.startswith(root + os.sep):
+            return root
+        return resolved
 
     def log_message(self, format, *args):
         """Override to reduce console noise"""
@@ -816,6 +1523,7 @@ function applyTheme(theme) {{
 <meta charset="{enc}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{title}</title>
+<script>(function(){{const t=localStorage.getItem('hftp-theme')||'light';document.documentElement.setAttribute('data-theme',t);}})();</script>
 <style>
 :root {{
     --bg-primary: #ffffff;
@@ -883,7 +1591,6 @@ header h1 {{
     align-items: center;
     gap: 0.5rem;
 }}
-header h1 .icon {{ color: var(--accent-blue); }}
 .breadcrumb {{
     margin-top: 0.5rem;
     font-size: 0.875rem;
@@ -1021,7 +1728,7 @@ header h1 .icon {{ color: var(--accent-blue); }}
 }}
 .file-list-header {{
     display: grid;
-    grid-template-columns: 1fr 6rem 11rem 7rem;
+    grid-template-columns: 1fr 6rem 11rem 12rem;
     padding: 0.75rem 1rem;
     background: var(--bg-tertiary);
     font-size: 0.75rem;
@@ -1033,7 +1740,7 @@ header h1 .icon {{ color: var(--accent-blue); }}
 }}
 .file-item {{
     display: grid;
-    grid-template-columns: 1fr 6rem 11rem 7rem;
+    grid-template-columns: 1fr 6rem 11rem 12rem;
     padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--border-color);
     transition: background 0.15s;
@@ -1045,13 +1752,13 @@ header h1 .icon {{ color: var(--accent-blue); }}
     align-items: center;
     gap: 0.6rem;
 }}
-.file-name a {{
+.file-name a:not(.preview-badge) {{
     color: var(--accent-blue);
     text-decoration: none;
     font-weight: 500;
     font-size: 0.95rem;
 }}
-.file-name a:hover {{ text-decoration: underline; }}
+.file-name a:not(.preview-badge):hover {{ text-decoration: underline; }}
 .file-icon {{
     width: 1.25rem;
     text-align: center;
@@ -1070,17 +1777,46 @@ header h1 .icon {{ color: var(--accent-blue); }}
     align-items: center;
 }}
 .preview-badge {{
-    font-size: 0.65rem;
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--accent-green);
+    border: 1px solid var(--accent-green);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    margin-left: 0.4rem;
+    text-decoration: none;
+    vertical-align: middle;
+    display: inline-block;
+    line-height: 1;
+    opacity: 0.85;
+    transition: all 0.15s;
+}}
+.preview-badge:hover {{
     background: var(--accent-green);
     color: #fff;
-    padding: 0.15rem 0.4rem;
-    border-radius: 10px;
-    margin-left: 0.5rem;
+    opacity: 1;
+}}
+.new-badge {{
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--accent-red);
+    border: 1px solid var(--accent-red);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+    display: inline-block;
+    line-height: 1;
+    opacity: 0.85;
+    pointer-events: none;
 }}
 .file-actions {{
     display: flex;
     align-items: center;
     gap: 0.4rem;
+    padding-right: 0.5rem;
 }}
 .action-btn {{
     padding: 0.25rem 0.5rem;
@@ -1206,7 +1942,7 @@ footer {{
 <div class="container">
     <header>
         <div class="header-left">
-            <h1><span class="icon">📁</span> File Server</h1>
+            <h1>File Server</h1>
             <div class="breadcrumb">{self._generate_breadcrumb(displaypath)}</div>
         </div>
         <button class="theme-toggle" onclick="toggleTheme()">
@@ -1216,7 +1952,7 @@ footer {{
     </header>
 
     <div class="upload-section">
-        <div class="upload-title"><span class="icon">⬆️</span> Upload File</div>
+        <div class="upload-title">Upload File</div>
         <div class="upload-zone" id="uploadZone">
             <input type="file" id="fileInput" name="file">
             <p>Drag & drop files here or click to browse</p>
@@ -1292,7 +2028,7 @@ footer {{
             <div class="file-size">-</div>
             <div class="file-date">{mtime}</div>
             <div class="file-actions">
-                <button class="action-btn delete" onclick="confirmDelete('{escaped_name}/', true)">🗑️</button>
+                <button class="action-btn delete" onclick="confirmDelete('{escaped_name}/', true)">Delete</button>
             </div>
         </div>
 '''
@@ -1310,24 +2046,35 @@ footer {{
                 mtime = "-"
 
             icon, icon_class = self._get_file_icon(name)
-            is_previewable = is_text_file(fullname)
-            preview_badge = (
-                '<span class="preview-badge">VIEW</span>' if is_previewable else ""
+            is_previewable = (
+                is_text_file(fullname)
+                or is_image_file(fullname)
+                or is_video_file(fullname)
             )
-            link_url = f"{quote(name)}?preview=1" if is_previewable else quote(name)
+            preview_badge = (
+                f'<a class="preview-badge" href="{quote(name)}?preview=1">VIEW</a>'
+                if is_previewable
+                else ""
+            )
+            new_badge = (
+                '<span class="new-badge">NEW</span>'
+                if NEW_FILE_TRACKER.is_new(fullname)
+                else ""
+            )
+            link_url = quote(name)
             escaped_name = html.escape(name).replace("'", "\\'")
 
             html_content += f'''
         <div class="file-item">
             <div class="file-name">
                 <span class="file-icon {icon_class}">{icon}</span>
-                <a href="{link_url}">{html.escape(name)}</a>{preview_badge}
+                <a href="{link_url}">{html.escape(name)}</a>{preview_badge}{new_badge}
             </div>
             <div class="file-size">{size_str}</div>
             <div class="file-date">{mtime}</div>
             <div class="file-actions">
-                <a href="{quote(name)}" class="action-btn" download>⬇️</a>
-                <button class="action-btn delete" onclick="confirmDelete('{escaped_name}', false)">🗑️</button>
+                <a href="{quote(name)}" class="action-btn" download>Download</a>
+                <button class="action-btn delete" onclick="confirmDelete('{escaped_name}', false)">Delete</button>
             </div>
         </div>
 '''
@@ -1341,7 +2088,7 @@ footer {{
 
         html_content += """
     </div>
-    <footer>HTTP File Transfer Protocol Server</footer>
+    <footer>FAST FILE TRANSFER SERVER by HTTP</footer>
 </div>
 
 <div class="modal-overlay" id="deleteModal">
@@ -1624,6 +2371,7 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
                 shutil.rmtree(path)
                 debug("Directory deleted", path=path)
             else:
+                NEW_FILE_TRACKER.remove(path)
                 os.remove(path)
                 debug("File deleted", path=path)
 
@@ -1707,6 +2455,7 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
         with open(save_path, "wb") as f:
             f.write(fileitem.file.read())
 
+        NEW_FILE_TRACKER.register(save_path)
         debug(
             "File uploaded via multipart",
             path=save_path,
@@ -1741,6 +2490,7 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
         with open(save_path, "wb") as f:
             f.write(file_content)
 
+        NEW_FILE_TRACKER.register(save_path)
         debug(
             "File uploaded via urlencoded",
             path=save_path,
@@ -1765,6 +2515,7 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
         with open(save_path, "wb") as f:
             f.write(self.rfile.read(length))
 
+        NEW_FILE_TRACKER.register(save_path)
         debug(
             "File uploaded via raw body",
             path=save_path,
@@ -1867,10 +2618,11 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
-    def __init__(self, server_address, RequestHandlerClass):
+    def __init__(self, server_address, RequestHandlerClass, root_dir: str):
         super().__init__(server_address, RequestHandlerClass)
         self.running = True
         self.timeout = 0.1
+        self.root_dir = os.path.realpath(root_dir)
 
     def shutdown(self) -> None:
         """Safely shutdown the server"""
@@ -1927,6 +2679,7 @@ def safe_port_check(port: int) -> bool:
     """Check if port is available for binding."""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind(("", port))
             return True
     except OSError:
@@ -1936,7 +2689,7 @@ def safe_port_check(port: int) -> bool:
 def generate_systemd_service(port: int, work_dir: str, script_path: str) -> str:
     """Generate systemd service file content."""
     service_content = f"""[Unit]
-Description=HTTP File Transfer Protocol Server
+Description=FAST FILE TRANSFER SERVER by HTTP
 After=network.target
 
 [Service]
@@ -2241,7 +2994,7 @@ def main() -> int:
 
         global SERVER_INSTANCE
         SERVER_INSTANCE = ThreadedTCPServer(
-            ("0.0.0.0", args.port), EnhancedHTTPRequestHandler
+            ("0.0.0.0", args.port), EnhancedHTTPRequestHandler, os.getcwd()
         )
 
         server_thread = threading.Thread(
