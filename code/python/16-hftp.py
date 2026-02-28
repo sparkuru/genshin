@@ -1958,6 +1958,20 @@ footer {{
             <p>Drag & drop files here or click to browse</p>
             <button type="button" class="btn" onclick="document.getElementById('fileInput').click()">Select File</button>
         </div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
+            <div style="display:flex;align-items:center;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;overflow:hidden;">
+                <code style="flex:1;padding:6px 10px;font-family:'SF Mono','Fira Code',Consolas,monospace;font-size:0.8em;white-space:nowrap;overflow-x:auto;background:transparent;">curl -T file.txt http://host:port/file.txt</code>
+                <button onclick="copyCmd(this,'curl -T file.txt http://host:port/file.txt')" style="flex-shrink:0;padding:4px 8px;background:transparent;border:none;border-left:1px solid var(--border-color);cursor:pointer;color:var(--text-muted);font-size:0.75em;" title="Copy">⎘</button>
+            </div>
+            <div style="display:flex;align-items:center;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;overflow:hidden;">
+                <code style="flex:1;padding:6px 10px;font-family:'SF Mono','Fira Code',Consolas,monospace;font-size:0.8em;white-space:nowrap;overflow-x:auto;background:transparent;">curl -X PUT --data-binary @file.txt http://host:port/file.txt</code>
+                <button onclick="copyCmd(this,'curl -X PUT --data-binary @file.txt http://host:port/file.txt')" style="flex-shrink:0;padding:4px 8px;background:transparent;border:none;border-left:1px solid var(--border-color);cursor:pointer;color:var(--text-muted);font-size:0.75em;" title="Copy">⎘</button>
+            </div>
+            <div style="display:flex;align-items:center;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;overflow:hidden;">
+                <code style="flex:1;padding:6px 10px;font-family:'SF Mono','Fira Code',Consolas,monospace;font-size:0.8em;white-space:nowrap;overflow-x:auto;background:transparent;">wget --method=PUT --body-file=file.txt http://host:port/file.txt</code>
+                <button onclick="copyCmd(this,'wget --method=PUT --body-file=file.txt http://host:port/file.txt')" style="flex-shrink:0;padding:4px 8px;background:transparent;border:none;border-left:1px solid var(--border-color);cursor:pointer;color:var(--text-muted);font-size:0.75em;" title="Copy">⎘</button>
+            </div>
+        </div>
         <div class="progress-container" id="progressContainer">
             <div class="progress-info">
                 <span id="fileName">-</span>
@@ -2269,6 +2283,31 @@ function executeDelete() {
 document.getElementById('deleteModal').addEventListener('click', function(e) {
     if (e.target === this) closeDeleteModal();
 });
+
+function copyCmd(btn, text) {
+    const finish = () => {
+        const orig = btn.textContent;
+        btn.textContent = '✓';
+        btn.style.color = 'var(--accent-green)';
+        setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(finish).catch(() => fallbackCopy(text, finish));
+    } else {
+        fallbackCopy(text, finish);
+    }
+}
+
+function fallbackCopy(text, cb) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    cb();
+}
 </script>
 </body>
 </html>"""
