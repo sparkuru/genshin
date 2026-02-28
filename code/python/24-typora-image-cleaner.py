@@ -56,26 +56,64 @@ class CLIStyle:
         print(CLIStyle.color(text, color) if color else text)
 
 
+def _build_epilog() -> str:
+    C = CLIStyle.color
+    T = CLIStyle.COLORS
+    lines = [
+        C("Examples:", T["TITLE"]),
+        C("  # Preview unreferenced images without any action", T["SUB_TITLE"]),
+        C("  24-typora-image-cleaner.py --dry-run", T["EXAMPLE"]),
+        "",
+        C("  # Scan a specific directory with custom assets path", T["SUB_TITLE"]),
+        C("  24-typora-image-cleaner.py -d ~/notes --assets ~/notes/assets", T["EXAMPLE"]),
+        "",
+        C("  # Move unreferenced images to /tmp (default, with confirmation)", T["SUB_TITLE"]),
+        C("  24-typora-image-cleaner.py -d ~/notes", T["EXAMPLE"]),
+        "",
+        C("  # Delete unreferenced images without confirmation prompt", T["SUB_TITLE"]),
+        C("  24-typora-image-cleaner.py --rm -y", T["EXAMPLE"]),
+        "",
+        C("Default behavior:", T["TITLE"]),
+        C("  Unreferenced images are MOVED to a /tmp subdirectory (recoverable).", T["CONTENT"]),
+        C("  Use --rm only when you are sure the images are no longer needed.", T["WARNING"]),
+    ]
+    return "\n".join(lines)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Clean unreferenced images from Typora markdown projects."
+        description=(
+            "Scan Typora markdown projects and clean up unreferenced images.\n"
+            "Reads all .md/.markdown files in the target directory, extracts image\n"
+            "references, and identifies images in the assets folder that are not used."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_build_epilog(),
     )
     parser.add_argument(
-        "-d", "--directory", default=".",
+        "-d", "--directory", default=".", metavar="DIR",
         help="Directory to scan for .md/.markdown files (default: cwd)",
     )
     parser.add_argument(
-        "--assets", default="./assets",
+        "--assets", default="./assets", metavar="DIR",
         help="Path to the assets/images directory (default: ./assets)",
     )
-    parser.add_argument("--rm", action="store_true",
-                        help="Delete unreferenced images instead of moving to /tmp")
-    parser.add_argument("-y", "--yes", action="store_true",
-                        help="Skip confirmation prompt")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Only list unreferenced images, no action")
-    parser.add_argument("--log", action="store_true",
-                        help="Enable debug output")
+    parser.add_argument(
+        "--rm", action="store_true",
+        help="Permanently delete unreferenced images instead of moving to /tmp",
+    )
+    parser.add_argument(
+        "-y", "--yes", action="store_true",
+        help="Skip confirmation prompt and proceed immediately",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="List unreferenced images only, perform no file operations",
+    )
+    parser.add_argument(
+        "--log", action="store_true",
+        help="Enable debug output (prints to stderr)",
+    )
     return parser.parse_args()
 
 
