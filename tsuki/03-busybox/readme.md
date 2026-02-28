@@ -48,5 +48,6 @@ vscode.zip
 
 ## refer
 
-1. https://github.com/tiiuae/aarch64_bin_builder.git
-2. 
+1. 官方 busybox 仓库：https://busybox.net/downloads/binaries/
+2. https://github.com/tiiuae/aarch64_bin_builder.git
+3. mips static binary 文件：https://github.com/darkerego/mips-binaries.git
