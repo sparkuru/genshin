@@ -73,3 +73,5 @@ foreach ($var in $systemVars.GetEnumerator()) {
         Write-Output "$($var.Key) already set to the correct value"
     }
 }
+
+# install msixbundle / appxbundle via `https://store.rg-adguard.net/` for windows 10/11 lstc (without windows store)
