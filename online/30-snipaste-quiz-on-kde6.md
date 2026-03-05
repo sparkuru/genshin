@@ -1,3 +1,7 @@
+# snipaste quiz on kde6 with wayland
+
+**最终解决办法：使用 x11**
+
 ```bash
 $ snipaste.appimage --appimage-extract
 
