@@ -22,6 +22,7 @@ $env:PIP_DOWNLOAD_CACHE = "$lang_base_path/python/pip-cache"
 
 ###################### bin ######################
 $BTOPPATH = "$bin_base_path/btop4win"
+$CURSOR_AGENT_PATH = "$bin_base_path/cursor-agent"
 $FDPATH = "$bin_base_path/fd"
 $FFMPEGPATH = "$bin_base_path/ffmpeg/bin"
 $FZFPATH = "$bin_base_path/fzf"
@@ -32,6 +33,7 @@ $TREEPATH = "$bin_base_path/tree/bin"
 $VIMPATH = "$bin_base_path/vim/vim90"
 
 $env:PATH += "$BTOPPATH;" + `
+"$CURSOR_AGENT_PATH;" + `
 "$FDPATH;" + `
 "$FFMPEGPATH;" + `
 "$FZFPATH;" + `
@@ -44,6 +46,8 @@ $env:PATH += "$BTOPPATH;" + `
 $env:GIT_EDITOR = "$VIMPATH/vim.exe"
 $env:FZF_DEFAULT_COMMAND = "rg --files"
 $env:FZF_DEFAULT_OPTS="-m --height 40% --reverse --border --ansi"
+
+Set-Alias agent cursor-agent.cmd
 
 ###################### software ######################
 $NOTEPAD4PATH = "$software_base_path/notepad4"
