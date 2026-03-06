@@ -71,7 +71,7 @@ server {
         }
 
         if ($landing_redirect = 1) {
-            rewrite       ^ /landing.html last;
+            return        302 /landing.html?from=$request_uri;
         }
 
         if (-f $request_filename/index.html) {
