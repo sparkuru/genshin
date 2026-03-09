@@ -316,6 +316,56 @@ def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> N
         print(output, end="")
 
 
+def access_log(
+    handler: "EnhancedHTTPRequestHandler",
+    action: str,
+    status: str,
+    path: Optional[str] = None,
+) -> None:
+    """Log upload/delete/modify/view/download to stdout: IP, time, action, status (and optional path)."""
+    forwarded = handler.headers.get("X-Forwarded-For")
+    ip = (
+        forwarded.split(",")[0].strip()
+        if forwarded
+        else (handler.client_address[0] if handler.client_address else "?")
+    )
+    ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    try:
+        status_int = int(status)
+    except (TypeError, ValueError):
+        status_int = None
+
+    if status_int is None:
+        status_color = CLIStyle.COLORS["WARNING"]
+    elif 200 <= status_int <= 299:
+        status_color = CLIStyle.COLORS["SUCCESS"]
+    elif 300 <= status_int <= 399:
+        status_color = CLIStyle.COLORS["TITLE"]
+    elif 400 <= status_int <= 499:
+        status_color = CLIStyle.COLORS["WARNING"]
+    else:
+        status_color = CLIStyle.COLORS["ERROR"]
+
+    action_color_map = {
+        "upload": CLIStyle.COLORS["SUCCESS"],
+        "modify": CLIStyle.COLORS["WARNING"],
+        "delete": CLIStyle.COLORS["ERROR"],
+        "view": CLIStyle.COLORS["TITLE"],
+        "download": 5,
+    }
+    action_color = action_color_map.get(action, CLIStyle.COLORS["CONTENT"])
+
+    parts = [
+        CLIStyle.color(ts, 1),
+        CLIStyle.color(ip, 6),
+        CLIStyle.color(action, action_color),
+        CLIStyle.color(status, status_color),
+    ]
+    if path:
+        parts.append(CLIStyle.color(path, CLIStyle.COLORS["SUB_TITLE"]))
+    print(" ".join(parts), flush=True)
+
+
 def emergency_exit():
     """Force process termination with extreme prejudice"""
     debug("Emergency exit called")
@@ -325,7 +375,11 @@ def emergency_exit():
             SERVER_INSTANCE.socket.close()
         except Exception:
             pass
-    print(CLIStyle.color("Server stopped", CLIStyle.COLORS["SUCCESS"]))
+    try:
+        print(CLIStyle.color("Server stopped", CLIStyle.COLORS["SUCCESS"]))
+    except Exception:
+        # Avoid reentrant stdout errors during signal/shutdown
+        pass
     # os._exit bypasses cleanup but guarantees termination on all platforms
     os._exit(0)
 
@@ -556,6 +610,7 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         if os.path.isfile(path):
             if query.get("preview", ["0"])[0] == "1":
+                access_log(self, "view", "200", path)
                 if is_text_file(path):
                     self.serve_text_preview(path)
                 elif is_image_file(path):
@@ -565,16 +620,18 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 else:
                     self._serve_ranged(path)
             else:
-                self._serve_ranged(path)
+                self._serve_ranged(path, log_action="download")
         else:
             self.path = parsed.path
             super().do_GET()
 
-    def _serve_ranged(self, filepath: str) -> None:
-        """Serve a file with HTTP Range request support."""
+    def _serve_ranged(self, filepath: str, log_action: Optional[str] = None) -> None:
+        """Serve a file with HTTP Range request support. log_action: 'download' or None (no log)."""
         try:
             file_size = os.path.getsize(filepath)
         except OSError:
+            if log_action:
+                access_log(self, log_action, "404", filepath)
             self.send_error(404, "File not found")
             return
 
@@ -587,6 +644,8 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         range_header = self.headers.get("Range")
         if not range_header:
             self.send_response(200)
+            if log_action:
+                access_log(self, log_action, "200", filepath)
             self.send_header("Content-Type", mime_type)
             self.send_header("Content-Length", str(file_size))
             self.send_header("Accept-Ranges", "bytes")
@@ -604,11 +663,15 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             start = int(start_str) if start_str else 0
             end = int(end_str) if end_str else file_size - 1
         except (ValueError, AttributeError):
+            if log_action:
+                access_log(self, log_action, "416", filepath)
             self.send_error(416, "Range Not Satisfiable")
             return
 
         end = min(end, file_size - 1)
         if start < 0 or start > end or start >= file_size:
+            if log_action:
+                access_log(self, log_action, "416", filepath)
             self.send_response(416)
             self.send_header("Content-Range", f"bytes */{file_size}")
             self.end_headers()
@@ -616,6 +679,8 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         length = end - start + 1
         self.send_response(206)
+        if log_action:
+            access_log(self, log_action, "206", filepath)
         self.send_header("Content-Type", mime_type)
         self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
         self.send_header("Content-Length", str(length))
@@ -1461,9 +1526,12 @@ initTheme();
         """Handle PUT requests for file uploads"""
         path = self.translate_path(self.path)
         if path.endswith("/"):
+            access_log(self, "upload", "400")
             self.send_error(400, "Cannot PUT to directory")
             return
 
+        existed = os.path.exists(path)
+        action = "modify" if existed else "upload"
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             length = int(self.headers["Content-Length"])
@@ -1473,8 +1541,10 @@ initTheme();
             NEW_FILE_TRACKER.register(path)
             self.send_response(201)
             self.end_headers()
+            access_log(self, action, "201", path)
             debug("File uploaded via PUT", path=path)
         except Exception as e:
+            access_log(self, action, "500", path)
             debug("PUT error", error=str(e))
             self.send_error(500, str(e))
 
@@ -1960,16 +2030,16 @@ footer {{
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
             <div style="display:flex;align-items:center;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;overflow:hidden;">
-                <code style="flex:1;padding:6px 10px;font-family:'SF Mono','Fira Code',Consolas,monospace;font-size:0.8em;white-space:nowrap;overflow-x:auto;background:transparent;">curl -T file.txt http://host:port/file.txt</code>
-                <button onclick="copyCmd(this,'curl -T file.txt http://host:port/file.txt')" style="flex-shrink:0;padding:4px 8px;background:transparent;border:none;border-left:1px solid var(--border-color);cursor:pointer;color:var(--text-muted);font-size:0.75em;" title="Copy">⎘</button>
+                <code id="cmdCurlPut" style="flex:1;padding:6px 10px;font-family:'SF Mono','Fira Code',Consolas,monospace;font-size:0.8em;white-space:nowrap;overflow-x:auto;background:transparent;"></code>
+                <button onclick="copyCmd(this, window.__hftpCmds.curlPut)" style="flex-shrink:0;padding:4px 8px;background:transparent;border:none;border-left:1px solid var(--border-color);cursor:pointer;color:var(--text-muted);font-size:0.75em;" title="Copy">⎘</button>
             </div>
             <div style="display:flex;align-items:center;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;overflow:hidden;">
-                <code style="flex:1;padding:6px 10px;font-family:'SF Mono','Fira Code',Consolas,monospace;font-size:0.8em;white-space:nowrap;overflow-x:auto;background:transparent;">curl -X PUT --data-binary @file.txt http://host:port/file.txt</code>
-                <button onclick="copyCmd(this,'curl -X PUT --data-binary @file.txt http://host:port/file.txt')" style="flex-shrink:0;padding:4px 8px;background:transparent;border:none;border-left:1px solid var(--border-color);cursor:pointer;color:var(--text-muted);font-size:0.75em;" title="Copy">⎘</button>
+                <code id="cmdCurlPutBinary" style="flex:1;padding:6px 10px;font-family:'SF Mono','Fira Code',Consolas,monospace;font-size:0.8em;white-space:nowrap;overflow-x:auto;background:transparent;"></code>
+                <button onclick="copyCmd(this, window.__hftpCmds.curlPutBinary)" style="flex-shrink:0;padding:4px 8px;background:transparent;border:none;border-left:1px solid var(--border-color);cursor:pointer;color:var(--text-muted);font-size:0.75em;" title="Copy">⎘</button>
             </div>
             <div style="display:flex;align-items:center;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;overflow:hidden;">
-                <code style="flex:1;padding:6px 10px;font-family:'SF Mono','Fira Code',Consolas,monospace;font-size:0.8em;white-space:nowrap;overflow-x:auto;background:transparent;">wget --method=PUT --body-file=file.txt http://host:port/file.txt</code>
-                <button onclick="copyCmd(this,'wget --method=PUT --body-file=file.txt http://host:port/file.txt')" style="flex-shrink:0;padding:4px 8px;background:transparent;border:none;border-left:1px solid var(--border-color);cursor:pointer;color:var(--text-muted);font-size:0.75em;" title="Copy">⎘</button>
+                <code id="cmdWgetPut" style="flex:1;padding:6px 10px;font-family:'SF Mono','Fira Code',Consolas,monospace;font-size:0.8em;white-space:nowrap;overflow-x:auto;background:transparent;"></code>
+                <button onclick="copyCmd(this, window.__hftpCmds.wgetPut)" style="flex-shrink:0;padding:4px 8px;background:transparent;border:none;border-left:1px solid var(--border-color);cursor:pointer;color:var(--text-muted);font-size:0.75em;" title="Copy">⎘</button>
             </div>
         </div>
         <div class="progress-container" id="progressContainer">
@@ -2284,6 +2354,25 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
     if (e.target === this) closeDeleteModal();
 });
 
+function initUploadCliExamples() {
+    const base = window.location.origin.replace(/\/+$/, '');
+    const path = (window.location.pathname || '/').replace(/\/+$/, '') + '/file.txt';
+    const target = base + path;
+
+    window.__hftpCmds = {
+        curlPut: `curl -T file.txt ${target}`,
+        curlPutBinary: `curl -X PUT --data-binary @file.txt ${target}`,
+        wgetPut: `wget --method=PUT --body-file=file.txt ${target}`
+    };
+
+    const el1 = document.getElementById('cmdCurlPut');
+    const el2 = document.getElementById('cmdCurlPutBinary');
+    const el3 = document.getElementById('cmdWgetPut');
+    if (el1) el1.textContent = window.__hftpCmds.curlPut;
+    if (el2) el2.textContent = window.__hftpCmds.curlPutBinary;
+    if (el3) el3.textContent = window.__hftpCmds.wgetPut;
+}
+
 function copyCmd(btn, text) {
     const finish = () => {
         const orig = btn.textContent;
@@ -2308,6 +2397,9 @@ function fallbackCopy(text, cb) {
     document.body.removeChild(ta);
     cb();
 }
+
+// Initialize dynamic upload CLI examples on load
+initUploadCliExamples();
 </script>
 </body>
 </html>"""
@@ -2402,6 +2494,7 @@ function fallbackCopy(text, cb) {
         path = self.translate_path(self.path)
 
         if not os.path.exists(path):
+            access_log(self, "delete", "404", path)
             self.send_error(404, "File not found")
             return
 
@@ -2416,9 +2509,12 @@ function fallbackCopy(text, cb) {
 
             self.send_response(204)
             self.end_headers()
+            access_log(self, "delete", "204", path)
         except PermissionError:
+            access_log(self, "delete", "403", path)
             self.send_error(403, "Permission denied")
         except Exception as e:
+            access_log(self, "delete", "500", path)
             debug("DELETE error", error=str(e))
             self.send_error(500, str(e))
 
@@ -2439,6 +2535,7 @@ function fallbackCopy(text, cb) {
             else:
                 self._handle_raw_upload()
         except Exception as e:
+            access_log(self, "upload", "500")
             debug("POST error", error=str(e))
             self.send_error(500, str(e))
 
@@ -2483,6 +2580,7 @@ function fallbackCopy(text, cb) {
 
         fileitem = form["file"]
         if not fileitem.filename:
+            access_log(self, "upload", "400")
             self.send_error(400, "No file uploaded")
             return
 
@@ -2495,6 +2593,8 @@ function fallbackCopy(text, cb) {
             f.write(fileitem.file.read())
 
         NEW_FILE_TRACKER.register(save_path)
+        action = "modify" if file_exists else "upload"
+        access_log(self, action, "200", save_path)
         debug(
             "File uploaded via multipart",
             path=save_path,
@@ -2509,6 +2609,7 @@ function fallbackCopy(text, cb) {
         """
         length = int(self.headers.get("Content-Length", 0))
         if length == 0:
+            access_log(self, "upload", "400")
             self.send_error(400, "Empty request body")
             return
 
@@ -2517,6 +2618,7 @@ function fallbackCopy(text, cb) {
 
         data_field = params.get("data", [None])[0]
         if not data_field:
+            access_log(self, "upload", "400")
             self.send_error(400, "Missing 'data' field in POST body")
             return
 
@@ -2530,6 +2632,8 @@ function fallbackCopy(text, cb) {
             f.write(file_content)
 
         NEW_FILE_TRACKER.register(save_path)
+        action = "modify" if file_exists else "upload"
+        access_log(self, action, "200", save_path)
         debug(
             "File uploaded via urlencoded",
             path=save_path,
@@ -2544,6 +2648,7 @@ function fallbackCopy(text, cb) {
         """
         length = int(self.headers.get("Content-Length", 0))
         if length == 0:
+            access_log(self, "upload", "400")
             self.send_error(400, "Empty request body")
             return
 
@@ -2555,6 +2660,8 @@ function fallbackCopy(text, cb) {
             f.write(self.rfile.read(length))
 
         NEW_FILE_TRACKER.register(save_path)
+        action = "modify" if file_exists else "upload"
+        access_log(self, action, "200", save_path)
         debug(
             "File uploaded via raw body",
             path=save_path,
@@ -2754,12 +2861,13 @@ WantedBy=multi-user.target
     return service_content
 
 
-def display_server_info(ips: List[str], port: int) -> None:
+def display_server_info(ips: List[str], port: int, root_dir: str) -> None:
     """Display server access URLs and connection info."""
     print(divider("Server Information", 60, "="))
     print(
         f"Server started at port: {CLIStyle.color(str(port), CLIStyle.COLORS['CONTENT'])}"
     )
+    print(f"Serving directory: {CLIStyle.color(root_dir, CLIStyle.COLORS['CONTENT'])}")
     if ips:
         print("Available URLs:")
         for ip in ips:
@@ -2791,6 +2899,7 @@ def main() -> int:
     examples = [
         ("Basic usage", ""),
         ("Custom port", "--port 8080"),
+        ("Serve specific directory", "--root /path/to/dir"),
         ("Debug mode", "--debug"),
         ("Batch mode (auto-confirm)", "--batch"),
         ("Generate systemd service file", "--generate-service --port 8080"),
@@ -2798,7 +2907,8 @@ def main() -> int:
     ]
 
     notes = [
-        "Files will be served from the current directory",
+        "Files are served from the specified root directory (default: current directory)",
+        "Use --root to change the server root directory",
         "Uploads are allowed by default",
         "Use a browser to access the server and view/upload files",
         "Debug mode shows detailed logs for troubleshooting",
@@ -2820,6 +2930,12 @@ def main() -> int:
         default=DEFAULT_PORT,
         help=f"Specify server port (default: {DEFAULT_PORT})",
     )
+    parser.add_argument(
+        "-r",
+        "--root",
+        type=str,
+        help="Specify root directory to serve (default: current directory)",
+    )
     parser.add_argument("-d", "--debug", action="store_true", help="Enable debug mode")
     parser.add_argument(
         "-b",
@@ -2839,6 +2955,16 @@ def main() -> int:
     )
 
     args = parser.parse_args()
+
+    root_dir = os.path.realpath(args.root) if args.root else os.getcwd()
+    if not os.path.isdir(root_dir):
+        print(
+            CLIStyle.color(
+                f"Error: Root directory '{root_dir}' does not exist or is not a directory",
+                CLIStyle.COLORS["ERROR"],
+            )
+        )
+        return 1
 
     global DEBUG_MODE, BATCH_MODE
     DEBUG_MODE = args.debug
@@ -3024,7 +3150,7 @@ def main() -> int:
     debug("Available IPs", ips=ips)
 
     try:
-        display_server_info(ips, args.port)
+        display_server_info(ips, args.port, root_dir)
         atexit.register(
             lambda: print(
                 CLIStyle.color("Server fully stopped", CLIStyle.COLORS["SUCCESS"])
@@ -3033,7 +3159,7 @@ def main() -> int:
 
         global SERVER_INSTANCE
         SERVER_INSTANCE = ThreadedTCPServer(
-            ("0.0.0.0", args.port), EnhancedHTTPRequestHandler, os.getcwd()
+            ("0.0.0.0", args.port), EnhancedHTTPRequestHandler, root_dir
         )
 
         server_thread = threading.Thread(
@@ -3050,16 +3176,8 @@ def main() -> int:
             )
             webbrowser.open(url)
 
-        try:
-            while SERVER_INSTANCE.running and not EXIT_EVENT.is_set():
-                time.sleep(0.05)
-        except KeyboardInterrupt:
-            print(
-                CLIStyle.color(
-                    "\nShutting down server directly...", CLIStyle.COLORS["WARNING"]
-                )
-            )
-            emergency_exit()
+        while SERVER_INSTANCE.running and not EXIT_EVENT.is_set():
+            time.sleep(0.05)
 
     except Exception as e:
         debug("Server error", error=str(e))
