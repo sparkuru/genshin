@@ -15,11 +15,7 @@ dont_cover_file_index=(
 	"03"
 )
 
-lua_script_list=(
-	"table-style.lua"
-	"table-cell-style.lua"
-	"table-caption.lua"
-)
+python_style_script="$workdir/docx-table-style.py"
 
 flag=0
 if [ $# -gt 0 ]; then
@@ -29,7 +25,6 @@ fi
 markdown_file_dir=$workdir/workspace
 output_dir=$workdir/docx
 pandoc_template_file=$workdir/pandoc-template.docx
-lua_script_dir=$workdir/lua
 
 mkdir -p "$output_dir"
 cd "$markdown_file_dir"
@@ -71,7 +66,9 @@ for file in *.md; do
 	pandoc --from markdown \
 		--to docx \
 		--reference-doc "$pandoc_template_file" \
-		$(for script in "${lua_script_list[@]}"; do echo "--lua-filter $lua_script_dir/$script"; done) \
 		--output "$dst_docx_file" \
 		"$src_markdown_file"
+	if [ -f "$python_style_script" ]; then
+		python3 "$python_style_script" "$dst_docx_file"
+	fi
 done
