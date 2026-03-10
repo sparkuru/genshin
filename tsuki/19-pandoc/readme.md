@@ -11,7 +11,39 @@ pandoc: https://github.com/jgm/pandoc.git
 
 2. use pandoc convert markdown to docx, then pass through `python-docx` to apply custom table and caption styles: `uv add python-docx`
 
-script: `./pandoc-md2docx.sh` does the above two steps.
+## script usage
+
+script: `./pandoc-md2docx.sh` does the above two steps. run `ln -s * /path/to/workspace` to handle the case where the script is not in the same directory as the markdown files.
+
+The script can be symlinked into any workspace and run there.
+
+Recommended workspace layout:
+
+```text
+<workspace>/
+  md2docx.sh                     # symlink to pandoc-md2docx.sh (optional name)
+  pandoc-template.docx           # optional override (preferred if exists)
+  docx-table-style.py            # optional override (preferred if exists)
+  markdown/                      # markdown sources (*.md)
+  docx/                          # outputs (auto-created when needed)
+```
+
+Run:
+
+- Process current directory markdown files: `./md2docx.sh`
+- Process a specific markdown directory: `./md2docx.sh ./markdown`
+- Process a single markdown file: `./md2docx.sh ./markdown/07-test.md`
+- Force overwrite existing `.docx`: `./md2docx.sh -f` (or `./md2docx.sh any`)
+
+What it does:
+
+- Reads `*.md` under the markdown directory.
+- Writes `<filename>.docx` into `docx/`.
+- Skips overwrite by default; use `-f` / `any` to overwrite.
+- Skips files whose prefix index is in `dont_cover_file_index` (e.g. `01-xxx.md`).
+- Template/script resolution:
+  - If `<workspace>/pandoc-template.docx` exists, use it; otherwise fallback to the repo copy (next to `pandoc-md2docx.sh`).
+  - If `<workspace>/docx-table-style.py` exists, use it; otherwise fallback to the repo copy.
 
 ## wps view option
 

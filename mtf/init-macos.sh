@@ -14,7 +14,7 @@ brew install curl net-tools openvpn rsync proxychains-ng jq tcp-traceroute iprou
 
 pip install setuptools setuptools_rust datetime uv argparse ipython getpass4 colorama cryptography ifaddr \
   virtualenv ropgadget pwntools shodan \
-  ollama readchar rich watchdog psutil
+  ollama readchar rich watchdog psutil faker python-docx
 
 # 到 System Settings → General → Sharing → Remote Login 启用 ssh 登录
 

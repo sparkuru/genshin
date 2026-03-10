@@ -1,9 +1,6 @@
 #!/bin/bash
 
-workdir=$(
-    cd $(dirname $0)
-    pwd
-)
+workdir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
 current_dir=$workdir
 target_dir_name="03-genshin"

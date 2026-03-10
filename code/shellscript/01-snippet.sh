@@ -14,13 +14,20 @@ cyan='\033[96m'
 nc='\033[0m'
 #endregion
 
+## 1. specify workdir way 1, 
 workdir=$(
-	dirname $(readlink -f $0)
+    dirname $(readlink -f $0)
 )
 
+## 2. specify workdir way 2, more portable
 workdir=$(
-	cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
+    cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd
 )
+
+## 3. specify workdir way 3, more robust
+script_source="${BASH_SOURCE[0]:-$0}"
+script_path="$(readlink -f -- "$script_source" 2>/dev/null || printf '%s' "$script_source")"
+workdir="$(cd -- "$(dirname -- "$script_path")" && pwd -P)"
 
 if [ $(id -u) -ne 0 ]; then
 	echo "run as root"

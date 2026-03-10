@@ -15,7 +15,7 @@ cyan='\033[96m'
 nc='\033[0m'
 #endregion
 
-cd $(dirname $0)
+cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")"
 
 # 1. prepare environment
 workdir="build"

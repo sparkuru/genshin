@@ -352,8 +352,58 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # custom function
+
+show_all_custom_functions() {
+	DESCRIPTION="show all custom functions (this function)"
+    sed -n '/^# custom function$/,$p' ~/.zshrc | awk '
+    BEGIN {
+        color_function="\033[0;36m";
+        color_function_name="\033[0;32m";
+        color_desc="\033[0;33m";
+        color_warn="\033[0;31m";
+        reset="\033[0m";
+        in_func = 0;
+        desc = "";
+        func_name = "";
+    }
+    /^[a-zA-Z_][a-zA-Z0-9_]*\(\)[[:space:]]*\{/ {
+        # Before starting a new function, print the previous one if it exists
+        if (func_name != "") {
+            printf("%sfunction %s%-20s%s", color_function, color_function_name, func_name, reset);
+            if (desc != "") {
+                printf(" - %s%s%s", color_warn, desc, reset);
+            }
+            printf("\n");
+        }
+        line = $0;
+        sub(/\(\)[[:space:]]*\{[[:space:]]*$/, "", line);
+        sub(/^[[:space:]]*/, "", line);
+        func_name = line;
+        desc = "";
+        in_func = 1;
+        next;
+    }
+    /^[[:space:]]*DESCRIPTION=/ && in_func == 1 {
+        line = $0;
+        sub(/^[[:space:]]*DESCRIPTION=/, "", line);
+        gsub(/^["'\'']|["'\'']$/, "", line);
+        desc = line;
+        next;
+    }
+    END {
+        if (func_name != "") {
+            printf("%sfunction %s%-20s%s", color_function, color_function_name, func_name, reset);
+            if (desc != "") {
+                printf(" - %s%s%s", color_warn, desc, reset);
+            }
+            printf("\n");
+        }
+    }'
+}
+
 ## base on default cmd
 cmd() {
+	DESCRIPTION="show all aliases"
     sed -n '/^## alias_anchor$/,/^## end_alias_anchor$/p' ~/.zshrc | awk '
     BEGIN { 
         color_alias="\033[0;36m";
@@ -379,6 +429,7 @@ cmd() {
 }
 
 tmp() {
+	DESCRIPTION="create a temporary directory and cd to it"
     DEFAULT_DIR='/tmp/tmp'
     while getopts "cmh" opt; do
         case ${opt} in
@@ -425,6 +476,7 @@ tmp() {
 }
 
 tsh() {
+	DESCRIPTION="create a new shell script and make it executable"
     local created_paths=()
     for arg in "$@"; do
         local script_path=$arg
@@ -441,11 +493,13 @@ tsh() {
 }
 
 clean_history() {
+	DESCRIPTION="clean zsh history"
     echo "" > ~/.zsh_history
     kill -9 $$
 }
 
 clean_docker() {
+	DESCRIPTION="clean docker, including stopped containers and untagged images"
     docker rm `docker ps -a | grep Exited | awk '{ print $1 }'` > /dev/null 2>&1
     docker rmi `docker images | grep -i \<none\> | awk '{ print $3 }'` > /dev/null 2>&1
     docker volume prune > /dev/null 2>&1
@@ -456,16 +510,19 @@ clean_docker() {
 }
 
 _curl() {
+	DESCRIPTION="download a file from a url"
     curl --create-dirs -fLo $1 $2
 }
 
 w2u() {
+	DESCRIPTION="convert windows path to unix path"
     windows_path_like="$1"
     unix_path=$(echo "$windows_path_like" | sed 's|\\|/|g' | sed 's|^\([a-zA-Z]\):|/\L\1|')
     echo "$unix_path"
 }
 
 update_zshrc() {
+	DESCRIPTION="update .zshrc from github"
     zshrc_path="$HOME/.zshrc"
     if [[ ! -f $zshrc_path ]]; then
         _curl $zshrc_path $github_url_base/mtf/.zshrc
@@ -473,6 +530,7 @@ update_zshrc() {
 }
 
 fp() {
+	DESCRIPTION="find path, fuzzy match is supported"
     current_dir=$(pwd)
 
     while getopts "fh" opt; do
@@ -516,6 +574,7 @@ fp() {
 }
 
 exp() {
+	DESCRIPTION="open file explorer"
     if [[ ! -f "/usr/bin/dolphin" ]]; then
         echo "${RED}dolphin not found, try ${GREEN}sudo apt install dolphin-emu${NC}"
         return 1
@@ -529,6 +588,7 @@ exp() {
 }
 
 sm() {
+	DESCRIPTION="start incognito mode"
     export is_incognito=1
     source ~/.zshrc
     fc -p /dev/null 0 0
@@ -553,6 +613,7 @@ sm() {
 }
 
 md5() {
+	DESCRIPTION="generate md5 hash"
     if [[ $# -eq 0 ]]; then
         echo "fast md5sum hash generator, usage: ${GREEN}md5 [string | file] [string | file] ...${NC}"
         return 1
@@ -586,6 +647,7 @@ md5() {
 }
 
 ggit() {
+	DESCRIPTION="git wrapper"
     commit_comment="u1x:wq"
     case "$1" in
 		status)
@@ -677,6 +739,7 @@ ggit() {
 }
 
 activate() {
+	DESCRIPTION="activate python virtual environment by finding .pyvenv.cfg in current directory"
     default_max_depth=3
     current_path=$(pwd)
     pyvenv_cfg_path=$(find $current_path -maxdepth $default_max_depth -type f -path "*/.pyvenv.cfg")
@@ -693,6 +756,7 @@ activate() {
 ## base on custom script, python, shellscript, etc.
 local_repo_path="$HOME/$leader_path_name/repo/04-flyMe2theStar/03-genshin"
 call_bridge() {
+	DESCRIPTION="call bridge script"
     this_script_path="code/shellscript/07-call-bridge.sh"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
         call_bridge_path="$local_repo_path/$this_script_path"
@@ -707,6 +771,7 @@ call_bridge() {
 }
 
 password() {
+	DESCRIPTION="python script: generate password"
     this_script_path="code/python/08-password-generator.py"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
         rename_path="$local_repo_path/$this_script_path"
@@ -720,6 +785,7 @@ password() {
 }
 
 cx() {
+	DESCRIPTION="python script: check ip status"
     this_script_path="code/python/09-ip-status.py"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
         ip_status_path="$local_repo_path/$this_script_path"
@@ -733,6 +799,7 @@ cx() {
 }
 
 lcd() {
+	DESCRIPTION="python script: list current directory"
     this_script_path="code/python/13-lcd.py"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
         lcd_path="$local_repo_path/$this_script_path"
@@ -757,6 +824,7 @@ lcd() {
 }
 
 rename() {
+	DESCRIPTION="python script: rename files interactively"
     this_script_path="code/python/14-interact-rename.py"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
         rename_path="$local_repo_path/$this_script_path"
@@ -770,6 +838,7 @@ rename() {
 }
 
 unblob() {
+	DESCRIPTION="shell script: unblob"
     this_script_path="code/shellscript/04-unblob.sh"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
         unblob_path="$local_repo_path/$this_script_path"
@@ -783,20 +852,8 @@ unblob() {
     eval $unblob_path "$@"
 }
 
-ollama() {
-    this_script_path="code/python/17-cli-ollama.py"
-    if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        ollama_path="$local_repo_path/$this_script_path"
-    else
-        ollama_path="$HOME/.ollama/cli-ollama.py"
-        if [[ ! -f $ollama_path ]]; then
-            _curl $ollama_path $github_url_base/$this_script_path
-        fi
-    fi
-    python3 $ollama_path "$@"
-}
-
 sd() {
+	DESCRIPTION="python script: search for internet devices using Shodan"
     this_script_path="code/python/10-shodan.py"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
         sd_path="$local_repo_path/$this_script_path"
@@ -810,6 +867,7 @@ sd() {
 }
 
 hftp() {
+	DESCRIPTION="python script: fast http file server"
     this_script_path="code/python/16-hftp.py"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
         hftp_path="$local_repo_path/$this_script_path"
@@ -823,6 +881,7 @@ hftp() {
 }
 
 encrypt() {
+	DESCRIPTION="python script: encrypt and decrypt files"
     this_script_path="code/python/02-ez-encrypt.py"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
         encrypt_path="$local_repo_path/$this_script_path"
@@ -836,6 +895,7 @@ encrypt() {
 }
 
 treec() {
+	DESCRIPTION="python script: create tree structure"
     this_script_path="code/python/15-tree-creator.py"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
         tree_creator_path="$local_repo_path/$this_script_path"
@@ -849,6 +909,7 @@ treec() {
 }
 
 tldr() {
+	DESCRIPTION="python script: tldr client"
     this_script_path="code/python/19-tldr.py"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
         tldr_path="$local_repo_path/$this_script_path"
@@ -873,6 +934,7 @@ tldr() {
 }
 
 request2curl() {
+	DESCRIPTION="python script: convert http request to curl command"
     this_script_path="code/python/23-http-request-to-curl.py"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
         request2curl_path="$local_repo_path/$this_script_path"
@@ -881,6 +943,22 @@ request2curl() {
     fi
     python3 $request2curl_path "$@"
 }
+
+mdtool() {
+	DESCRIPTION="python script: markdown toolkit"
+    this_script_path="code/python/24-markdown-tool.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        markdown_tool_path="$local_repo_path/$this_script_path"
+    else
+        markdown_tool_path="$HOME/.genshin/markdown-tool.py"
+        if [[ ! -f $markdown_tool_path ]]; then
+            _curl $markdown_tool_path $github_url_base/$this_script_path
+        fi
+    fi
+    python3 $markdown_tool_path "$@"
+}
+
+## end_custom_function
 
 # export
 ## proxy
@@ -977,7 +1055,6 @@ fi
 
 ## alias_anchor
 
-alias fcmd="declare -f"
 alias sudo="sudo "
 alias l="ls -ah"
 alias ll="ls -alh"

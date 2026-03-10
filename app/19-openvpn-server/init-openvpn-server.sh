@@ -10,7 +10,7 @@ create_dir() {
     fi
 }
 
-work_dir=$(dirname $0)
+work_dir="$(cd -- "$(dirname -- "$0")" && pwd)"
 file_path=$work_dir/$app_name.yml
 
 if [ ! -f $file_path ]; then

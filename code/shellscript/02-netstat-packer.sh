@@ -1,9 +1,6 @@
 #!/bin/sh
 
-workdir="$(
-    cd $(dirname $0)
-    pwd
-)/netstat"
+workdir="$(cd -- "$(dirname -- "$0")" && pwd)/netstat"
 root_tar_dir_name="$(hostname)-$(date +%m%d-%H%M)"
 root_tar_dir_path="$workdir/$root_tar_dir_name"
 root_tar_file_name="$root_tar_dir_name.tar"

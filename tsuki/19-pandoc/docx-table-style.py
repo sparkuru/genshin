@@ -27,7 +27,8 @@ STYLE_CELL_SHORT = "表格单元格正文样式 A"
 STYLE_CELL_LONG = "表格单元格正文样式 B"
 STYLE_CAPTION = "表题"
 CAPTION_PREFIXES = ("表：", "表:")
-CHAR_THRESHOLD = 30
+CHAR_THRESHOLD = 60
+FORMAT_TABLE_ENABLED = False
 
 
 def _iter_block_items(parent):
@@ -65,6 +66,14 @@ def _set_cell_border(cell: _Cell) -> None:
             el.set(qn(f"w:{key}"), val)
 
 
+def _iter_physical_cells(table: Table):
+    """Yield every physical w:tc in the table (including vMerge continuation cells)."""
+    for row in table.rows:
+        for tc in row._tr.iterchildren():
+            if tc.tag == qn("w:tc"):
+                yield _Cell(tc, row)
+
+
 def _set_table_width_100(table: Table) -> None:
     tbl = table._tbl
     tblPr = tbl.tblPr
@@ -84,6 +93,82 @@ def _cell_char_count(cell) -> int:
     for p in cell.paragraphs:
         n += len(p.text)
     return n
+
+
+def _cell_text(cell: _Cell) -> str:
+    """Return concatenated plain text of a cell."""
+    parts: list[str] = []
+    for p in cell.paragraphs:
+        if p.text:
+            parts.append(p.text)
+    return "".join(parts).strip()
+
+
+def _merge_column_vertical(table: Table, col_idx: int) -> None:
+    """
+    Merge cells vertically in the given column.
+
+    Rule:
+    - A group starts at a row where the cell is non-empty.
+    - The group extends downwards over subsequent rows where the cell is empty.
+    - If a group spans more than one row, merge all cells in that group into
+      the first row's cell.
+
+    Uses table.cell(row, col) and stores cell refs before any merge so that
+    after the first merge, row.cells[col] indexing does not shift.
+    """
+    row_count = len(table.rows)
+    if row_count == 0:
+        return
+    try:
+        table.cell(0, col_idx)
+    except IndexError:
+        return
+    cells = [table.cell(r, col_idx) for r in range(row_count)]
+    row = 0
+    while row < row_count:
+        text = _cell_text(cells[row])
+        if not text:
+            row += 1
+            continue
+        start = row
+        end = row + 1
+        while end < row_count:
+            if _cell_text(cells[end]):
+                break
+            end += 1
+        if end - start > 1:
+            merged = cells[start]
+            for merge_row in range(start + 1, end):
+                merged = merged.merge(cells[merge_row])
+        row = end
+
+
+def _format_table_content(table: Table, max_merge_cols: int = 2) -> None:
+    """
+    Format table content by vertically merging hierarchical columns.
+
+    The first `max_merge_cols` columns are processed using `_merge_column_vertical`.
+    This matches markdown tables where hierarchical structure is expressed by
+    writing the group label only on the first row and leaving subsequent rows
+    in that column empty.
+    """
+    rows = table.rows
+    if not rows:
+        return
+    col_count = len(rows[0].cells)
+    if col_count == 0:
+        return
+    if len(rows) <= 2:
+        return
+
+    body_rows = list(range(1, len(rows)))
+    first_col_cells = [table.cell(r, 0) for r in body_rows]
+    has_first_col_blanks = any(_cell_text(c) == "" for c in first_col_cells)
+    if not has_first_col_blanks:
+        return
+    for col_idx in range(min(max_merge_cols, col_count)):
+        _merge_column_vertical(table, col_idx)
 
 
 def _set_paragraph_style(
@@ -121,9 +206,8 @@ def _apply_table_styles(table, doc) -> None:
     rows = table.rows
     if not rows:
         return
-    for row in rows:
-        for cell in row.cells:
-            cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    for cell in _iter_physical_cells(table):
+        cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
     try:
         if STYLE_TABLE in doc.styles:
             table.style = doc.styles[STYLE_TABLE]
@@ -132,9 +216,8 @@ def _apply_table_styles(table, doc) -> None:
     except (KeyError, ValueError):
         pass
     _set_table_width_100(table)
-    for row in rows:
-        for cell in row.cells:
-            _set_cell_border(cell)
+    for cell in _iter_physical_cells(table):
+        _set_cell_border(cell)
     for cell in rows[0].cells:
         for p in cell.paragraphs:
             _set_paragraph_style(
@@ -165,12 +248,14 @@ def process_document(doc: Document) -> None:
                         _apply_caption_style(block, caption_text, doc)
                         break
         if isinstance(block, Table):
+            if FORMAT_TABLE_ENABLED:
+                _format_table_content(block)
             _apply_table_styles(block, doc)
         i += 1
 
 
 def main() -> int:
-    global CHAR_THRESHOLD, DEBUG_MODE
+    global CHAR_THRESHOLD, DEBUG_MODE, FORMAT_TABLE_ENABLED
     parser = argparse.ArgumentParser(
         description="Apply custom table/caption styles to a pandoc-generated docx.",
     )
@@ -193,9 +278,19 @@ def main() -> int:
         help=f"Character count threshold for long-cell style (default: {CHAR_THRESHOLD}).",
     )
     parser.add_argument("--log", action="store_true", help="Enable debug logging.")
+    parser.add_argument(
+        "--format-table",
+        action="store_true",
+        help=(
+            "Format tables by vertically merging hierarchical columns. "
+            "The first N columns (currently 2) will be merged when a non-empty "
+            "cell is followed by consecutive empty cells."
+        ),
+    )
     args = parser.parse_args()
     CHAR_THRESHOLD = args.threshold
     DEBUG_MODE = args.log
+    FORMAT_TABLE_ENABLED = args.format_table
 
     if not args.input_docx.is_file():
         print(f"Error: not a file: {args.input_docx}", file=sys.stderr)

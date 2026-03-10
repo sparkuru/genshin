@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd $(dirname $0)
+cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")"
 
 rss_url="https://cursor.com/api/download?platform=linux-x64&releaseTrack=stable"
 download_url=$(curl -fsL $rss_url | jq -r '.downloadUrl')

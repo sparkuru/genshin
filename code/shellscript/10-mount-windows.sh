@@ -14,10 +14,7 @@ cyan='\033[96m'
 nc='\033[0m'
 #endregion
 
-workdir=$(
-    cd $(dirname $0)
-    pwd
-)
+workdir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
 mount_point=(
     "504EC6424EC62098:/media/wkyuu/windows/c"

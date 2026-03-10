@@ -167,7 +167,8 @@ for user in "${VALID_USER_LIST[@]}"; do
 		ollama \
 		watchdog psutil \
 		legacy-cgi \
-		pyinstaller staticx
+		pyinstaller staticx \
+		faker python-docx
 done
 
 # git
