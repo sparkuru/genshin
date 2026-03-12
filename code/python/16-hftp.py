@@ -7,8 +7,10 @@ import base64
 import http.server
 import html
 import io
+import inspect
 import mimetypes
 import os
+import re
 import shutil
 import signal
 import socket
@@ -17,6 +19,8 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
+import webbrowser
 from typing import List, Optional, Tuple
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
@@ -288,9 +292,6 @@ def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> N
     """Print debug information with source file and line number."""
     if not DEBUG_MODE:
         return
-
-    import inspect
-    import re
 
     frame = inspect.currentframe().f_back
     info = inspect.getframeinfo(frame)
@@ -606,7 +607,7 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         """Handle GET requests with preview and Range support."""
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
-        path = self.translate_path(parsed.path)
+        path = self._translate_path_for_read(parsed.path)
 
         if os.path.isfile(path):
             if query.get("preview", ["0"])[0] == "1":
@@ -1558,6 +1559,42 @@ initTheme();
             return root
         return resolved
 
+    def _translate_path_for_read(self, url_path: str) -> str:
+        """
+        Convert URL path to filesystem path for read-only operations.
+
+        This translation blocks '..' traversal but intentionally does not resolve symlinks.
+        It enables serving symlink entries that point outside the server root while keeping
+        URL-path traversal constrained to the root.
+        """
+        path = unquote(url_path)
+        path = path.split("?", 1)[0].split("#", 1)[0]
+        path = path.lstrip("/")
+        root = self.server.root_dir
+
+        normalized = os.path.normpath(path)
+        if normalized in (".", ""):
+            return root
+        if normalized.startswith("..") or os.path.isabs(normalized):
+            return root
+        return os.path.join(root, normalized)
+
+    def _fs_path_to_url_path(self, fs_path: str, trailing_slash: bool = False) -> str:
+        """Convert filesystem path under root to URL path (avoids symlink duplication)."""
+        root = self.server.root_dir
+        try:
+            rel = os.path.relpath(fs_path, root)
+        except ValueError:
+            return "/"
+        if rel == "." or rel.startswith(".."):
+            return "/"
+        parts = rel.replace(os.sep, "/").split("/")
+        parts = [p for p in parts if p]
+        url = "/" + "/".join(quote(p) for p in parts)
+        if trailing_slash and os.path.isdir(fs_path):
+            url += "/"
+        return url
+
     def log_message(self, format, *args):
         """Override to reduce console noise"""
         if DEBUG_MODE:
@@ -2024,9 +2061,9 @@ footer {{
     <div class="upload-section">
         <div class="upload-title">Upload File</div>
         <div class="upload-zone" id="uploadZone">
-            <input type="file" id="fileInput" name="file">
-            <p>Drag & drop files here or click to browse</p>
-            <button type="button" class="btn" onclick="document.getElementById('fileInput').click()">Select File</button>
+            <input type="file" id="fileInput" name="file" multiple>
+            <p>Drag & drop files here or click to browse (multiple allowed)</p>
+            <button type="button" class="btn" onclick="document.getElementById('fileInput').click()">Select File(s)</button>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
             <div style="display:flex;align-items:center;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;overflow:hidden;">
@@ -2080,12 +2117,26 @@ footer {{
         </div>
 '''
 
-        if displaypath != "/":
-            html_content += """
+        root = self.server.root_dir
+        if os.path.normpath(path.rstrip(os.sep)) != os.path.normpath(
+            root.rstrip(os.sep)
+        ):
+            try:
+                parent_fs = os.path.dirname(path)
+                parent_rel = os.path.relpath(parent_fs, root)
+                if parent_rel.startswith("..") or parent_rel == "..":
+                    parent_url = "/"
+                else:
+                    parent_url = self._fs_path_to_url_path(
+                        parent_fs, trailing_slash=True
+                    )
+            except ValueError:
+                parent_url = "/"
+            html_content += f"""
         <div class="file-item">
             <div class="file-name">
                 <span class="file-icon folder">📂</span>
-                <a href="../">..</a>
+                <a href="{parent_url}">..</a>
             </div>
             <div class="file-size">-</div>
             <div class="file-date">-</div>
@@ -2102,17 +2153,19 @@ footer {{
             except OSError:
                 mtime = "-"
 
+            dir_url = self._fs_path_to_url_path(fullname, trailing_slash=True)
             escaped_name = html.escape(name).replace("'", "\\'")
+            dir_url_attr = dir_url.replace("\\", "\\\\").replace("'", "\\'")
             html_content += f'''
         <div class="file-item">
             <div class="file-name">
                 <span class="file-icon folder">📁</span>
-                <a href="{quote(name)}/">{html.escape(name)}</a>
+                <a href="{dir_url}">{html.escape(name)}</a>
             </div>
             <div class="file-size">-</div>
             <div class="file-date">{mtime}</div>
             <div class="file-actions">
-                <button class="action-btn delete" onclick="confirmDelete('{escaped_name}/', true)">Delete</button>
+                <button class="action-btn delete" onclick="confirmDelete('{dir_url_attr}', true, '{escaped_name}/')">Delete</button>
             </div>
         </div>
 '''
@@ -2135,8 +2188,9 @@ footer {{
                 or is_image_file(fullname)
                 or is_video_file(fullname)
             )
+            file_url = self._fs_path_to_url_path(fullname, trailing_slash=False)
             preview_badge = (
-                f'<a class="preview-badge" href="{quote(name)}?preview=1">VIEW</a>'
+                f'<a class="preview-badge" href="{file_url}?preview=1">VIEW</a>'
                 if is_previewable
                 else ""
             )
@@ -2145,20 +2199,20 @@ footer {{
                 if NEW_FILE_TRACKER.is_new(fullname)
                 else ""
             )
-            link_url = quote(name)
             escaped_name = html.escape(name).replace("'", "\\'")
+            file_url_attr = file_url.replace("\\", "\\\\").replace("'", "\\'")
 
             html_content += f'''
         <div class="file-item">
             <div class="file-name">
                 <span class="file-icon {icon_class}">{icon}</span>
-                <a href="{link_url}">{html.escape(name)}</a>{preview_badge}{new_badge}
+                <a href="{file_url}">{html.escape(name)}</a>{preview_badge}{new_badge}
             </div>
             <div class="file-size">{size_str}</div>
             <div class="file-date">{mtime}</div>
             <div class="file-actions">
-                <a href="{quote(name)}" class="action-btn" download>Download</a>
-                <button class="action-btn delete" onclick="confirmDelete('{escaped_name}', false)">Delete</button>
+                <a href="{file_url}" class="action-btn" download>Download</a>
+                <button class="action-btn delete" onclick="confirmDelete('{file_url_attr}', false, '{escaped_name}')">Delete</button>
             </div>
         </div>
 '''
@@ -2207,60 +2261,92 @@ function formatTime(seconds) {
     return Math.floor(seconds / 3600) + 'h ' + Math.round((seconds % 3600) / 60) + 'm';
 }
 
-function uploadFile(file) {
-    const xhr = new XMLHttpRequest();
-    const formData = new FormData();
-    formData.append('file', file);
-
+function updateProgressForFile(file, index, total, percent, loaded, totalSize, speed, remaining) {
     progressContainer.classList.add('active');
-    document.getElementById('fileName').textContent = file.name;
-    document.getElementById('totalSize').textContent = formatBytes(file.size);
+    document.getElementById('fileName').textContent = total > 1
+        ? (index + 1) + '/' + total + ' ' + file.name
+        : file.name;
+    document.getElementById('progressFill').style.width = percent + '%';
+    document.getElementById('progressPercent').textContent = percent + '%';
+    document.getElementById('uploadedSize').textContent = formatBytes(loaded);
+    document.getElementById('totalSize').textContent = formatBytes(totalSize);
+    document.getElementById('uploadSpeed').textContent = speed;
+    document.getElementById('timeRemaining').textContent = remaining;
+}
 
-    let startTime = Date.now();
-    let lastLoaded = 0;
-    let lastTime = startTime;
+function uploadOneFile(file, index, total, basePath) {
+    return new Promise(function(resolve, reject) {
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData();
+        formData.append('file', file);
 
-    xhr.upload.addEventListener('progress', function(e) {
-        if (e.lengthComputable) {
-            const percent = Math.round((e.loaded / e.total) * 100);
-            document.getElementById('progressFill').style.width = percent + '%';
-            document.getElementById('progressPercent').textContent = percent + '%';
-            document.getElementById('uploadedSize').textContent = formatBytes(e.loaded);
+        let lastLoaded = 0;
+        let lastTime = Date.now();
 
-            const now = Date.now();
-            const timeDiff = (now - lastTime) / 1000;
-            if (timeDiff >= 0.5) {
-                const byteDiff = e.loaded - lastLoaded;
-                const speed = byteDiff / timeDiff;
-                document.getElementById('uploadSpeed').textContent = formatBytes(speed) + '/s';
-
-                const remaining = e.total - e.loaded;
-                const timeRemaining = speed > 0 ? remaining / speed : 0;
-                document.getElementById('timeRemaining').textContent = formatTime(timeRemaining);
-
-                lastLoaded = e.loaded;
-                lastTime = now;
+        xhr.upload.addEventListener('progress', function(e) {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                const now = Date.now();
+                const timeDiff = (now - lastTime) / 1000;
+                let speed = '-';
+                let remaining = '-';
+                if (timeDiff >= 0.25) {
+                    const byteDiff = e.loaded - lastLoaded;
+                    speed = formatBytes(byteDiff / timeDiff) + '/s';
+                    const left = e.total - e.loaded;
+                    remaining = formatTime(byteDiff > 0 ? left / (byteDiff / timeDiff) : 0);
+                    lastLoaded = e.loaded;
+                    lastTime = now;
+                }
+                updateProgressForFile(file, index, total, percent, e.loaded, e.total, speed, remaining);
             }
-        }
-    });
+        });
 
-    xhr.addEventListener('load', function() {
-        if (xhr.status === 200) {
+        xhr.addEventListener('load', function() {
+            if (xhr.status === 200) {
+                resolve();
+            } else {
+                reject(new Error(file.name + ': ' + xhr.statusText));
+            }
+        });
+
+        xhr.addEventListener('error', function() {
+            reject(new Error(file.name + ': network error'));
+        });
+
+        xhr.open('POST', basePath, true);
+        xhr.send(formData);
+    });
+}
+
+function uploadFiles(files) {
+    if (!files || files.length === 0) return;
+    const basePath = (window.location.pathname || '/').replace(/\\/$/, '') + '/';
+    const total = files.length;
+    let done = 0;
+
+    function next() {
+        if (done >= total) {
             document.getElementById('progressPercent').textContent = 'Complete!';
             document.getElementById('uploadSpeed').textContent = '-';
             document.getElementById('timeRemaining').textContent = '0s';
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            alert('Upload failed: ' + xhr.statusText);
+            setTimeout(function() { location.reload(); }, 800);
+            return;
         }
-    });
-
-    xhr.addEventListener('error', function() {
-        alert('Upload error occurred');
-    });
-
-    xhr.open('POST', window.location.pathname, true);
-    xhr.send(formData);
+        const file = files[done];
+        updateProgressForFile(file, done, total, 0, 0, file.size, '-', '-');
+        uploadOneFile(file, done, total, basePath)
+            .then(function() {
+                done++;
+                next();
+            })
+            .catch(function(err) {
+                alert('Upload failed: ' + err.message);
+                done++;
+                next();
+            });
+    }
+    next();
 }
 
 uploadZone.addEventListener('dragover', function(e) {
@@ -2277,11 +2363,13 @@ uploadZone.addEventListener('drop', function(e) {
     e.preventDefault();
     uploadZone.classList.remove('dragover');
     const files = e.dataTransfer.files;
-    if (files.length > 0) uploadFile(files[0]);
+    if (files.length > 0) uploadFiles(Array.from(files));
 });
 
 fileInput.addEventListener('change', function(e) {
-    if (e.target.files.length > 0) uploadFile(e.target.files[0]);
+    const files = e.target.files;
+    if (files && files.length > 0) uploadFiles(Array.from(files));
+    e.target.value = '';
 });
 
 // Theme toggle
@@ -2311,10 +2399,10 @@ initTheme();
 let deleteTarget = '';
 let deleteIsDir = false;
 
-function confirmDelete(name, isDir) {
-    deleteTarget = name;
+function confirmDelete(deleteUrl, isDir, displayName) {
+    deleteTarget = deleteUrl;
     deleteIsDir = isDir;
-    document.getElementById('deleteFileName').textContent = name;
+    document.getElementById('deleteFileName').textContent = displayName || deleteUrl;
     document.getElementById('deleteDirWarning').textContent = isDir 
         ? 'This will delete the folder and all its contents!' 
         : '';
@@ -2331,7 +2419,7 @@ function executeDelete() {
     if (!deleteTarget) return;
     
     const xhr = new XMLHttpRequest();
-    xhr.open('DELETE', window.location.pathname + encodeURIComponent(deleteTarget.replace(/\\/$/, '')), true);
+    xhr.open('DELETE', deleteTarget, true);
     
     xhr.onload = function() {
         if (xhr.status === 200 || xhr.status === 204) {
@@ -2355,8 +2443,8 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
 });
 
 function initUploadCliExamples() {
-    const base = window.location.origin.replace(/\/+$/, '');
-    const path = (window.location.pathname || '/').replace(/\/+$/, '') + '/file.txt';
+    const base = window.location.origin.replace(/\\/+$/, '');
+    const path = (window.location.pathname || '/').replace(/\\/+$/, '') + '/file.txt';
     const target = base + path;
 
     window.__hftpCmds = {
@@ -2489,17 +2577,39 @@ initUploadCliExamples();
         else:
             return "📄", "file"
 
-    def do_DELETE(self) -> None:
-        """Handle DELETE requests for file/folder deletion"""
-        path = self.translate_path(self.path)
+    def _translate_path_no_follow(self, url_path: str) -> Optional[str]:
+        """Resolve URL path to filesystem path under root without following symlinks.
 
-        if not os.path.exists(path):
+        Returns None if the path escapes root. Used for DELETE so we remove only
+        the symlink (or real file), never the link target.
+        """
+        path = unquote(url_path).lstrip("/")
+        root = self.server.root_dir
+        joined = os.path.normpath(os.path.join(root, path))
+        root_abs = os.path.abspath(root)
+        resolved_abs = os.path.abspath(joined)
+        if resolved_abs != root_abs and not resolved_abs.startswith(root_abs + os.sep):
+            return None
+        return joined
+
+    def do_DELETE(self) -> None:
+        """Handle DELETE requests: remove only the requested path (symlink or file), never the link target."""
+        path = self._translate_path_no_follow(self.path)
+        if path is None:
+            access_log(self, "delete", "403", self.path)
+            self.send_error(403, "Forbidden")
+            return
+
+        if not os.path.lexists(path):
             access_log(self, "delete", "404", path)
             self.send_error(404, "File not found")
             return
 
         try:
-            if os.path.isdir(path):
+            if os.path.islink(path):
+                os.remove(path)
+                debug("Symlink removed", path=path)
+            elif os.path.isdir(path):
                 shutil.rmtree(path)
                 debug("Directory deleted", path=path)
             else:
@@ -2832,6 +2942,171 @@ def safe_port_check(port: int) -> bool:
         return False
 
 
+def ensure_available_port(requested_port: int) -> Optional[int]:
+    """Ensure a usable port, optionally freeing or suggesting an alternative."""
+    if safe_port_check(requested_port):
+        return requested_port
+
+    print(
+        CLIStyle.color(
+            f"Error: Port {requested_port} is already in use!", CLIStyle.COLORS["ERROR"]
+        )
+    )
+
+    process_info = get_process_using_port(requested_port)
+    if process_info:
+        pid, command = process_info
+        print(
+            CLIStyle.color(
+                f"Occupying process: PID {pid} - {command}",
+                CLIStyle.COLORS["WARNING"],
+            )
+        )
+
+        if confirm_action("Force close the process occupying this port?"):
+            print(
+                CLIStyle.color(
+                    "Attempting to close process...", CLIStyle.COLORS["CONTENT"]
+                )
+            )
+            if kill_process_by_pid(pid):
+                print(
+                    CLIStyle.color(
+                        f"Process {pid} successfully closed",
+                        CLIStyle.COLORS["SUCCESS"],
+                    )
+                )
+                time.sleep(1)
+                if safe_port_check(requested_port):
+                    print(
+                        CLIStyle.color(
+                            f"Port {requested_port} is now available",
+                            CLIStyle.COLORS["SUCCESS"],
+                        )
+                    )
+                    return requested_port
+
+                print(
+                    CLIStyle.color(
+                        "Port still occupied, may need more time to release",
+                        CLIStyle.COLORS["WARNING"],
+                    )
+                )
+                time.sleep(2)
+                if safe_port_check(requested_port):
+                    print(
+                        CLIStyle.color(
+                            f"Port {requested_port} is now available",
+                            CLIStyle.COLORS["SUCCESS"],
+                        )
+                    )
+                    return requested_port
+                print(
+                    CLIStyle.color(
+                        "Port release failed, will suggest using alternative port",
+                        CLIStyle.COLORS["ERROR"],
+                    )
+                )
+            else:
+                print(
+                    CLIStyle.color(
+                        f"Unable to close process {pid}, may lack permissions",
+                        CLIStyle.COLORS["ERROR"],
+                    )
+                )
+        else:
+            print(
+                CLIStyle.color(
+                    "User chose not to close the occupying process",
+                    CLIStyle.COLORS["CONTENT"],
+                )
+            )
+    else:
+        print(
+            CLIStyle.color(
+                "Unable to determine process occupying the port",
+                CLIStyle.COLORS["WARNING"],
+            )
+        )
+
+    port_suggestion = requested_port + 1
+    while (
+        not safe_port_check(port_suggestion) and port_suggestion < requested_port + 10
+    ):
+        port_suggestion += 1
+
+    if not safe_port_check(port_suggestion):
+        print(CLIStyle.color("Server startup cancelled", CLIStyle.COLORS["ERROR"]))
+        return None
+
+    print(
+        CLIStyle.color(
+            f"Suggest using port {port_suggestion} instead",
+            CLIStyle.COLORS["CONTENT"],
+        )
+    )
+    if confirm_action("Would you like to use the suggested port?"):
+        return port_suggestion
+
+    print(CLIStyle.color("Server startup cancelled", CLIStyle.COLORS["ERROR"]))
+    return None
+
+
+def handle_generate_service(port: int) -> int:
+    """Generate systemd service file in current directory and exit.
+
+    return = exit code
+    """
+    script_path = os.path.abspath(sys.argv[0])
+    work_dir = os.getcwd()
+    service_content = generate_systemd_service(port, work_dir, script_path)
+
+    output_file = os.path.join(work_dir, "hftp.service")
+    try:
+        with open(output_file, "w") as f:
+            f.write(service_content)
+
+        print(
+            CLIStyle.color(
+                "Systemd service file generated successfully!",
+                CLIStyle.COLORS["SUCCESS"],
+            )
+        )
+        print(f"Output path: {CLIStyle.color(output_file, CLIStyle.COLORS['CONTENT'])}")
+        print()
+        print(CLIStyle.color("Installation steps:", CLIStyle.COLORS["TITLE"]))
+        print(
+            f"  1. {CLIStyle.color('sudo ln -sf hftp.service /etc/systemd/system/', CLIStyle.COLORS['CONTENT'])}"
+        )
+        print(
+            f"  2. {CLIStyle.color('sudo systemctl daemon-reload', CLIStyle.COLORS['CONTENT'])}"
+        )
+        print(
+            f"  3. {CLIStyle.color('sudo systemctl enable hftp.service', CLIStyle.COLORS['CONTENT'])}"
+        )
+        print(
+            f"  4. {CLIStyle.color('sudo systemctl start hftp.service', CLIStyle.COLORS['CONTENT'])}"
+        )
+        print()
+        print(CLIStyle.color("Service management:", CLIStyle.COLORS["TITLE"]))
+        print(
+            f"  - Status: {CLIStyle.color('sudo systemctl status hftp.service', CLIStyle.COLORS['CONTENT'])}"
+        )
+        print(
+            f"  - Logs:   {CLIStyle.color('sudo journalctl -u hftp.service -f', CLIStyle.COLORS['CONTENT'])}"
+        )
+        return 0
+    except Exception as e:
+        print(
+            CLIStyle.color(
+                f"Error generating service file: {str(e)}", CLIStyle.COLORS["ERROR"]
+            )
+        )
+        if DEBUG_MODE:
+            traceback.print_exc()
+        return 1
+
+
 def generate_systemd_service(port: int, work_dir: str, script_path: str) -> str:
     """Generate systemd service file content."""
     service_content = f"""[Unit]
@@ -2869,7 +3144,7 @@ def display_server_info(ips: List[str], port: int, root_dir: str) -> None:
     )
     print(f"Serving directory: {CLIStyle.color(root_dir, CLIStyle.COLORS['CONTENT'])}")
     if ips:
-        print("Available URLs:")
+        print(CLIStyle.color("Available URLs:", CLIStyle.COLORS["TITLE"]))
         for ip in ips:
             url = f"http://{ip}:{port}"
             print(f"  {CLIStyle.color(url, CLIStyle.COLORS['CONTENT'])}")
@@ -2897,9 +3172,10 @@ def main() -> int:
     script_name = os.path.basename(sys.argv[0])
 
     examples = [
-        ("Basic usage", ""),
+        ("Basic usage (serve current directory)", ""),
         ("Custom port", "--port 8080"),
-        ("Serve specific directory", "--root /path/to/dir"),
+        ("Serve a specific directory (e.g. project or docs)", "--root /path/to/dir"),
+        ("Serve current dir with --root", "--root ."),
         ("Debug mode", "--debug"),
         ("Batch mode (auto-confirm)", "--batch"),
         ("Generate systemd service file", "--generate-service --port 8080"),
@@ -2979,172 +3255,12 @@ def main() -> int:
         debug("Batch mode: all prompts will be auto-confirmed")
 
     if args.generate_service:
-        script_path = os.path.abspath(sys.argv[0])
-        work_dir = os.getcwd()
-        service_content = generate_systemd_service(args.port, work_dir, script_path)
+        return handle_generate_service(args.port)
 
-        output_file = os.path.join(work_dir, "hftp.service")
-
-        try:
-            with open(output_file, "w") as f:
-                f.write(service_content)
-
-            print(
-                CLIStyle.color(
-                    "Systemd service file generated successfully!",
-                    CLIStyle.COLORS["SUCCESS"],
-                )
-            )
-            print(
-                f"Output path: {CLIStyle.color(output_file, CLIStyle.COLORS['CONTENT'])}"
-            )
-            print()
-            print(CLIStyle.color("Installation steps:", CLIStyle.COLORS["TITLE"]))
-            print(
-                f"  1. {CLIStyle.color('sudo ln -sf hftp.service /etc/systemd/system/', CLIStyle.COLORS['CONTENT'])}"
-            )
-            print(
-                f"  2. {CLIStyle.color('sudo systemctl daemon-reload', CLIStyle.COLORS['CONTENT'])}"
-            )
-            print(
-                f"  3. {CLIStyle.color('sudo systemctl enable hftp.service', CLIStyle.COLORS['CONTENT'])}"
-            )
-            print(
-                f"  4. {CLIStyle.color('sudo systemctl start hftp.service', CLIStyle.COLORS['CONTENT'])}"
-            )
-            print()
-            print(CLIStyle.color("Service management:", CLIStyle.COLORS["TITLE"]))
-            print(
-                f"  - Status: {CLIStyle.color('sudo systemctl status hftp.service', CLIStyle.COLORS['CONTENT'])}"
-            )
-            print(
-                f"  - Logs:   {CLIStyle.color('sudo journalctl -u hftp.service -f', CLIStyle.COLORS['CONTENT'])}"
-            )
-            return 0
-        except Exception as e:
-            print(
-                CLIStyle.color(
-                    f"Error generating service file: {str(e)}", CLIStyle.COLORS["ERROR"]
-                )
-            )
-            if DEBUG_MODE:
-                import traceback
-
-                traceback.print_exc()
-            return 1
-
-    if not safe_port_check(args.port):
-        print(
-            CLIStyle.color(
-                f"Error: Port {args.port} is already in use!", CLIStyle.COLORS["ERROR"]
-            )
-        )
-
-        process_info = get_process_using_port(args.port)
-        if process_info:
-            pid, command = process_info
-            print(
-                CLIStyle.color(
-                    f"Occupying process: PID {pid} - {command}",
-                    CLIStyle.COLORS["WARNING"],
-                )
-            )
-
-            if confirm_action("Force close the process occupying this port?"):
-                print(
-                    CLIStyle.color(
-                        "Attempting to close process...", CLIStyle.COLORS["CONTENT"]
-                    )
-                )
-                if kill_process_by_pid(pid):
-                    print(
-                        CLIStyle.color(
-                            f"Process {pid} successfully closed",
-                            CLIStyle.COLORS["SUCCESS"],
-                        )
-                    )
-
-                    time.sleep(1)
-                    if safe_port_check(args.port):
-                        print(
-                            CLIStyle.color(
-                                f"Port {args.port} is now available",
-                                CLIStyle.COLORS["SUCCESS"],
-                            )
-                        )
-                    else:
-                        print(
-                            CLIStyle.color(
-                                "Port still occupied, may need more time to release",
-                                CLIStyle.COLORS["WARNING"],
-                            )
-                        )
-                        time.sleep(2)
-                        if not safe_port_check(args.port):
-                            print(
-                                CLIStyle.color(
-                                    "Port release failed, will suggest using alternative port",
-                                    CLIStyle.COLORS["ERROR"],
-                                )
-                            )
-                        else:
-                            print(
-                                CLIStyle.color(
-                                    f"Port {args.port} is now available",
-                                    CLIStyle.COLORS["SUCCESS"],
-                                )
-                            )
-                else:
-                    print(
-                        CLIStyle.color(
-                            f"Unable to close process {pid}, may lack permissions",
-                            CLIStyle.COLORS["ERROR"],
-                        )
-                    )
-            else:
-                print(
-                    CLIStyle.color(
-                        "User chose not to close the occupying process",
-                        CLIStyle.COLORS["CONTENT"],
-                    )
-                )
-        else:
-            print(
-                CLIStyle.color(
-                    "Unable to determine process occupying the port",
-                    CLIStyle.COLORS["WARNING"],
-                )
-            )
-
-        if not safe_port_check(args.port):
-            port_suggestion = args.port + 1
-            while (
-                not safe_port_check(port_suggestion)
-                and port_suggestion < args.port + 10
-            ):
-                port_suggestion += 1
-
-            if safe_port_check(port_suggestion):
-                print(
-                    CLIStyle.color(
-                        f"Suggest using port {port_suggestion} instead",
-                        CLIStyle.COLORS["CONTENT"],
-                    )
-                )
-                if confirm_action("Would you like to use the suggested port?"):
-                    args.port = port_suggestion
-                else:
-                    print(
-                        CLIStyle.color(
-                            "Server startup cancelled", CLIStyle.COLORS["ERROR"]
-                        )
-                    )
-                    return 1
-            else:
-                print(
-                    CLIStyle.color("Server startup cancelled", CLIStyle.COLORS["ERROR"])
-                )
-                return 1
+    selected_port = ensure_available_port(args.port)
+    if selected_port is None:
+        return 1
+    args.port = selected_port
 
     ips = get_all_ips()
     debug("Available IPs", ips=ips)
@@ -3168,8 +3284,6 @@ def main() -> int:
         server_thread.start()
 
         if args.preview:
-            import webbrowser
-
             url = f"http://localhost:{args.port}"
             print(
                 CLIStyle.color(f"Opening browser at {url}", CLIStyle.COLORS["CONTENT"])
@@ -3183,8 +3297,6 @@ def main() -> int:
         debug("Server error", error=str(e))
         print(CLIStyle.color(f"Error: {str(e)}", CLIStyle.COLORS["ERROR"]))
         if DEBUG_MODE:
-            import traceback
-
             traceback.print_exc()
         emergency_exit()
 

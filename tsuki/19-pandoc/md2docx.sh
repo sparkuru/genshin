@@ -105,7 +105,7 @@ if [ -n "$single_markdown_file" ]; then
 	fi
 	file_list=("$single_markdown_file")
 else
-	file_list=( *.md )
+	file_list=(*.md)
 fi
 
 for file in "${file_list[@]}"; do
@@ -155,6 +155,11 @@ for file in "${file_list[@]}"; do
 			--to docx \
 			--output "$dst_docx_file" \
 			"$src_markdown_file"
+	fi
+	pandoc_ret=$?
+	if [ $pandoc_ret -ne 0 ]; then
+		echo -e "${red}[$(date +%Y-%m-%d\ %H:%M:%S)] pandoc failed (exit $pandoc_ret), skip post-process and next file${reset}"
+		continue
 	fi
 	if [ -f "$python_style_script" ]; then
 		"$python_bin" "$python_style_script" "$dst_docx_file" --format-table
