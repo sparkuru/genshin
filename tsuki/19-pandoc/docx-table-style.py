@@ -28,6 +28,7 @@ STYLE_CELL_LONG = "表格单元格正文样式 B"
 STYLE_CAPTION = "表题"
 CAPTION_PREFIXES = ("表：", "表:")
 CHAR_THRESHOLD = 60
+MAX_MERGE_COLS = 3
 FORMAT_TABLE_ENABLED = False
 
 
@@ -144,7 +145,7 @@ def _merge_column_vertical(table: Table, col_idx: int) -> None:
         row = end
 
 
-def _format_table_content(table: Table, max_merge_cols: int = 2) -> None:
+def _format_table_content(table: Table, max_merge_cols: int | None = None) -> None:
     """
     Format table content by vertically merging hierarchical columns.
 
@@ -153,6 +154,9 @@ def _format_table_content(table: Table, max_merge_cols: int = 2) -> None:
     writing the group label only on the first row and leaving subsequent rows
     in that column empty.
     """
+    if max_merge_cols is None:
+        max_merge_cols = MAX_MERGE_COLS
+
     rows = table.rows
     if not rows:
         return
@@ -249,13 +253,13 @@ def process_document(doc: Document) -> None:
                         break
         if isinstance(block, Table):
             if FORMAT_TABLE_ENABLED:
-                _format_table_content(block)
+                _format_table_content(block, MAX_MERGE_COLS)
             _apply_table_styles(block, doc)
         i += 1
 
 
 def main() -> int:
-    global CHAR_THRESHOLD, DEBUG_MODE, FORMAT_TABLE_ENABLED
+    global CHAR_THRESHOLD, DEBUG_MODE, FORMAT_TABLE_ENABLED, MAX_MERGE_COLS
     parser = argparse.ArgumentParser(
         description="Apply custom table/caption styles to a pandoc-generated docx.",
     )
@@ -277,18 +281,27 @@ def main() -> int:
         default=CHAR_THRESHOLD,
         help=f"Character count threshold for long-cell style (default: {CHAR_THRESHOLD}).",
     )
+    parser.add_argument(
+        "--max-merge-cols",
+        type=int,
+        default=MAX_MERGE_COLS,
+        help=(
+            "Number of leading columns to vertically merge when a non-empty "
+            "cell is followed by consecutive empty cells."
+        ),
+    )
     parser.add_argument("--log", action="store_true", help="Enable debug logging.")
     parser.add_argument(
         "--format-table",
         action="store_true",
         help=(
-            "Format tables by vertically merging hierarchical columns. "
-            "The first N columns (currently 2) will be merged when a non-empty "
-            "cell is followed by consecutive empty cells."
+            "Format tables by vertically merging hierarchical columns using "
+            "the first N leading columns (see --max-merge-cols)."
         ),
     )
     args = parser.parse_args()
     CHAR_THRESHOLD = args.threshold
+    MAX_MERGE_COLS = max(0, args.max_merge_cols)
     DEBUG_MODE = args.log
     FORMAT_TABLE_ENABLED = args.format_table
 

@@ -250,6 +250,12 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip confirmation prompt (e.g. for 'dm undo')",
     )
+    mask_parser.add_argument(
+        "-i",
+        "--ignore-case",
+        action="store_true",
+        help="Ignore case when matching sensitive strings",
+    )
 
     tf_parser = subparsers.add_parser(
         "tableformat",
@@ -648,6 +654,7 @@ def _run_datamasking(args: argparse.Namespace) -> int:
         return 0
 
     faker = Faker()
+    ignore_case = getattr(args, "ignore_case", False)
     mapping: Dict[str, str] = {}
     for value in raw_sensitive:
         if value not in mapping:
@@ -683,7 +690,10 @@ def _run_datamasking(args: argparse.Namespace) -> int:
         file_replacements = 0
         per_string_counts: Dict[str, int] = {key: 0 for key in raw_sensitive}
         for src, dst in mapping.items():
-            pattern = re.compile(rf"(?<![0-9A-Za-z_]){re.escape(src)}(?![0-9A-Za-z_])")
+            flags = re.IGNORECASE if ignore_case else 0
+            pattern = re.compile(
+                rf"(?<![0-9A-Za-z_]){re.escape(src)}(?![0-9A-Za-z_])", flags
+            )
 
             def _repl(match: re.Match, *, _src: str = src, _dst: str = dst) -> str:
                 nonlocal file_replacements

@@ -11,6 +11,11 @@ link_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
 script_path="$(readlink -f -- "${BASH_SOURCE[0]:-$0}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]:-$0}")"
 repo_dir="$(cd -- "$(dirname -- "$script_path")" && pwd -P)"
 
+# docx-table-style args
+char_threshold=60
+max_merge_cols=3
+format_table=true
+
 dont_cover_file_index=(
 	"01"
 	"02"
@@ -23,24 +28,49 @@ flag=0
 root_dir="$tool_dir"
 markdown_dir=""
 single_markdown_file=""
+same_dir=0
+positional_args=()
 for arg in "$@"; do
 	case "$arg" in
 	-f | --force)
 		flag=1
 		;;
+	--same-dir)
+		same_dir=1
+		;;
 	*)
+		positional_args+=("$arg")
 		if [ -z "$markdown_dir" ] && [ -z "$single_markdown_file" ]; then
 			if [ -f "$arg" ]; then
 				single_markdown_file="$arg"
 			else
-				markdown_dir="$arg"
+				case "${arg,,}" in
+				*.md | *.markdown)
+					single_markdown_file="$arg"
+					;;
+				*)
+					markdown_dir="$arg"
+					;;
+				esac
 			fi
 		fi
 		;;
 	esac
 done
+if [ ${#positional_args[@]} -gt 1 ]; then
+	echo -e "${red}[$(date +%Y-%m-%d\ %H:%M:%S)] too many positional args: ${positional_args[*]}${reset}"
+	echo -e "${yellow}tip: if your path contains spaces, wrap it in quotes${reset}"
+	exit 1
+fi
 if [ -z "$markdown_dir" ]; then
 	if [ -n "$single_markdown_file" ]; then
+		case "${single_markdown_file,,}" in
+		*.md | *.markdown) ;;
+		*)
+			echo -e "${red}[$(date +%Y-%m-%d\ %H:%M:%S)] not a markdown file (expect .md or .markdown): $single_markdown_file${reset}"
+			exit 1
+			;;
+		esac
 		markdown_dir="$(cd -- "$(dirname -- "$single_markdown_file")" && pwd)"
 		single_markdown_file="$markdown_dir/$(basename -- "$single_markdown_file")"
 	else
@@ -89,12 +119,10 @@ if [ -f "$python_style_script" ]; then
 	fi
 fi
 
-output_dir="$root_dir/docx"
-if [ ! -d "$output_dir" ]; then
-	mkdir -p "$output_dir"
+if ! cd "$markdown_dir"; then
+	echo -e "${red}[$(date +%Y-%m-%d\ %H:%M:%S)] markdown dir not accessible: $markdown_dir${reset}"
+	exit 1
 fi
-
-cd "$markdown_dir"
 
 converted_count=0
 found_markdown=0
@@ -108,13 +136,35 @@ else
 	file_list=(*.md)
 fi
 
+output_dir="$root_dir/docx"
+if [ -n "$single_markdown_file" ] && [ $same_dir -eq 1 ]; then
+	output_dir="$markdown_dir"
+fi
+if [ ! -d "$output_dir" ]; then
+	mkdir -p "$output_dir"
+fi
+
 for file in "${file_list[@]}"; do
 	[ -e "$file" ] || continue
 
 	filename="${file##*/}"
-	filename="${filename%.md}"
+	case "${filename,,}" in
+	*.markdown)
+		filename="${filename%.[mM][aA][rR][kK][dD][oO][wW][nN]}"
+		;;
+	*.md)
+		filename="${filename%.[mM][dD]}"
+		;;
+	esac
 	file_index="${filename%%-*}"
-	src_markdown_file="$markdown_dir/$file"
+	case "$file" in
+	/*)
+		src_markdown_file="$file"
+		;;
+	*)
+		src_markdown_file="$markdown_dir/$file"
+		;;
+	esac
 	dst_docx_file="$output_dir/$filename.docx"
 
 	if [ ! -s "$src_markdown_file" ]; then
@@ -162,7 +212,11 @@ for file in "${file_list[@]}"; do
 		continue
 	fi
 	if [ -f "$python_style_script" ]; then
-		"$python_bin" "$python_style_script" "$dst_docx_file" --format-table
+		if [ $format_table ]; then
+			"$python_bin" "$python_style_script" "$dst_docx_file" --threshold "$char_threshold" --max-merge-cols "$max_merge_cols" --format-table
+		else
+			"$python_bin" "$python_style_script" "$dst_docx_file" --threshold "$char_threshold" --max-merge-cols "$max_merge_cols"
+		fi
 	fi
 	converted_count=$((converted_count + 1))
 done

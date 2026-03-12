@@ -622,6 +622,25 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     self._serve_ranged(path)
             else:
                 self._serve_ranged(path, log_action="download")
+        elif os.path.isdir(path):
+            if not parsed.path.endswith("/"):
+                location = parsed.path + "/"
+                if parsed.query:
+                    location += "?" + parsed.query
+                self.send_response(301)
+                self.send_header("Location", location)
+                self.end_headers()
+                return
+
+            self.path = parsed.path
+            f = self.list_directory(path)
+            if f:
+                try:
+                    shutil.copyfileobj(f, self.wfile)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                finally:
+                    f.close()
         else:
             self.path = parsed.path
             super().do_GET()
