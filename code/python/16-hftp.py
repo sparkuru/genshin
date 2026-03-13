@@ -1342,6 +1342,7 @@ function applyTheme(theme) {{
 }}
 
 initTheme();
+setupSorting();
 </script>
 </body>
 </html>'''
@@ -1573,10 +1574,30 @@ initTheme();
         path = unquote(path)
         path = path.lstrip("/")
         root = self.server.root_dir
-        resolved = os.path.realpath(os.path.join(root, path))
-        if resolved != root and not resolved.startswith(root + os.sep):
-            return root
-        return resolved
+        joined = os.path.join(root, path)
+        resolved = os.path.realpath(joined)
+
+        if resolved == root:
+            return resolved
+
+        try:
+            common = os.path.commonpath([resolved, root])
+        except ValueError:
+            common = None
+
+        if common == root:
+            return resolved
+
+        current = joined
+        while True:
+            if os.path.islink(current):
+                return resolved
+            parent = os.path.dirname(current)
+            if parent == current or not parent.startswith(root):
+                break
+            current = parent
+
+        return root
 
     def _translate_path_for_read(self, url_path: str) -> str:
         """
@@ -1627,17 +1648,13 @@ initTheme();
             self.send_error(404, "No permission to list directory")
             return None
 
-        dirs = []
-        files = []
+        entries: list[tuple[str, bool]] = []
         for name in file_list:
             fullname = os.path.join(path, name)
-            if os.path.isdir(fullname):
-                dirs.append(name)
-            else:
-                files.append(name)
+            is_dir = os.path.isdir(fullname)
+            entries.append((name, is_dir))
 
-        dirs.sort(key=lambda a: a.lower())
-        files.sort(key=lambda a: a.lower())
+        entries.sort(key=lambda item: item[0].lower())
 
         displaypath = unquote(self.path)
         enc = sys.getfilesystemencoding()
@@ -1864,6 +1881,37 @@ header h1 {{
     letter-spacing: 0.5px;
     border-bottom: 1px solid var(--border-color);
 }}
+.file-list-header-cell {{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+}}
+.file-list-header-cell .sort-indicator {{
+    font-size: 0.7rem;
+}}
+.file-list-header-cell.active {{
+    color: var(--accent-blue);
+}}
+.file-list-header {{
+    display: grid;
+    grid-template-columns: 1fr 6rem 11rem 12rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-tertiary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border-color);
+}}
 .file-item {{
     display: grid;
     grid-template-columns: 1fr 6rem 11rem 12rem;
@@ -1874,9 +1922,9 @@ header h1 {{
 .file-item:last-child {{ border-bottom: none; }}
 .file-item:hover {{ background: var(--hover-bg); }}
 .file-name {{
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 0.6rem;
+    gap: 0.4rem;
 }}
 .file-name a:not(.preview-badge) {{
     color: var(--accent-blue);
@@ -1885,17 +1933,6 @@ header h1 {{
     font-size: 0.95rem;
 }}
 .file-name a:not(.preview-badge):hover {{ text-decoration: underline; }}
-.file-icon {{
-    width: 1.25rem;
-    text-align: center;
-    flex-shrink: 0;
-    font-size: 1.1rem;
-}}
-.file-icon.folder {{ color: var(--accent-yellow); }}
-.file-icon.file {{ color: var(--text-secondary); }}
-.file-icon.text {{ color: var(--accent-green); }}
-.file-icon.image {{ color: var(--accent-purple); }}
-.file-icon.archive {{ color: var(--accent-red); }}
 .file-size, .file-date {{
     color: var(--text-secondary);
     font-size: 0.85rem;
@@ -1929,6 +1966,21 @@ header h1 {{
     letter-spacing: 0.03em;
     color: var(--accent-red);
     border: 1px solid var(--accent-red);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+    display: inline-block;
+    line-height: 1;
+    opacity: 0.85;
+    pointer-events: none;
+}}
+.folder-badge {{
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--accent-yellow);
+    border: 1px solid var(--accent-yellow);
     padding: 0.1rem 0.35rem;
     border-radius: 3px;
     margin-left: 0.4rem;
@@ -2045,7 +2097,6 @@ footer {{
 /* Responsive */
 @media (max-width: 768px) {{
     html {{ font-size: 16px; }}
-    .file-list-header {{ display: none; }}
     .file-item {{
         grid-template-columns: 1fr;
         gap: 0.25rem;
@@ -2072,7 +2123,6 @@ footer {{
             <div class="breadcrumb">{self._generate_breadcrumb(displaypath)}</div>
         </div>
         <button class="theme-toggle" onclick="toggleTheme()">
-            <span class="icon" id="themeIcon">🌙</span>
             <span id="themeText">Dark</span>
         </button>
     </header>
@@ -2081,7 +2131,7 @@ footer {{
         <div class="upload-title">Upload File</div>
         <div class="upload-zone" id="uploadZone">
             <input type="file" id="fileInput" name="file" multiple>
-            <p>Drag & drop files here or click to browse (multiple allowed)</p>
+            <p>Drag & drop, click to browse, or press Ctrl+V to paste from clipboard</p>
             <button type="button" class="btn" onclick="document.getElementById('fileInput').click()">Select File(s)</button>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
@@ -2127,13 +2177,20 @@ footer {{
         </div>
     </div>
 
-    <div class="file-list">
+        <div class="file-list">
         <div class="file-list-header">
-            <span>Name</span>
-            <span>Size</span>
-            <span>Modified</span>
+            <button type="button" class="file-list-header-cell sortable" data-sort-key="name">
+                <span>Name</span><span class="sort-indicator" data-key="name"></span>
+            </button>
+            <button type="button" class="file-list-header-cell sortable" data-sort-key="size">
+                <span>Size</span><span class="sort-indicator" data-key="size"></span>
+            </button>
+            <button type="button" class="file-list-header-cell sortable" data-sort-key="mtime">
+                <span>Modified</span><span class="sort-indicator" data-key="mtime"></span>
+            </button>
             <span>Actions</span>
         </div>
+        <div id="fileListBody">
 '''
 
         root = self.server.root_dir
@@ -2152,10 +2209,10 @@ footer {{
             except ValueError:
                 parent_url = "/"
             html_content += f"""
-        <div class="file-item">
+        <div class="file-item" data-name=".." data-size="0" data-mtime="0" data-type="dir" data-up="1">
             <div class="file-name">
-                <span class="file-icon folder">📂</span>
                 <a href="{parent_url}">..</a>
+                <span class="folder-badge">DIR</span>
             </div>
             <div class="file-size">-</div>
             <div class="file-date">-</div>
@@ -2163,23 +2220,25 @@ footer {{
         </div>
 """
 
-        for name in dirs:
+        has_entries = False
+        for name, is_dir in entries:
             fullname = os.path.join(path, name)
             try:
-                mtime = time.strftime(
-                    "%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(fullname))
-                )
+                mtime_ts = os.path.getmtime(fullname)
+                mtime = time.strftime("%Y-%m-%d %H:%M", time.localtime(mtime_ts))
             except OSError:
+                mtime_ts = 0.0
                 mtime = "-"
 
-            dir_url = self._fs_path_to_url_path(fullname, trailing_slash=True)
-            escaped_name = html.escape(name).replace("'", "\\'")
-            dir_url_attr = dir_url.replace("\\", "\\\\").replace("'", "\\'")
-            html_content += f'''
-        <div class="file-item">
+            if is_dir:
+                dir_url = self._fs_path_to_url_path(fullname, trailing_slash=True)
+                escaped_name = html.escape(name).replace("'", "\\'")
+                dir_url_attr = dir_url.replace("\\", "\\\\").replace("'", "\\'")
+                html_content += f'''
+        <div class="file-item" data-name="{html.escape(name)}" data-size="0" data-mtime="{mtime_ts}" data-type="dir">
             <div class="file-name">
-                <span class="file-icon folder">📁</span>
                 <a href="{dir_url}">{html.escape(name)}</a>
+                <span class="folder-badge">DIR</span>
             </div>
             <div class="file-size">-</div>
             <div class="file-date">{mtime}</div>
@@ -2188,43 +2247,37 @@ footer {{
             </div>
         </div>
 '''
+            else:
+                try:
+                    size = os.path.getsize(fullname)
+                    size_str = self._format_size(size)
+                except OSError:
+                    size = 0
+                    size_str = "-"
 
-        for name in files:
-            fullname = os.path.join(path, name)
-            try:
-                size = os.path.getsize(fullname)
-                size_str = self._format_size(size)
-                mtime = time.strftime(
-                    "%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(fullname))
+                icon, icon_class = self._get_file_icon(name)
+                is_previewable = (
+                    is_text_file(fullname)
+                    or is_image_file(fullname)
+                    or is_video_file(fullname)
                 )
-            except OSError:
-                size_str = "-"
-                mtime = "-"
+                file_url = self._fs_path_to_url_path(fullname, trailing_slash=False)
+                preview_badge = (
+                    f'<a class="preview-badge" href="{file_url}?preview=1">VIEW</a>'
+                    if is_previewable
+                    else ""
+                )
+                new_badge = (
+                    '<span class="new-badge">NEW</span>'
+                    if NEW_FILE_TRACKER.is_new(fullname)
+                    else ""
+                )
+                escaped_name = html.escape(name).replace("'", "\\'")
+                file_url_attr = file_url.replace("\\", "\\\\").replace("'", "\\'")
 
-            icon, icon_class = self._get_file_icon(name)
-            is_previewable = (
-                is_text_file(fullname)
-                or is_image_file(fullname)
-                or is_video_file(fullname)
-            )
-            file_url = self._fs_path_to_url_path(fullname, trailing_slash=False)
-            preview_badge = (
-                f'<a class="preview-badge" href="{file_url}?preview=1">VIEW</a>'
-                if is_previewable
-                else ""
-            )
-            new_badge = (
-                '<span class="new-badge">NEW</span>'
-                if NEW_FILE_TRACKER.is_new(fullname)
-                else ""
-            )
-            escaped_name = html.escape(name).replace("'", "\\'")
-            file_url_attr = file_url.replace("\\", "\\\\").replace("'", "\\'")
-
-            html_content += f'''
-        <div class="file-item">
+                html_content += f'''
+        <div class="file-item" data-name="{html.escape(name)}" data-size="{size}" data-mtime="{mtime_ts}" data-type="file">
             <div class="file-name">
-                <span class="file-icon {icon_class}">{icon}</span>
                 <a href="{file_url}">{html.escape(name)}</a>{preview_badge}{new_badge}
             </div>
             <div class="file-size">{size_str}</div>
@@ -2236,7 +2289,9 @@ footer {{
         </div>
 '''
 
-        if not dirs and not files:
+            has_entries = True
+
+        if not has_entries:
             html_content += """
         <div class="empty-state">
             <p>📭 This directory is empty</p>
@@ -2261,15 +2316,15 @@ footer {{
 </div>
 
 <script>
-const uploadZone = document.getElementById('uploadZone');
-const fileInput = document.getElementById('fileInput');
-const progressContainer = document.getElementById('progressContainer');
+var uploadZone = document.getElementById('uploadZone');
+var fileInput = document.getElementById('fileInput');
+var progressContainer = document.getElementById('progressContainer');
 
 function formatBytes(bytes) {
     if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    var k = 1024;
+    var sizes = ['B', 'KB', 'MB', 'GB'];
+    var i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
@@ -2278,6 +2333,104 @@ function formatTime(seconds) {
     if (seconds < 60) return Math.round(seconds) + 's';
     if (seconds < 3600) return Math.round(seconds / 60) + 'm ' + Math.round(seconds % 60) + 's';
     return Math.floor(seconds / 3600) + 'h ' + Math.round((seconds % 3600) / 60) + 'm';
+}
+
+var currentSortKey = 'name';
+var currentSortDir = 'asc';
+
+function applySort() {
+    var container = document.getElementById('fileListBody');
+    if (!container) return;
+    var nodeList = container.getElementsByClassName('file-item');
+    if (!nodeList || nodeList.length === 0) return;
+
+    var upItem = null;
+    var items = [];
+    for (var idx = 0; idx < nodeList.length; idx += 1) {
+        var el = nodeList[idx];
+        if (el.getAttribute('data-up') === '1') {
+            upItem = el;
+        } else {
+            items.push(el);
+        }
+    }
+
+    items.sort(function(a, b) {
+        var typeA = a.getAttribute('data-type') || 'file';
+        var typeB = b.getAttribute('data-type') || 'file';
+
+        if (typeA !== typeB) {
+            return typeA === 'dir' ? -1 : 1;
+        }
+
+        if (currentSortKey === 'name') {
+            var nameA = (a.getAttribute('data-name') || '').toLowerCase();
+            var nameB = (b.getAttribute('data-name') || '').toLowerCase();
+            if (nameA < nameB) return currentSortDir === 'asc' ? -1 : 1;
+            if (nameA > nameB) return currentSortDir === 'asc' ? 1 : -1;
+            return 0;
+        }
+
+        if (currentSortKey === 'size') {
+            var sizeA = parseFloat(a.getAttribute('data-size') || '0');
+            var sizeB = parseFloat(b.getAttribute('data-size') || '0');
+            if (sizeA === sizeB) return 0;
+            return currentSortDir === 'asc' ? sizeA - sizeB : sizeB - sizeA;
+        }
+
+        if (currentSortKey === 'mtime') {
+            var mA = parseFloat(a.getAttribute('data-mtime') || '0');
+            var mB = parseFloat(b.getAttribute('data-mtime') || '0');
+            if (mA === mB) return 0;
+            return currentSortDir === 'asc' ? mA - mB : mB - mA;
+        }
+
+        return 0;
+    });
+
+    container.innerHTML = '';
+    if (upItem) {
+        container.appendChild(upItem);
+    }
+    for (var i = 0; i < items.length; i += 1) {
+        container.appendChild(items[i]);
+    }
+
+    var headers = document.getElementsByClassName('file-list-header-cell');
+    for (var j = 0; j < headers.length; j += 1) {
+        var btn = headers[j];
+        var key = btn.getAttribute('data-sort-key');
+        var indicator = btn.querySelector('.sort-indicator');
+        if (key === currentSortKey) {
+            btn.classList.add('active');
+            if (indicator) {
+                indicator.textContent = currentSortDir === 'asc' ? '▲' : '▼';
+            }
+        } else {
+            btn.classList.remove('active');
+            if (indicator) {
+                indicator.textContent = '';
+            }
+        }
+    }
+}
+
+function setupSorting() {
+    var headers = document.getElementsByClassName('file-list-header-cell');
+    for (var i = 0; i < headers.length; i += 1) {
+        headers[i].addEventListener('click', function() {
+            var key = this.getAttribute('data-sort-key');
+            if (!key) return;
+            if (currentSortKey === key) {
+                currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortKey = key;
+                currentSortDir = 'asc';
+            }
+            applySort();
+        });
+    }
+    applySort();
 }
 
 function updateProgressForFile(file, index, total, percent, loaded, totalSize, speed, remaining) {
@@ -2385,6 +2538,43 @@ uploadZone.addEventListener('drop', function(e) {
     if (files.length > 0) uploadFiles(Array.from(files));
 });
 
+document.addEventListener('paste', function(e) {
+    if (!e.clipboardData || !e.clipboardData.items) {
+        return;
+    }
+    var items = e.clipboardData.items;
+    var files = [];
+    var ts = Date.now();
+    for (var i = 0; i < items.length; i += 1) {
+        var item = items[i];
+        if (item.kind === 'file') {
+            var file = item.getAsFile();
+            if (file) {
+                var name = file.name || '';
+                var dotIndex = name.lastIndexOf('.');
+                var base = dotIndex > 0 ? name.slice(0, dotIndex) : name;
+                var ext = dotIndex > 0 ? name.slice(dotIndex) : '';
+
+                if (base === 'image' && (ext === '.png' || ext === '.jpg' || ext === '.jpeg')) {
+                    var newName = base + '-' + ts + '-' + i + ext;
+                    if (typeof File === 'function') {
+                        files.push(new File([file], newName, { type: file.type }));
+                    } else {
+                        file.name = newName;
+                        files.push(file);
+                    }
+                } else {
+                    files.push(file);
+                }
+            }
+        }
+    }
+    if (files.length > 0) {
+        e.preventDefault();
+        uploadFiles(files);
+    }
+});
+
 fileInput.addEventListener('change', function(e) {
     const files = e.target.files;
     if (files && files.length > 0) uploadFiles(Array.from(files));
@@ -2408,11 +2598,11 @@ function toggleTheme() {
 }
 
 function updateThemeButton(theme) {
-    document.getElementById('themeIcon').textContent = theme === 'dark' ? '☀️' : '🌙';
-    document.getElementById('themeText').textContent = theme === 'dark' ? 'Light' : 'Dark';
+    document.getElementById('themeText').textContent = theme === 'dark' ? 'Light theme' : 'Dark theme';
 }
 
 initTheme();
+setupSorting();
 
 // Delete functionality
 let deleteTarget = '';

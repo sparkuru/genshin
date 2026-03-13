@@ -76,6 +76,7 @@ to_install_list=(
   enca dos2unix
   kile kile-l10n
   obs-studio simplescreenrecorder
+  davfs2
 )
 
 apt update

@@ -41,8 +41,9 @@ MD_IMAGE_PATTERNS = [
     re.compile(r"^\[.*?\]:\s*(.+)$", re.MULTILINE),
 ]
 
-DM_BACKUP_PREFIX = "typora-dm-"
-TF_BACKUP_PREFIX = "typora-tf-"
+DM_BACKUP_PREFIX = "mdtool-dm-"
+DM_MAP_PREFIX = DM_BACKUP_PREFIX + "map-"
+TF_BACKUP_PREFIX = "mdtool-tf-"
 
 
 def debug(*args, **kwargs) -> None:
@@ -107,6 +108,14 @@ def _build_main_epilog(script_name: str) -> str:
             f'  {script_name} datamasking --path "*.md" "SECRET"',
             T["EXAMPLE"],
         ),
+        C(
+            f"  {script_name} datamasking --marker --sensitive-file secrets.txt --path file.md",
+            T["EXAMPLE"],
+        ),
+        C(
+            f"  {script_name} datamasking --restore --path file.md --field DB_PASSWORD",
+            T["EXAMPLE"],
+        ),
         C(f"  {script_name} datamasking undo", T["EXAMPLE"]),
         C(f"  {script_name} datamasking undo -y", T["EXAMPLE"]),
         "",
@@ -156,7 +165,7 @@ def _build_parser() -> argparse.ArgumentParser:
         description=(
             "Markdown helper toolkit.\n"
             "- cleanimg / ci     : Clean unreferenced images in assets directory.\n"
-            "- datamasking / dm  : Mask sensitive strings in markdown files using Faker.\n"
+            "- datamasking / dm  : Mask sensitive strings in markdown files using Faker or reversible markers.\n"
             "- tableformat / tf  : Unflatten Word-pasted tables (restore merged-cell hierarchy)."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -210,17 +219,26 @@ def _build_parser() -> argparse.ArgumentParser:
     mask_parser = subparsers.add_parser(
         "datamasking",
         aliases=["dm"],
-        help="Mask sensitive strings in markdown files using Faker",
+        help=(
+            "Mask sensitive strings in markdown files using Faker or reversible markers"
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Replace given sensitive strings in markdown files with fake random text.\n"
-            "The same input string is always mapped to the same fake value within one run."
+            "Data masking for markdown content.\n"
+            "- Faker mode (default): replace sensitive values with random fake strings.\n"
+            "- Marker mode (--marker): replace values with readable placeholders "
+            "like [[MASK:LABEL:0000]] and save mappings to /tmp for later restore.\n"
+            "Use --sensitive-file to load keys from a file and --restore/--field to "
+            "restore markers back to original values."
         ),
     )
     mask_parser.add_argument(
         "sensitive",
-        nargs="+",
-        help="Sensitive strings to be masked (one or more)",
+        nargs="*",
+        help=(
+            "Sensitive strings to be masked. "
+            "In marker mode, supports LABEL=VALUE format."
+        ),
     )
     mask_parser.add_argument(
         "-d",
@@ -255,6 +273,41 @@ def _build_parser() -> argparse.ArgumentParser:
         "--ignore-case",
         action="store_true",
         help="Ignore case when matching sensitive strings",
+    )
+    mask_parser.add_argument(
+        "--marker",
+        action="store_true",
+        help=(
+            "Use reversible marker placeholders instead of random fake data. "
+            "Markers are written as [[MASK:LABEL:NNNN]]."
+        ),
+    )
+    mask_parser.add_argument(
+        "--restore",
+        action="store_true",
+        help=(
+            "Restore marker placeholders in files using the latest mapping in /tmp. "
+            "Use together with --path or -d/--directory."
+        ),
+    )
+    mask_parser.add_argument(
+        "--field",
+        action="append",
+        metavar="LABEL",
+        help=(
+            "When restoring markers, only restore entries with the given LABEL. "
+            "Can be specified multiple times."
+        ),
+    )
+    mask_parser.add_argument(
+        "--sensitive-file",
+        metavar="FILE",
+        help=(
+            "Load sensitive values from file. Each non-empty, non-comment line "
+            "is parsed as LABEL:VALUE (for marker mode, e.g. fsm:787) or VALUE "
+            "(for faker mode). LABEL is a human-readable name, VALUE is the "
+            "exact sensitive text that appears in markdown."
+        ),
     )
 
     tf_parser = subparsers.add_parser(
@@ -599,10 +652,16 @@ def _run_cleanimg(args: argparse.Namespace) -> int:
 
 
 def _run_datamasking(args: argparse.Namespace) -> int:
-    raw_sensitive: List[str] = list(args.sensitive)
+    raw_sensitive: List[str] = list(getattr(args, "sensitive", []))
 
     if len(raw_sensitive) == 1 and raw_sensitive[0] == "undo":
         return _run_datamasking_undo(args)
+
+    marker_mode = getattr(args, "marker", False)
+    restore_mode = getattr(args, "restore", False)
+
+    if restore_mode or (len(raw_sensitive) == 1 and raw_sensitive[0] == "restore"):
+        return _run_datamasking_restore(args)
 
     target_spec = args.path
     if target_spec:
@@ -617,19 +676,11 @@ def _run_datamasking(args: argparse.Namespace) -> int:
         if not target_spec:
             target_spec = args.directory
 
-    if not raw_sensitive:
-        CLIStyle.print(
-            "[ERROR] No sensitive strings provided for data masking.",
-            CLIStyle.COLORS["ERROR"],
-        )
-        return 1
-
     paths: List[Path] = []
     if any(ch in target_spec for ch in "*?"):
-        # Glob pattern, can match files in any directory
-        from glob import glob
+        from glob import glob as _glob
 
-        for p in glob(target_spec):
+        for p in _glob(target_spec):
             candidate = Path(p)
             if candidate.is_file():
                 paths.append(candidate.resolve())
@@ -653,32 +704,214 @@ def _run_datamasking(args: argparse.Namespace) -> int:
         )
         return 0
 
-    faker = Faker()
+    sensitive_file = getattr(args, "sensitive_file", None)
+    file_items: List[str] = []
+    if sensitive_file:
+        file_path = Path(str(sensitive_file)).expanduser().resolve()
+        try:
+            lines = file_path.read_text(encoding="utf-8").splitlines()
+        except OSError as e:
+            CLIStyle.print(
+                f"[ERROR] Cannot read sensitive file: {file_path} ({e})",
+                CLIStyle.COLORS["ERROR"],
+            )
+            return 1
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            file_items.append(stripped)
+
     ignore_case = getattr(args, "ignore_case", False)
-    mapping: Dict[str, str] = {}
-    for value in raw_sensitive:
-        if value not in mapping:
-            length = max(6, min(32, len(value)))
-            mapping[value] = faker.pystr(min_chars=length, max_chars=length)
+    dry_run = getattr(args, "dry_run", False)
+
+    if not marker_mode:
+        all_values: List[str] = []
+        all_values.extend(raw_sensitive)
+        all_values.extend(file_items)
+        if not all_values:
+            CLIStyle.print(
+                "[ERROR] No sensitive strings provided for data masking.",
+                CLIStyle.COLORS["ERROR"],
+            )
+            return 1
+
+        faker = Faker()
+        mapping: Dict[str, str] = {}
+        for value in all_values:
+            if value not in mapping:
+                length = max(6, min(32, len(value)))
+                mapping[value] = faker.pystr(min_chars=length, max_chars=length)
+
+        CLIStyle.print(
+            "Planned mask mapping (input -> fake):", CLIStyle.COLORS["SUB_TITLE"]
+        )
+        for src, dst in mapping.items():
+            print(f"  {src!r} -> {dst!r}")
+        print()
+
+        CLIStyle.print("Target markdown files:", CLIStyle.COLORS["SUB_TITLE"])
+        for p in paths:
+            print(f"  - {p}")
+        print()
+
+        if not dry_run and not getattr(args, "yes", False):
+            if not confirm("Proceed with data masking?"):
+                CLIStyle.print("Cancelled.", CLIStyle.COLORS["WARNING"])
+                return 0
+
+        overall_counts: Dict[str, int] = {key: 0 for key in mapping.keys()}
+
+        backup_dir: Path | None = None
+        if not dry_run:
+            backup_dir = _create_datamasking_backup(paths)
+            CLIStyle.print(
+                f"[BACKUP] Original files saved to: {backup_dir}",
+                CLIStyle.COLORS["INFO"],
+            )
+
+        total_replacements = 0
+        for md_file in paths:
+            try:
+                content = md_file.read_text(encoding="utf-8", errors="replace")
+            except OSError as e:
+                debug(f"Cannot read {md_file}: {e}")
+                continue
+
+            original_content = content
+            file_replacements = 0
+            per_string_counts: Dict[str, int] = {key: 0 for key in mapping.keys()}
+            for src, dst in mapping.items():
+                flags = re.IGNORECASE if ignore_case else 0
+                pattern = re.compile(
+                    rf"(?<![0-9A-Za-z_]){re.escape(src)}(?![0-9A-Za-z_])", flags
+                )
+
+                def _repl(match: re.Match, *, _src: str = src, _dst: str = dst) -> str:
+                    nonlocal file_replacements
+                    file_replacements += 1
+                    per_string_counts[_src] = per_string_counts.get(_src, 0) + 1
+                    overall_counts[_src] = overall_counts.get(_src, 0) + 1
+                    return _dst
+
+                content = pattern.sub(_repl, content)
+
+            if not file_replacements:
+                CLIStyle.print(
+                    f"[MASKED] {md_file.name}: 0 replacement(s)",
+                    CLIStyle.COLORS["INFO"],
+                )
+                continue
+
+            total_replacements += file_replacements
+            CLIStyle.print(
+                f"[MASKED] {md_file.name}: {file_replacements} replacement(s)",
+                CLIStyle.COLORS["CONTENT"],
+            )
+            for src_key, count in per_string_counts.items():
+                CLIStyle.print(
+                    f"  - {src_key!r}: {count} replacement(s)",
+                    CLIStyle.COLORS["CONTENT"],
+                )
+            if not dry_run:
+                try:
+                    md_file.write_text(content, encoding="utf-8")
+                except OSError as e:
+                    debug(f"Cannot write {md_file}: {e}")
+                    CLIStyle.print(
+                        f"[ERROR] Failed to write file: {md_file}",
+                        CLIStyle.COLORS["ERROR"],
+                    )
+                    content = original_content
+
+        if total_replacements == 0:
+            CLIStyle.print(
+                "[INFO] No sensitive strings found in markdown files.",
+                CLIStyle.COLORS["INFO"],
+            )
+        else:
+            CLIStyle.print(
+                "Summary per sensitive string:",
+                CLIStyle.COLORS["SUB_TITLE"],
+            )
+            for src_key, count in overall_counts.items():
+                CLIStyle.print(
+                    f"  {src_key!r}: {count} replacement(s)",
+                    CLIStyle.COLORS["CONTENT"],
+                )
+            CLIStyle.print(
+                f"[OK] Data masking completed, total replacements: {total_replacements}",
+                CLIStyle.COLORS["OK"],
+            )
+            if dry_run:
+                CLIStyle.print(
+                    "[DRY-RUN] No files were modified.",
+                    CLIStyle.COLORS["INFO"],
+                )
+
+        return 0
+
+    marker_items: List[Dict[str, str]] = []
+    for item in raw_sensitive:
+        if not item:
+            continue
+        if "=" in item:
+            label, value = item.split("=", 1)
+            marker_items.append({"label": label.strip(), "value": value.strip()})
+        else:
+            marker_items.append({"label": "", "value": item})
+    for line in file_items:
+        if ":" in line:
+            label, value = line.split(":", 1)
+            marker_items.append({"label": label.strip(), "value": value.strip()})
+        else:
+            marker_items.append({"label": "", "value": line})
+
+    if not marker_items:
+        CLIStyle.print(
+            "[ERROR] No sensitive strings provided for marker mode.",
+            CLIStyle.COLORS["ERROR"],
+        )
+        return 1
+
+    marker_items.sort(key=lambda item: len(item["value"]), reverse=True)
+
+    for idx, item in enumerate(marker_items):
+        label = item["label"] if item["label"] else "FIELD"
+        item["token"] = f"[[MASK:{label}:{idx:04d}]]"
 
     CLIStyle.print(
-        "Planned mask mapping (input -> fake):", CLIStyle.COLORS["SUB_TITLE"]
+        "Planned marker mapping (value -> token):",
+        CLIStyle.COLORS["SUB_TITLE"],
     )
-    for src, dst in mapping.items():
-        print(f"  {src!r} -> {dst!r}")
+    for item in marker_items:
+        display_label = item["label"] or "FIELD"
+        print(
+            f"  [{display_label}] {item['value']!r} -> {item['token']!r}",
+        )
     print()
 
-    overall_counts: Dict[str, int] = {key: 0 for key in raw_sensitive}
+    CLIStyle.print("Target markdown files:", CLIStyle.COLORS["SUB_TITLE"])
+    for p in paths:
+        print(f"  - {p}")
+    print()
 
-    backup_dir: Path | None = None
-    if not getattr(args, "dry_run", False):
-        backup_dir = _create_datamasking_backup(paths)
+    if not dry_run and not getattr(args, "yes", False):
+        if not confirm("Proceed with data masking (marker mode)?"):
+            CLIStyle.print("Cancelled.", CLIStyle.COLORS["WARNING"])
+            return 0
+
+    backup_dir_marker: Path | None = None
+    if not dry_run:
+        backup_dir_marker = _create_datamasking_backup(paths)
         CLIStyle.print(
-            f"[BACKUP] Original files saved to: {backup_dir}",
+            f"[BACKUP] Original files saved to: {backup_dir_marker}",
             CLIStyle.COLORS["INFO"],
         )
 
-    total_replacements = 0
+    mapping_manifest: Dict[str, Dict[str, Dict[str, str]]] = {"files": {}}
+
+    total_replacements_marker = 0
     for md_file in paths:
         try:
             content = md_file.read_text(encoding="utf-8", errors="replace")
@@ -688,70 +921,80 @@ def _run_datamasking(args: argparse.Namespace) -> int:
 
         original_content = content
         file_replacements = 0
-        per_string_counts: Dict[str, int] = {key: 0 for key in raw_sensitive}
-        for src, dst in mapping.items():
-            flags = re.IGNORECASE if ignore_case else 0
-            pattern = re.compile(
-                rf"(?<![0-9A-Za-z_]){re.escape(src)}(?![0-9A-Za-z_])", flags
-            )
+        file_mapping: Dict[str, Dict[str, str]] = {}
 
-            def _repl(match: re.Match, *, _src: str = src, _dst: str = dst) -> str:
+        for item in marker_items:
+            src_val = item["value"]
+            token = item["token"]
+            label = item["label"]
+
+            flags = re.IGNORECASE if ignore_case else 0
+            pattern = re.compile(re.escape(src_val), flags)
+
+            def _marker_repl(match: re.Match, *, _token: str = token) -> str:
                 nonlocal file_replacements
                 file_replacements += 1
-                per_string_counts[_src] = per_string_counts.get(_src, 0) + 1
-                overall_counts[_src] = overall_counts.get(_src, 0) + 1
-                return _dst
+                return _token
 
-            content = pattern.sub(_repl, content)
+            before_replacements = file_replacements
+            content = pattern.sub(_marker_repl, content)
+            if file_replacements > before_replacements:
+                file_mapping[token] = {"original": src_val, "label": label}
 
         if not file_replacements:
             CLIStyle.print(
-                f"[MASKED] {md_file.name}: 0 replacement(s)",
+                f"[MASKED] {md_file.name}: 0 marker replacement(s)",
                 CLIStyle.COLORS["INFO"],
             )
             continue
 
-        total_replacements += file_replacements
+        total_replacements_marker += file_replacements
         CLIStyle.print(
-            f"[MASKED] {md_file.name}: {file_replacements} replacement(s)",
+            f"[MASKED] {md_file.name}: {file_replacements} marker replacement(s)",
             CLIStyle.COLORS["CONTENT"],
         )
-        for src in raw_sensitive:
-            CLIStyle.print(
-                f"  - {src!r}: {per_string_counts.get(src, 0)} replacement(s)",
-                CLIStyle.COLORS["CONTENT"],
-            )
-        if not getattr(args, "dry_run", False):
+
+        if not dry_run:
             try:
                 md_file.write_text(content, encoding="utf-8")
             except OSError as e:
                 debug(f"Cannot write {md_file}: {e}")
                 CLIStyle.print(
-                    f"[ERROR] Failed to write file: {md_file}", CLIStyle.COLORS["ERROR"]
+                    f"[ERROR] Failed to write file: {md_file}",
+                    CLIStyle.COLORS["ERROR"],
                 )
                 content = original_content
+                continue
 
-    if total_replacements == 0:
+        if file_mapping:
+            mapping_manifest["files"][str(md_file.resolve())] = file_mapping
+
+    if not dry_run and mapping_manifest["files"]:
+        mapping_dir = Path(tempfile.mkdtemp(prefix=DM_MAP_PREFIX, dir="/tmp")).resolve()
+        (mapping_dir / "mapping.json").write_text(
+            json.dumps(mapping_manifest, indent=2),
+            encoding="utf-8",
+        )
         CLIStyle.print(
-            "[INFO] No sensitive strings found in markdown files.",
+            f"[MAP] Marker mapping saved to: {mapping_dir / 'mapping.json'}",
+            CLIStyle.COLORS["INFO"],
+        )
+
+    if total_replacements_marker == 0:
+        CLIStyle.print(
+            "[INFO] No marker replacements were applied.",
             CLIStyle.COLORS["INFO"],
         )
     else:
         CLIStyle.print(
-            "Summary per sensitive string:",
-            CLIStyle.COLORS["SUB_TITLE"],
-        )
-        for src in raw_sensitive:
-            CLIStyle.print(
-                f"  {src!r}: {overall_counts.get(src, 0)} replacement(s)",
-                CLIStyle.COLORS["CONTENT"],
-            )
-        CLIStyle.print(
-            f"[OK] Data masking completed, total replacements: {total_replacements}",
+            f"[OK] Marker data masking completed, total replacements: {total_replacements_marker}",
             CLIStyle.COLORS["OK"],
         )
-        if getattr(args, "dry_run", False):
-            CLIStyle.print("[DRY-RUN] No files were modified.", CLIStyle.COLORS["INFO"])
+        if dry_run:
+            CLIStyle.print(
+                "[DRY-RUN] No files were modified.",
+                CLIStyle.COLORS["INFO"],
+            )
 
     return 0
 
@@ -768,6 +1011,157 @@ def _create_datamasking_backup(paths: List[Path]) -> Path:
         json.dumps(manifest, indent=2), encoding="utf-8"
     )
     return backup_dir
+
+
+def _find_latest_datamasking_mapping() -> Path | None:
+    tmp_dir = Path("/tmp")
+    candidates: List[Path] = []
+    for child in tmp_dir.iterdir():
+        if child.is_dir() and child.name.startswith(DM_MAP_PREFIX):
+            if (child / "mapping.json").is_file():
+                candidates.append(child)
+    if not candidates:
+        return None
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return candidates[0]
+
+
+def _run_datamasking_restore(args: argparse.Namespace) -> int:
+    mapping_dir = _find_latest_datamasking_mapping()
+    if not mapping_dir:
+        CLIStyle.print(
+            "[INFO] No marker mapping found in /tmp to restore.",
+            CLIStyle.COLORS["INFO"],
+        )
+        return 0
+
+    mapping_path = mapping_dir / "mapping.json"
+    try:
+        manifest = json.loads(mapping_path.read_text(encoding="utf-8"))
+    except Exception as e:
+        CLIStyle.print(
+            f"[ERROR] Failed to read marker mapping: {e}",
+            CLIStyle.COLORS["ERROR"],
+        )
+        return 1
+
+    files_mapping = manifest.get("files", {})
+    if not isinstance(files_mapping, dict) or not files_mapping:
+        CLIStyle.print(
+            "[INFO] Marker mapping has no files.",
+            CLIStyle.COLORS["INFO"],
+        )
+        return 0
+
+    target_spec = args.path
+    if target_spec:
+        target_spec = str(target_spec)
+    else:
+        target_spec = args.directory
+
+    target_paths: List[Path] = []
+    if any(ch in target_spec for ch in "*?"):
+        from glob import glob as _glob
+
+        for p in _glob(target_spec):
+            candidate = Path(p)
+            if candidate.is_file():
+                target_paths.append(candidate.resolve())
+    else:
+        target_path = Path(target_spec).resolve()
+        if target_path.is_dir():
+            target_paths.extend(find_markdown_files(target_path))
+        elif target_path.is_file():
+            target_paths.append(target_path)
+
+    if not target_paths:
+        CLIStyle.print(
+            "[INFO] No markdown files found for marker restore.",
+            CLIStyle.COLORS["INFO"],
+        )
+        return 0
+
+    target_set = {str(p.resolve()) for p in target_paths}
+    fields_filter = set(getattr(args, "field", []) or [])
+    dry_run = getattr(args, "dry_run", False)
+
+    CLIStyle.print(
+        f"Latest marker mapping: {mapping_dir}",
+        CLIStyle.COLORS["TITLE"],
+    )
+    CLIStyle.print(
+        "Files considered for restore:",
+        CLIStyle.COLORS["SUB_TITLE"],
+    )
+    for p in target_paths:
+        print(f"  - {p}")
+    print()
+
+    if not dry_run and not getattr(args, "yes", False):
+        if not confirm("Restore marker placeholders in these files?"):
+            CLIStyle.print("Cancelled.", CLIStyle.COLORS["WARNING"])
+            return 0
+
+    total_restored = 0
+    for file_str, token_map in files_mapping.items():
+        if file_str not in target_set:
+            continue
+        file_path = Path(file_str)
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            debug(f"Cannot read {file_path}: {e}")
+            continue
+
+        file_restored = 0
+        for token, entry in token_map.items():
+            original_value = entry.get("original", "")
+            label = entry.get("label", "")
+            if fields_filter and label not in fields_filter:
+                continue
+            count = content.count(token)
+            if count == 0:
+                continue
+            content = content.replace(token, original_value)
+            file_restored += count
+
+        if not file_restored:
+            continue
+
+        if not dry_run:
+            try:
+                file_path.write_text(content, encoding="utf-8")
+            except OSError as e:
+                debug(f"Cannot write {file_path}: {e}")
+                CLIStyle.print(
+                    f"[ERROR] Failed to restore {file_path}: {e}",
+                    CLIStyle.COLORS["ERROR"],
+                )
+                continue
+
+        total_restored += file_restored
+        CLIStyle.print(
+            f"[RESTORE] {file_path}: {file_restored} placeholder(s) restored",
+            CLIStyle.COLORS["CONTENT"],
+        )
+
+    if total_restored == 0:
+        CLIStyle.print(
+            "[INFO] No marker placeholders restored.",
+            CLIStyle.COLORS["INFO"],
+        )
+    else:
+        CLIStyle.print(
+            f"[OK] Marker restore completed, total restored: {total_restored}",
+            CLIStyle.COLORS["OK"],
+        )
+        if dry_run:
+            CLIStyle.print(
+                "[DRY-RUN] No files were modified.",
+                CLIStyle.COLORS["INFO"],
+            )
+
+    return 0
 
 
 def _find_latest_datamasking_backup() -> Path | None:
