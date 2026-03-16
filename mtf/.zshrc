@@ -353,6 +353,19 @@ NC='\033[0m'
 
 # custom function
 
+show_function() {
+    DESCRIPTION="show a single function implementation detail in .zshrc file"
+    local function_name=$1
+    local zshrc_file="${ZDOTDIR:-$HOME}/.zshrc"
+
+    if [ -z "$function_name" ]; then
+        echo "Usage: show_function <function_name>"
+        return 1
+    fi
+
+    sed -n "/^[[:space:]]*${function_name}()[[:space:]]*{/,/^[[:space:]]*}/p" "$zshrc_file"
+}
+
 show_all_custom_functions() {
 	DESCRIPTION="show all custom functions (this function)"
     sed -n '/^# custom function$/,$p' ~/.zshrc | awk '

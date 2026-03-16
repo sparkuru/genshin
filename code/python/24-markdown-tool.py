@@ -43,6 +43,7 @@ MD_IMAGE_PATTERNS = [
 
 DM_BACKUP_PREFIX = "mdtool-dm-"
 DM_MAP_PREFIX = DM_BACKUP_PREFIX + "map-"
+DM_MARKER_PREFIX = "@DM"
 TF_BACKUP_PREFIX = "mdtool-tf-"
 
 
@@ -109,7 +110,7 @@ def _build_main_epilog(script_name: str) -> str:
             T["EXAMPLE"],
         ),
         C(
-            f"  {script_name} datamasking --marker --sensitive-file secrets.txt --path file.md",
+            f"  {script_name} datamasking --marker --sensitive-file secrets_map.json --path file.md",
             T["EXAMPLE"],
         ),
         C(
@@ -303,10 +304,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--sensitive-file",
         metavar="FILE",
         help=(
-            "Load sensitive values from file. Each non-empty, non-comment line "
-            "is parsed as LABEL:VALUE (for marker mode, e.g. fsm:787) or VALUE "
-            "(for faker mode). LABEL is a human-readable name, VALUE is the "
-            "exact sensitive text that appears in markdown."
+            "Load sensitive values from JSON file. Expected format: "
+            '{"sensitive_text": "marker_label", ...}. '
+            "In marker mode, keys are the exact sensitive strings that appear "
+            "in markdown and values are human-readable labels included in "
+            "markers; in faker mode, only the keys are used as sensitive strings."
         ),
     )
 
@@ -705,22 +707,41 @@ def _run_datamasking(args: argparse.Namespace) -> int:
         return 0
 
     sensitive_file = getattr(args, "sensitive_file", None)
-    file_items: List[str] = []
+    file_json: Dict[str, str] = {}
     if sensitive_file:
         file_path = Path(str(sensitive_file)).expanduser().resolve()
         try:
-            lines = file_path.read_text(encoding="utf-8").splitlines()
+            text = file_path.read_text(encoding="utf-8")
         except OSError as e:
             CLIStyle.print(
                 f"[ERROR] Cannot read sensitive file: {file_path} ({e})",
                 CLIStyle.COLORS["ERROR"],
             )
             return 1
-        for line in lines:
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
+        try:
+            loaded = json.loads(text) if text.strip() else {}
+        except json.JSONDecodeError as e:
+            CLIStyle.print(
+                f"[ERROR] Sensitive file must be valid JSON object: {file_path} ({e})",
+                CLIStyle.COLORS["ERROR"],
+            )
+            return 1
+        if not isinstance(loaded, dict):
+            CLIStyle.print(
+                f"[ERROR] Sensitive file must be a JSON object mapping "
+                f'"sensitive_text" -> "marker_label": {file_path}',
+                CLIStyle.COLORS["ERROR"],
+            )
+            return 1
+        for key, value in loaded.items():
+            if not isinstance(key, str):
                 continue
-            file_items.append(stripped)
+            if value is None:
+                file_json[key] = ""
+            elif isinstance(value, str):
+                file_json[key] = value
+            else:
+                file_json[key] = str(value)
 
     ignore_case = getattr(args, "ignore_case", False)
     dry_run = getattr(args, "dry_run", False)
@@ -728,7 +749,7 @@ def _run_datamasking(args: argparse.Namespace) -> int:
     if not marker_mode:
         all_values: List[str] = []
         all_values.extend(raw_sensitive)
-        all_values.extend(file_items)
+        all_values.extend(file_json.keys())
         if not all_values:
             CLIStyle.print(
                 "[ERROR] No sensitive strings provided for data masking.",
@@ -855,17 +876,9 @@ def _run_datamasking(args: argparse.Namespace) -> int:
     for item in raw_sensitive:
         if not item:
             continue
-        if "=" in item:
-            label, value = item.split("=", 1)
-            marker_items.append({"label": label.strip(), "value": value.strip()})
-        else:
-            marker_items.append({"label": "", "value": item})
-    for line in file_items:
-        if ":" in line:
-            label, value = line.split(":", 1)
-            marker_items.append({"label": label.strip(), "value": value.strip()})
-        else:
-            marker_items.append({"label": "", "value": line})
+        marker_items.append({"label": "", "value": item})
+    for sensitive_text, marker_label in file_json.items():
+        marker_items.append({"label": marker_label, "value": sensitive_text})
 
     if not marker_items:
         CLIStyle.print(
@@ -878,7 +891,8 @@ def _run_datamasking(args: argparse.Namespace) -> int:
 
     for idx, item in enumerate(marker_items):
         label = item["label"] if item["label"] else "FIELD"
-        item["token"] = f"[[MASK:{label}:{idx:04d}]]"
+        safe_label = label.replace(":", "_") if label else "FIELD"
+        item["token"] = f"{DM_MARKER_PREFIX}:{idx:04d}:{safe_label}"
 
     CLIStyle.print(
         "Planned marker mapping (value -> token):",
@@ -970,9 +984,36 @@ def _run_datamasking(args: argparse.Namespace) -> int:
             mapping_manifest["files"][str(md_file.resolve())] = file_mapping
 
     if not dry_run and mapping_manifest["files"]:
-        mapping_dir = Path(tempfile.mkdtemp(prefix=DM_MAP_PREFIX, dir="/tmp")).resolve()
+        existing_dir = _find_latest_datamasking_mapping()
+        mapping_dir: Path
+        if existing_dir:
+            mapping_dir = existing_dir
+            try:
+                current_text = (mapping_dir / "mapping.json").read_text(
+                    encoding="utf-8"
+                )
+                current = json.loads(current_text) if current_text.strip() else {}
+            except Exception:
+                current = {}
+            current_files = current.get("files", {})
+            if not isinstance(current_files, dict):
+                current_files = {}
+            for file_key, token_map in mapping_manifest["files"].items():
+                existing_file_map = current_files.get(file_key, {})
+                if not isinstance(existing_file_map, dict):
+                    existing_file_map = {}
+                existing_file_map.update(token_map)
+                current_files[file_key] = existing_file_map
+            current["files"] = current_files
+            final_manifest = current
+        else:
+            mapping_dir = Path(
+                tempfile.mkdtemp(prefix=DM_MAP_PREFIX, dir="/tmp")
+            ).resolve()
+            final_manifest = mapping_manifest
+
         (mapping_dir / "mapping.json").write_text(
-            json.dumps(mapping_manifest, indent=2),
+            json.dumps(final_manifest, indent=2),
             encoding="utf-8",
         )
         CLIStyle.print(

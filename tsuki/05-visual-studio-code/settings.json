@@ -41,7 +41,7 @@
 	"editor.accessibilitySupport": "off",
 	"editor.fontFamily": "'MonoLisa-Medium', '文泉驿等宽微米黑'",
 	"nginx-conf-hint.format.align": true,
-	"window.titleBarStyle": "custom",
+	"window.titleBarStyle": "native",
 	"editor.find.addExtraSpaceOnTop": false,
 	"terminal.explorerKind": "external",
 	"breadcrumbs.icons": false,
@@ -89,6 +89,8 @@
 	"dev.containers.dockerComposePath": "docker compose",
 	"docker.enableDockerComposeLanguageService": false,
 	"claudeCode.preferredLocation": "panel",
+	"workbench.layoutControl.enabled": false,
+	"workbench.editor.editorActionsLocation": "titleBar",
 	// "files.watcherExclude": {
 	// 	"**/archive/**": true,
 	// 	"**/.git/objects/**": true,
