@@ -1,0 +1,17 @@
+services:
+  baidunetdisk:
+    image: johngong/baidunetdisk:latest
+    container_name: baidunetdisk
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+    ports:
+      - 5800:5800 # VNC GUI port
+      - 5900:5900
+    volumes:
+      - ./config:/config
+      - ./download:/config/baidunetdiskdownload
+    restart: always
+
+# docker-compose -f $PWD/baidunetdisk.yml up -d
