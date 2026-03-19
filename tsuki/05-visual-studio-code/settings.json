@@ -72,7 +72,6 @@
 	"editor.insertSpaces": false,
 	"workbench.colorTheme": "Quiet Light",
 	"cursorpyright.analysis.disableWorkspaceSymbol": true,
-	"update.mode": "none",
 	"files.associations": {
 		"*.pmt": "markdown",
 		"*.tldr": "toml"

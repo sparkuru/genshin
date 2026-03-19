@@ -8,6 +8,7 @@ import http.server
 import html
 import io
 import inspect
+import ipaddress
 import mimetypes
 import os
 import re
@@ -37,6 +38,10 @@ BATCH_MODE = False
 SERVER_INSTANCE = None
 DEFAULT_PORT = 7888
 EXIT_EVENT = threading.Event()
+LOCAL_IPS = set()
+
+FAVICON_ICO_BASE64 = "AAABAAIAEBAAAAEAIABoBAAAJgAAACAgAAABACAAqBAAAI4EAAAoAAAAEAAAACAAAAABACAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAA/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////+7u7v/h4eH/4eHh/+Hh4f/h4eH/4eHh/+Hh4f/h4eH/4eHh/+Hh4f/h4eH/4eHh/+Hh4f/h4eH/6enp//39/f///////////87Ozv89PT3/HR0d/x4eHv8eHh7/Hh4e/x4eHv8eHh7/Hh4e/x4eHv8eHh7/HR0d/ysrK/+oqKj///////////+IiIj/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/UlJS//v7+///////gICA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/0pKSv/5+fn//////4CAgP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/SkpK//n5+f//////gICA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/0pKSv/5+fn//////4CAgP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP9KSkr/+fn5//////+AgID/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/0pKSv/5+fn//////4CAgP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP9MTEz/+vr6//////+Dg4P/AAAA/wAAAP8AAAD/AAAA/wEBAf8FBQX/BQUF/wUFBf8FBQX/BQUF/wUFBf8FBQX/BQUF/wUFBf8LCwv/iYmJ////////////t7e3/xkZGf8EBAT/BQUF/wcHB/9iYmL/tra2/7a2tv+2trb/tra2/7a2tv+2trb/xMTE//T09P////////////v7+//Pz8//tra2/7a2tv+7u7v/7+/v/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAoAAAAIAAAAEAAAAABACAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAA///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////7+/v/6urq/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/5OTk//Pz8//+/v7/////////////////////////////////5+fn/3t7e/8vLy//Gxsb/xwcHP8cHBz/HBwc/xwcHP8cHBz/HBwc/xwcHP8cHBz/HBwc/xwcHP8cHBz/HBwc/xwcHP8cHBz/HBwc/xwcHP8fHx//TU1N/7W1tf/9/f3///////////////////////39/f96enr/AQEB/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/JSUl/9TU1P//////////////////////6urq/zAwMP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/CAgL/lJSU///////////////////////j4+P/HBwc/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/4CAgP//////////////////////4+Pj/xwcHP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/gICA///////////////////////j4+P/HBwc/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/+AgID//////////////////////+Pj4/8cHBz/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/4CAgP//////////////////////4+Pj/xwcHP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/4ODg///////////////////////4+Pj/xwcHP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8MDAz/sbGx///////////////////////k5OT/Hx8f/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/CwsL/2FhYf/w8PD///////////////////////Pz8/9OTk7/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8BAQH/RkZG/4GBgf+AgID/f39//39/f/9/f3//f39//39/f/9/f3//f39//39/f/9/f3//f39//4ODg/+xsbH/8PDw/////////////////////////////////7W1tf8kJCT/AwMD/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/09PT//k5OT//////////////////////////////////////////////////////////////////////////////////////////////////////////////////f39/9TU1P+Tk5P/f39//39/f/9/f3//f39//39/f/+JiYn/4+Pj/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+FAVICON_ICO_BYTES = base64.b64decode(FAVICON_ICO_BASE64)
 
 
 class NewFileTracker:
@@ -324,12 +329,7 @@ def access_log(
     path: Optional[str] = None,
 ) -> None:
     """Log upload/delete/modify/view/download to stdout: IP, time, action, status (and optional path)."""
-    forwarded = handler.headers.get("X-Forwarded-For")
-    ip = (
-        forwarded.split(",")[0].strip()
-        if forwarded
-        else (handler.client_address[0] if handler.client_address else "?")
-    )
+    ip = get_request_ip(handler)
     ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     try:
         status_int = int(status)
@@ -365,6 +365,86 @@ def access_log(
     if path:
         parts.append(CLIStyle.color(path, CLIStyle.COLORS["SUB_TITLE"]))
     print(" ".join(parts), flush=True)
+
+
+def _extract_ip(value: str) -> Optional[str]:
+    raw = value.strip()
+    if not raw or raw.lower() == "unknown":
+        return None
+
+    raw = raw.strip('"')
+
+    if raw.lower().startswith("for="):
+        raw = raw.split("=", 1)[1].strip()
+        raw = raw.strip('"')
+
+    if raw.startswith("[") and "]" in raw:
+        raw = raw[1 : raw.index("]")]
+
+    # Handle "IPv4:port" forms
+    if raw.count(":") == 1 and "." in raw:
+        raw = raw.split(":", 1)[0]
+
+    try:
+        return str(ipaddress.ip_address(raw))
+    except ValueError:
+        return None
+
+
+def get_request_ip(handler: http.server.BaseHTTPRequestHandler) -> str:
+    local_ips = LOCAL_IPS or set()
+
+    fallback = "?"
+    if handler.client_address:
+        candidate = _extract_ip(handler.client_address[0])
+        if candidate:
+            fallback = candidate
+
+    candidates: List[str] = []
+    try:
+        xff = handler.headers.get("X-Forwarded-For")
+        if xff:
+            candidates.extend([p.strip() for p in xff.split(",") if p.strip()])
+    except Exception:
+        pass
+
+    for header_name in (
+        "X-Real-IP",
+        "CF-Connecting-IP",
+        "True-Client-IP",
+        "X-Client-IP",
+    ):
+        try:
+            v = handler.headers.get(header_name)
+            if v:
+                candidates.append(v)
+        except Exception:
+            pass
+
+    try:
+        forwarded = handler.headers.get("Forwarded")
+        if forwarded:
+            for m in re.finditer(r"for=([^;,\s]+)", forwarded, flags=re.IGNORECASE):
+                candidates.append(m.group(1))
+    except Exception:
+        pass
+
+    # Prefer a non-local (server-interface) IP; scan from right to left to handle
+    # both "left=client" and "right=client" proxy conventions.
+    for raw in reversed(candidates):
+        ip = _extract_ip(raw)
+        if not ip:
+            continue
+        if ip in local_ips:
+            continue
+        return ip
+
+    for raw in candidates:
+        ip = _extract_ip(raw)
+        if ip:
+            return ip
+
+    return fallback
 
 
 def emergency_exit():
@@ -607,6 +687,17 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         """Handle GET requests with preview and Range support."""
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
+        if parsed.path == "/favicon.ico":
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "image/x-icon")
+                self.send_header("Content-Length", str(len(FAVICON_ICO_BYTES)))
+                self.end_headers()
+                self.wfile.write(FAVICON_ICO_BYTES)
+            except (BrokenPipeError, ConnectionResetError):
+                # Client may cancel favicon request; avoid noisy stack traces.
+                pass
+            return
         path = self._translate_path_for_read(parsed.path)
 
         if os.path.isfile(path):
@@ -2278,7 +2369,7 @@ footer {{
                 html_content += f'''
         <div class="file-item" data-name="{html.escape(name)}" data-size="{size}" data-mtime="{mtime_ts}" data-type="file">
             <div class="file-name">
-                <a href="{file_url}">{html.escape(name)}</a>{preview_badge}{new_badge}
+                <a href="{file_url}" target="_blank" rel="noopener noreferrer">{html.escape(name)}</a>{preview_badge}{new_badge}
             </div>
             <div class="file-size">{size_str}</div>
             <div class="file-date">{mtime}</div>
@@ -3472,6 +3563,8 @@ def main() -> int:
     args.port = selected_port
 
     ips = get_all_ips()
+    global LOCAL_IPS
+    LOCAL_IPS = set(ips) | {"127.0.0.1", "::1"}
     debug("Available IPs", ips=ips)
 
     try:
