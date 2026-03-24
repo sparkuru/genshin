@@ -2,7 +2,7 @@
 
 <p align = "right"> 個人 Genshin Impact 游玩記錄 </p>
 
-![cardinal](https://www.majo.im/ftp/repo.png)
+![cardinal](https://www.majo.im/ftp/repo.webp)
 
 ## usage
 

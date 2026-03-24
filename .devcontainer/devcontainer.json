@@ -1,0 +1,46 @@
+{
+  "name": "aio-dev",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "DEBIAN_FRONTEND": "noninteractive"
+    }
+  },
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "ENABLE_SSH": "1",
+    "ENABLE_NGINX": "1",
+    "ENABLE_FTP": "1",
+    "ENABLE_TELNET": "1"
+  },
+  "forwardPorts": [22, 21, 23, 80, 8080],
+  "portsAttributes": {
+    "22": {
+      "label": "ssh"
+    },
+    "21": {
+      "label": "ftp"
+    },
+    "23": {
+      "label": "telnet"
+    },
+    "80": {
+      "label": "nginx"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-vscode.cpptools",
+        "golang.go",
+        "rust-lang.rust-analyzer",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  },
+  "postCreateCommand": "bash /usr/local/share/devcontainer/bootstrap-user.sh",
+  "postStartCommand": "bash /usr/local/share/devcontainer/start-services.sh"
+}
