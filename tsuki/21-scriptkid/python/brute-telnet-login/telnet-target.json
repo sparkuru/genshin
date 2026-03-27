@@ -1,0 +1,9 @@
+{
+	"host": "192.168.9.1",
+	"port": 23,
+	"login_prompt_re": "(?i)(login|username|user\\s+name)\\s*:\\s*",
+	"password_prompt_re": "(?i)password\\s*:\\s*",
+	"success_re": "(?i)(#\\s*$|\\$\\s*|>\\s*$|welcome|logged in|success)",
+	"failure_re": "(?i)(login incorrect|authentication failed|access denied|login failed|invalid password|wrong password)",
+	"post_login_wait_seconds": 3.0
+}

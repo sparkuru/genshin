@@ -1,0 +1,5 @@
+{
+	"host": "192.168.9.1",
+	"port": 22,
+	"auto_add_host_key": true
+}

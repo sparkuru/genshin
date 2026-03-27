@@ -1,0 +1,15 @@
+{
+	"headers": {
+		"Accept": "application/json"
+	},
+	"body": {
+		"username": "admin",
+		"passwd": "123456"
+	},
+	"account_field_username": "username",
+	"account_field_password": "passwd",
+	"verify_tls": false,
+	"fail_if_body_contains": [],
+	"timeout_seconds": 15,
+	"threads": 5
+}
