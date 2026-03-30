@@ -498,9 +498,9 @@ tsh() {
         fi
         if [[ ! -f "$script_path" ]]; then
             touch "$script_path"
-            chmod +x "$script_path"
             created_paths+=("$script_path")
         fi
+        chmod 755 "$script_path"
     done
     [[ ${#created_paths[@]} -gt 0 ]] && printf '%s\n' "${created_paths[@]}"
 }
