@@ -6,10 +6,13 @@ import argparse
 import datetime
 import json
 import os
+import shlex
 import socket
+import stat
 import ssl
 import sys
 import time
+from pathlib import Path
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -690,7 +693,7 @@ def execute_tries(
                 return
             output_line(
                 f"progress={completed_count}/{total_items}",
-                CLIStyle.COLORS["SUB_TITLE"],
+                CLIStyle.COLORS["WARNING"],
             )
 
     results: list[TryResult] = []
@@ -742,10 +745,100 @@ def summarize_exit(results: list[TryResult]) -> int:
     return 0
 
 
+INIT_FTP_TARGET_JSON = "ftp-target.json"
+INIT_FTP_RUN_SH = "run.sh"
+INIT_FTP_USERS_TXT = "users.txt"
+INIT_FTP_PASSWORDS_TXT = "passwords.txt"
+
+
+def run_init_ftp_workspace(
+    cwd: Path,
+    script_py: Path,
+    *,
+    force: bool,
+) -> int:
+    """
+    Create run.sh, ftp-target.json, users.txt, and passwords.txt in cwd.
+
+    Returns 0 on success.
+    """
+    script_py = script_py.resolve()
+
+    def write_one(name: str, content: str) -> None:
+        path = cwd / name
+        if path.exists() and not force:
+            output_line(f"skip (exists): {path}", CLIStyle.COLORS["WARNING"])
+            return
+        path.write_text(content, encoding="utf-8")
+        output_line(f"wrote: {path}", CLIStyle.COLORS["CONTENT"])
+        if name == INIT_FTP_RUN_SH:
+            mode = path.stat().st_mode
+            path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    target_obj: dict[str, Any] = {
+        "host": "127.0.0.1",
+        "port": DEFAULT_PORT,
+        "passive": True,
+        "tls": False,
+        "implicit_tls": False,
+        "tls_verify": False,
+    }
+    write_one(
+        INIT_FTP_TARGET_JSON,
+        json.dumps(target_obj, indent=2, ensure_ascii=False) + "\n",
+    )
+    write_one(
+        INIT_FTP_USERS_TXT,
+        "# One username per line (lines starting with # are ignored)\nadmin\n",
+    )
+    write_one(
+        INIT_FTP_PASSWORDS_TXT,
+        "# One password per line\nchangeme\n",
+    )
+
+    py_q = shlex.quote(str(script_py))
+    run_body = (
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'
+        "# Optional flags: uncomment lines in EXTRA. CLI --host/--port override ftp-target.json.\n"
+        "EXTRA=()\n"
+        "# EXTRA+=(--skip-anonymous-check)\n"
+        "# EXTRA+=(--tls)\n"
+        "# EXTRA+=(--implicit-tls)\n"
+        "# EXTRA+=(--tls-verify)\n"
+        "# EXTRA+=(--no-passive)\n"
+        "# EXTRA+=(--pause-on-success)\n"
+        "# EXTRA+=(--log)\n"
+        f"exec python3 {py_q} \\\n"
+        f'  --target-file "$HERE/{INIT_FTP_TARGET_JSON}" \\\n'
+        '  --host "" \\\n'
+        "  --port 0 \\\n"
+        f"  --interval-seconds {DEFAULT_INTERVAL_SECONDS} \\\n"
+        f"  --threads {DEFAULT_THREADS} \\\n"
+        f"  --timeout-seconds {DEFAULT_TIMEOUT_SECONDS} \\\n"
+        f"  --progress-every {DEFAULT_PROGRESS_EVERY} \\\n"
+        f'  --users "$HERE/{INIT_FTP_USERS_TXT}" \\\n'
+        f'  --passwords "$HERE/{INIT_FTP_PASSWORDS_TXT}" \\\n'
+        '  "${EXTRA[@]}" \\\n'
+        '  "$@"\n'
+    )
+    write_one(INIT_FTP_RUN_SH, run_body)
+    output_line(
+        "Init done. Edit ftp-target.json, run.sh (EXTRA), and wordlists.",
+        CLIStyle.COLORS["TITLE"],
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build CLI parser."""
     script_name = "python brute-ftp-login.py"
     examples = [
+        (
+            "Create run.sh and ftp-target.json in the current directory",
+            "--init",
+        ),
         (
             "Single attempt with target file",
             "--target-file ftp-target.json --user admin --password 123456",
@@ -760,6 +853,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     ]
     notes = [
+        "Use --init in the directory where you keep targets; run.sh uses the real path of this .py file.",
         "Provide either --user or --users, and either --password or --passwords.",
         "With --users, anonymous login is probed once by default; use --skip-anonymous-check to disable.",
         "Host/port can come from --target-file JSON; CLI --host/--port override file values.",
@@ -861,6 +955,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Verify server TLS certificate (default: no verify).",
     )
+    parser.add_argument(
+        "--init",
+        action="store_true",
+        help=(
+            f"Create {INIT_FTP_RUN_SH}, {INIT_FTP_TARGET_JSON}, {INIT_FTP_USERS_TXT}, "
+            f"{INIT_FTP_PASSWORDS_TXT} in the current working directory."
+        ),
+    )
+    parser.add_argument(
+        "--init-force",
+        action="store_true",
+        help="With --init, overwrite files that already exist.",
+    )
     parser.add_argument("--log", action="store_true", help="Enable debug output.")
 
     return parser
@@ -873,6 +980,13 @@ def main() -> int:
 
     global DEBUG_MODE
     DEBUG_MODE = bool(args.log)
+
+    if args.init:
+        return run_init_ftp_workspace(
+            Path.cwd(),
+            Path(__file__).resolve(),
+            force=bool(args.init_force),
+        )
 
     try:
         file_values: dict[str, Any] | None = None

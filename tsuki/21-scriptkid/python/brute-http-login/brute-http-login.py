@@ -6,7 +6,10 @@ import argparse
 import datetime
 import json
 import os
+import shlex
+import stat
 import sys
+from pathlib import Path
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1056,7 +1059,7 @@ def execute_requests(
                 return
             output_line(
                 f"progress={completed_count}/{total_items}",
-                CLIStyle.COLORS["SUB_TITLE"],
+                CLIStyle.COLORS["WARNING"],
             )
 
     def run_one(item: Account | None) -> SendResult:
@@ -1188,10 +1191,126 @@ def print_results(results: list[SendResult]) -> int:
     return 0
 
 
+INIT_HTTP_TARGET_JSON = "http-target.json"
+INIT_HTTP_RAW_REQUEST = "raw-request.txt"
+INIT_HTTP_RUN_SH = "run.sh"
+INIT_HTTP_USERS_TXT = "users.txt"
+INIT_HTTP_PASSWORDS_TXT = "passwords.txt"
+
+
+def run_init_http_workspace(
+    cwd: Path,
+    script_py: Path,
+    *,
+    force: bool,
+) -> int:
+    """
+    Create run.sh, http-target.json, raw-request.txt, users.txt, passwords.txt in cwd.
+
+    Returns 0 on success.
+    """
+    script_py = script_py.resolve()
+
+    def write_one(name: str, content: str) -> None:
+        path = cwd / name
+        if path.exists() and not force:
+            output_line(f"skip (exists): {path}", CLIStyle.COLORS["WARNING"])
+            return
+        path.write_text(content, encoding="utf-8")
+        output_line(f"wrote: {path}", CLIStyle.COLORS["CONTENT"])
+        if name == INIT_HTTP_RUN_SH:
+            mode = path.stat().st_mode
+            path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    target_obj: dict[str, Any] = {
+        "base_url": "",
+        "headers": {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        },
+        "body": {
+            DEFAULT_USERNAME_FIELD: "admin",
+            DEFAULT_PASSWORD_FIELD: "123456",
+        },
+        "account_field_username": DEFAULT_USERNAME_FIELD,
+        "account_field_password": DEFAULT_PASSWORD_FIELD,
+        "verify_tls": DEFAULT_VERIFY_TLS,
+        "fail_if_body_contains": [],
+        "interval_seconds": DEFAULT_INTERVAL_SECONDS,
+        "timeout_seconds": DEFAULT_TIMEOUT_SECONDS,
+        "threads": DEFAULT_THREADS,
+        "progress_every": DEFAULT_PROGRESS_EVERY,
+        "pause_on_success": False,
+    }
+    write_one(
+        INIT_HTTP_TARGET_JSON,
+        json.dumps(target_obj, indent=2, ensure_ascii=False) + "\n",
+    )
+
+    raw_request = (
+        "POST /login HTTP/1.1\n"
+        "Host: example.com\n"
+        "Content-Type: application/json\n"
+        "\n"
+        '{"username":"admin","password":"123456"}\n'
+    )
+    write_one(INIT_HTTP_RAW_REQUEST, raw_request)
+
+    write_one(
+        INIT_HTTP_USERS_TXT,
+        "# One username per line (lines starting with # are ignored)\nadmin\n",
+    )
+    write_one(
+        INIT_HTTP_PASSWORDS_TXT,
+        "# One password per line\nchangeme\n",
+    )
+
+    py_q = shlex.quote(str(script_py))
+    run_body = (
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'
+        "# Optional flags: uncomment lines in EXTRA (or pass flags after ./run.sh).\n"
+        "EXTRA=()\n"
+        "# EXTRA+=(--verify-tls)\n"
+        "# EXTRA+=(--pause-on-success)\n"
+        "# EXTRA+=(--log)\n"
+        "# EXTRA+=(--fail-if-body-contains \"InvalidLogin\")\n"
+        "# Single-attempt example: EXTRA+=(--user admin); EXTRA+=(--password secret)\n"
+        f"exec python3 {py_q} \\\n"
+        f'  --raw-request-file "$HERE/{INIT_HTTP_RAW_REQUEST}" \\\n'
+        f'  --target-file "$HERE/{INIT_HTTP_TARGET_JSON}" \\\n'
+        '  --base-url "" \\\n'
+        '  --headers-json "" \\\n'
+        '  --body-json "" \\\n'
+        '  --body-file "" \\\n'
+        f'  --account-field-username "{DEFAULT_USERNAME_FIELD}" \\\n'
+        f'  --account-field-password "{DEFAULT_PASSWORD_FIELD}" \\\n'
+        f"  --interval-seconds {DEFAULT_INTERVAL_SECONDS} \\\n"
+        f"  --threads {DEFAULT_THREADS} \\\n"
+        f"  --timeout-seconds {DEFAULT_TIMEOUT_SECONDS} \\\n"
+        f"  --progress-every {DEFAULT_PROGRESS_EVERY} \\\n"
+        f'  --users "$HERE/{INIT_HTTP_USERS_TXT}" \\\n'
+        f'  --passwords "$HERE/{INIT_HTTP_PASSWORDS_TXT}" \\\n'
+        '  "${EXTRA[@]}" \\\n'
+        '  "$@"\n'
+    )
+    write_one(INIT_HTTP_RUN_SH, run_body)
+    output_line(
+        "Init done. Edit raw-request.txt, http-target.json, run.sh (EXTRA), and wordlists.",
+        CLIStyle.COLORS["TITLE"],
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build CLI parser."""
     script_name = "python brute-http-login.py"
     examples = [
+        (
+            "Create run.sh, http-target.json, and raw-request.txt in the current directory",
+            "--init",
+        ),
         (
             "Connectivity check mode",
             "--raw-request-file /path/to/bp-copy.txt",
@@ -1218,6 +1337,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     ]
     notes = [
+        "Use --init in the directory where you keep targets; run.sh uses the real path of this .py file.",
         "Provide either --user or --users, and either --password or --passwords.",
         "Use --raw-request-file (Burp), --target-file (JSON), or both. With both: request URL "
         "and Host come from the raw file (highest priority); target JSON headers and "
@@ -1351,6 +1471,19 @@ def build_parser() -> argparse.ArgumentParser:
             "Repeatable; any substring match marks failure."
         ),
     )
+    parser.add_argument(
+        "--init",
+        action="store_true",
+        help=(
+            f"Create {INIT_HTTP_RUN_SH}, {INIT_HTTP_TARGET_JSON}, {INIT_HTTP_RAW_REQUEST}, "
+            f"{INIT_HTTP_USERS_TXT}, {INIT_HTTP_PASSWORDS_TXT} in the current working directory."
+        ),
+    )
+    parser.add_argument(
+        "--init-force",
+        action="store_true",
+        help="With --init, overwrite files that already exist.",
+    )
     parser.add_argument("--log", action="store_true", help="Enable debug output.")
 
     return parser
@@ -1378,6 +1511,13 @@ def main() -> int:
 
     global DEBUG_MODE
     DEBUG_MODE = bool(args.log)
+
+    if args.init:
+        return run_init_http_workspace(
+            Path.cwd(),
+            Path(__file__).resolve(),
+            force=bool(args.init_force),
+        )
 
     has_raw = bool(args.raw_request_file.strip())
     has_target = bool(args.target_file.strip())

@@ -7,9 +7,12 @@ import datetime
 import json
 import os
 import re
+import shlex
+import stat
 import socket
 import sys
 import time
+from pathlib import Path
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -778,7 +781,7 @@ def execute_tries(
                 return
             output_line(
                 f"progress={completed_count}/{total_items}",
-                CLIStyle.COLORS["SUB_TITLE"],
+                CLIStyle.COLORS["WARNING"],
             )
 
     results: list[TryResult] = []
@@ -830,10 +833,101 @@ def summarize_exit(results: list[TryResult]) -> int:
     return 0
 
 
+INIT_TELNET_TARGET_JSON = "telnet-target.json"
+INIT_TELNET_RUN_SH = "run.sh"
+INIT_TELNET_USERS_TXT = "users.txt"
+INIT_TELNET_PASSWORDS_TXT = "passwords.txt"
+
+
+def run_init_telnet_workspace(
+    cwd: Path,
+    script_py: Path,
+    *,
+    force: bool,
+) -> int:
+    """
+    Create run.sh, telnet-target.json, users.txt, and passwords.txt in cwd.
+
+    Returns 0 on success.
+    """
+    script_py = script_py.resolve()
+
+    def write_one(name: str, content: str) -> None:
+        path = cwd / name
+        if path.exists() and not force:
+            output_line(f"skip (exists): {path}", CLIStyle.COLORS["WARNING"])
+            return
+        path.write_text(content, encoding="utf-8")
+        output_line(f"wrote: {path}", CLIStyle.COLORS["CONTENT"])
+        if name == INIT_TELNET_RUN_SH:
+            mode = path.stat().st_mode
+            path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    target_obj: dict[str, Any] = {
+        "host": "127.0.0.1",
+        "port": DEFAULT_PORT,
+        "login_prompt_re": DEFAULT_LOGIN_PROMPT_RE,
+        "password_prompt_re": DEFAULT_PASSWORD_PROMPT_RE,
+        "success_re": DEFAULT_SUCCESS_RE,
+        "failure_re": DEFAULT_FAILURE_RE,
+        "post_login_wait_seconds": DEFAULT_POST_LOGIN_WAIT_SECONDS,
+    }
+    write_one(
+        INIT_TELNET_TARGET_JSON,
+        json.dumps(target_obj, indent=2, ensure_ascii=False) + "\n",
+    )
+    write_one(
+        INIT_TELNET_USERS_TXT,
+        "# One username per line (lines starting with # are ignored)\nadmin\n",
+    )
+    write_one(
+        INIT_TELNET_PASSWORDS_TXT,
+        "# One password per line\nchangeme\n",
+    )
+
+    py_q = shlex.quote(str(script_py))
+    run_body = (
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'
+        "# Optional flags: uncomment lines in EXTRA. CLI overrides telnet-target.json.\n"
+        "EXTRA=()\n"
+        "# EXTRA+=(--pause-on-success)\n"
+        "# EXTRA+=(--log)\n"
+        f"exec python3 {py_q} \\\n"
+        f'  --target-file "$HERE/{INIT_TELNET_TARGET_JSON}" \\\n'
+        '  --host "" \\\n'
+        "  --port 0 \\\n"
+        '  --login-prompt-re "" \\\n'
+        '  --password-prompt-re "" \\\n'
+        '  --success-re "" \\\n'
+        '  --failure-re "" \\\n'
+        f"  --post-login-wait-seconds {CLI_POST_LOGIN_WAIT_UNSET} \\\n"
+        f"  --interval-seconds {DEFAULT_INTERVAL_SECONDS} \\\n"
+        f"  --threads {DEFAULT_THREADS} \\\n"
+        f"  --timeout-seconds {DEFAULT_TIMEOUT_SECONDS} \\\n"
+        f"  --progress-every {DEFAULT_PROGRESS_EVERY} \\\n"
+        f'  --users "$HERE/{INIT_TELNET_USERS_TXT}" \\\n'
+        f'  --passwords "$HERE/{INIT_TELNET_PASSWORDS_TXT}" \\\n'
+        '  "${EXTRA[@]}" \\\n'
+        '  "$@"\n'
+    )
+    write_one(INIT_TELNET_RUN_SH, run_body)
+    output_line(
+        "Init done. Edit telnet-target.json, run.sh (regex/EXTRA), and wordlists.",
+        CLIStyle.COLORS["TITLE"],
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build CLI parser."""
     script_name = "python brute-telnet-login.py"
     examples = [
+        (
+            "Create run.sh and telnet-target.json in the current directory",
+            "--init",
+        ),
         (
             "Single attempt with target file",
             "--target-file telnet-target.json --user admin --password 123456",
@@ -849,6 +943,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     ]
     notes = [
+        "Use --init in the directory where you keep targets; run.sh uses the real path of this .py file.",
         "Provide either --user or --users, and either --password or --passwords.",
         "Host/port and regex fields can come from --target-file JSON; CLI overrides file.",
         "On Python 3.13+, stdlib telnetlib is removed; this script uses a socket fallback.",
@@ -957,6 +1052,19 @@ def build_parser() -> argparse.ArgumentParser:
             "Forces sequential mode (threads=1)."
         ),
     )
+    parser.add_argument(
+        "--init",
+        action="store_true",
+        help=(
+            f"Create {INIT_TELNET_RUN_SH}, {INIT_TELNET_TARGET_JSON}, {INIT_TELNET_USERS_TXT}, "
+            f"{INIT_TELNET_PASSWORDS_TXT} in the current working directory."
+        ),
+    )
+    parser.add_argument(
+        "--init-force",
+        action="store_true",
+        help="With --init, overwrite files that already exist.",
+    )
     parser.add_argument("--log", action="store_true", help="Enable debug output.")
 
     return parser
@@ -969,6 +1077,13 @@ def main() -> int:
 
     global DEBUG_MODE
     DEBUG_MODE = bool(args.log)
+
+    if args.init:
+        return run_init_telnet_workspace(
+            Path.cwd(),
+            Path(__file__).resolve(),
+            force=bool(args.init_force),
+        )
 
     try:
         file_values: dict[str, Any] | None = None
