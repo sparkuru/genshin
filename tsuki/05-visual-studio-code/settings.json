@@ -89,6 +89,7 @@
 	"claudeCode.preferredLocation": "panel",
 	"workbench.editor.editorActionsLocation": "titleBar",
 	"workbench.layoutControl.enabled": false,
+	"containers.enableComposeLanguageService": false,
 	// "files.watcherExclude": {
 	// 	"**/archive/**": true,
 	// 	"**/.git/objects/**": true,

@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 import time
 import traceback
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import CancelledError, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from threading import Lock, local
 from typing import Any
@@ -1003,13 +1003,6 @@ def execute_requests(
     fail_if_body_contains: list[str] | None = None,
 ) -> list[SendResult]:
     """Execute one request or batch requests with optional threading."""
-    if pause_on_success and threads > 1:
-        output_line(
-            "Warning: --pause-on-success uses sequential tries only; forcing threads=1.",
-            CLIStyle.COLORS["WARNING"],
-        )
-        threads = 1
-
     is_batch = batch_spec is not None
 
     debug(f"method={base_request.method} url={base_request.url}", enabled=DEBUG_MODE)
@@ -1148,26 +1141,53 @@ def execute_requests(
             print_run_summary(results)
             return results
 
-        executor = ThreadPoolExecutor(max_workers=threads)
-        try:
-            futures = []
-            for index, item in enumerate(items):
-                if index > 0 and interval_seconds > 0:
-                    time.sleep(interval_seconds)
-                futures.append(executor.submit(run_one_capture, item))
-            for future in as_completed(futures):
-                item, result = future.result()
-                u_pos, p_pos = position_for(item)
-                print_result_line(result, user_pos=u_pos, pass_pos=p_pos)
-                results.append(result)
-                mark_progress()
-            print_run_summary(results)
-            return results
-        except KeyboardInterrupt:
-            executor.shutdown(wait=False, cancel_futures=True)
-            os._exit(130)
-        finally:
-            executor.shutdown(wait=True)
+        remaining_indices = list(range(len(items)))
+        while remaining_indices:
+            executor = ThreadPoolExecutor(max_workers=threads)
+            futures_map: dict[object, int] = {}
+            try:
+                for slot, idx in enumerate(remaining_indices):
+                    if slot > 0 and interval_seconds > 0:
+                        time.sleep(interval_seconds)
+                    item = items[idx]
+                    futures_map[executor.submit(run_one_capture, item)] = idx
+
+                wave_done: set[int] = set()
+                stop_collecting = False
+                stop_entire_run = False
+                try:
+                    for fut in as_completed(futures_map):
+                        idx = futures_map[fut]
+                        try:
+                            item, result = fut.result()
+                        except CancelledError:
+                            continue
+                        wave_done.add(idx)
+                        if stop_collecting:
+                            continue
+                        u_pos, p_pos = position_for(item)
+                        print_result_line(result, user_pos=u_pos, pass_pos=p_pos)
+                        results.append(result)
+                        mark_progress()
+                        if pause_on_success and result.ok:
+                            executor.shutdown(wait=False, cancel_futures=True)
+                            if not prompt_continue_after_success():
+                                stop_entire_run = True
+                            stop_collecting = True
+                except KeyboardInterrupt:
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    os._exit(130)
+            finally:
+                executor.shutdown(wait=True)
+
+            if stop_entire_run:
+                break
+            remaining_indices = [i for i in remaining_indices if i not in wave_done]
+            if not pause_on_success:
+                break
+
+        print_run_summary(results)
+        return results
     finally:
         with sessions_lock:
             sessions = list(created_sessions)
@@ -1206,6 +1226,8 @@ def run_init_http_workspace(
 ) -> int:
     """
     Create run.sh, http-target.json, raw-request.txt, users.txt, passwords.txt in cwd.
+
+    Each default-named file is skipped if it already exists unless force is True.
 
     Returns 0 on success.
     """
@@ -1349,7 +1371,8 @@ def build_parser() -> argparse.ArgumentParser:
         "POST batch: Content-Type application/json uses JSON body; "
         "application/x-www-form-urlencoded (e.g. from Burp) uses form-encoded body.",
         "Use --account-field-username and --account-field-password to rename keys.",
-        "End of run prints a summary; --pause-on-success stops after each success until you confirm.",
+        "End of run prints a summary; --pause-on-success prompts after each success; "
+        "with multiple threads, other pending requests are cancelled for that wave.",
         "When the server returns HTTP 2xx but redirects to a generic page, use "
         "--fail-if-body-contains so attempts matching that page count as failed.",
     ]
@@ -1457,7 +1480,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "After a successful response (HTTP ok), prompt to continue (Y) or stop (n). "
-            "Forces sequential mode (threads=1)."
+            "With threads>1, pending requests are cancelled when the first success is observed."
         ),
     )
     parser.add_argument(
@@ -1476,7 +1499,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             f"Create {INIT_HTTP_RUN_SH}, {INIT_HTTP_TARGET_JSON}, {INIT_HTTP_RAW_REQUEST}, "
-            f"{INIT_HTTP_USERS_TXT}, {INIT_HTTP_PASSWORDS_TXT} in the current working directory."
+            f"{INIT_HTTP_USERS_TXT}, {INIT_HTTP_PASSWORDS_TXT} in the current working directory "
+            "(skip each file that already exists unless --init-force)."
         ),
     )
     parser.add_argument(
