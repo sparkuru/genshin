@@ -1,0 +1,57 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: "newsroot" # change this
+      MYSQL_DATABASE: "news_crawler"
+      MYSQL_USER: "news_app"
+      MYSQL_PASSWORD: "news_app_secret" # change this
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./data/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-unews_app", "-pnews_app_secret"] # change this
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    networks:
+      - hot_news_network
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - hot_news_network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "18080:18080"
+    environment:
+      CONFIG_PATH: /app/config/config.docker.yaml
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - hot_news_network
+
+volumes:
+  mysql_data:
+
+networks:
+  hot_news_network:
+    driver: bridge

@@ -70,7 +70,7 @@
 	"git.openRepositoryInParentFolders": "never",
 	"editor.minimap.enabled": true,
 	"editor.insertSpaces": false,
-	"workbench.colorTheme": "Quiet Light",
+	"workbench.colorTheme": "Cursor Light",
 	"cursorpyright.analysis.disableWorkspaceSymbol": true,
 	"files.associations": {
 		"*.pmt": "markdown",
