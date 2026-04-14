@@ -70,7 +70,6 @@
 	"git.openRepositoryInParentFolders": "never",
 	"editor.minimap.enabled": true,
 	"editor.insertSpaces": false,
-	"workbench.colorTheme": "Cursor Light",
 	"cursorpyright.analysis.disableWorkspaceSymbol": true,
 	"files.associations": {
 		"*.pmt": "markdown",
@@ -80,7 +79,7 @@
 	"workbench.editor.empty.hint": "hidden",
 	"terminal.integrated.stickyScroll.enabled": false,
 	"workbench.startupEditor": "none",
-	"workbench.secondarySideBar.defaultVisibility": "visible",
+	"workbench.secondarySideBar.defaultVisibility": "hidden",
 	"search.followSymlinks": false,
 	"chat.extensionUnification.enabled": false,
 	"remote.SSH.experimental.chat": false,

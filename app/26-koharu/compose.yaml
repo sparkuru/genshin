@@ -1,0 +1,28 @@
+services:
+  koharu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        KOHARU_VERSION: ${KOHARU_VERSION:-latest}
+    image: koharu-local:${KOHARU_VERSION:-latest}
+    ports:
+      - "${KOHARU_PORT:-4000}:4000"
+    environment:
+      KOHARU_OPENAI_API_KEY: ${KOHARU_OPENAI_API_KEY:-}
+      KOHARU_GEMINI_API_KEY: ${KOHARU_GEMINI_API_KEY:-}
+      KOHARU_CLAUDE_API_KEY: ${KOHARU_CLAUDE_API_KEY:-}
+      KOHARU_DEEPSEEK_API_KEY: ${KOHARU_DEEPSEEK_API_KEY:-}
+      KOHARU_OPENAI_COMPATIBLE_API_KEY: ${KOHARU_OPENAI_COMPATIBLE_API_KEY:-}
+    volumes:
+      - koharu_data:/home/koharu/.local/share/Koharu
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:4000/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+
+volumes:
+  koharu_data:

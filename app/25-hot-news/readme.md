@@ -3,8 +3,12 @@ repo: https://github.com/orz-ai/hot_news.git
 
 ## docker
 
+(optional) use `./init.sh` to init the docker files
+
+or manually:
+
 1. `git clone https://github.com/orz-ai/hot_news.git repo`
-2. `touch docker-compose.yml`, see [docker-compose.yml](./hot-news.yml)
+2. `touch hot-news.yaml`, see [hot-news.yaml](./hot-news.yaml)
 3. `touch Dockerfile`, see [Dockerfile](./Dockerfile)
 4. diy own config: `cp repo/config/config.yaml config/config.docker.yaml`, specific like this:
    ```yaml
