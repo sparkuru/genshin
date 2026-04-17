@@ -89,6 +89,8 @@
 	"workbench.editor.editorActionsLocation": "titleBar",
 	"workbench.layoutControl.enabled": false,
 	"containers.enableComposeLanguageService": false,
+	"terminal.integrated.initialHint.copilotCli": false,
+	"chat.disableAIFeatures": true,
 	// "files.watcherExclude": {
 	// 	"**/archive/**": true,
 	// 	"**/.git/objects/**": true,
