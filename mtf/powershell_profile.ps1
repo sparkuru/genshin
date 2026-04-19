@@ -97,6 +97,11 @@ $proxy_port = "1080"
 # $env:http_proxy="http://${proxy_host}:${proxy_port}"
 # $env:https_proxy="http://${proxy_host}:${proxy_port}"
 
+# agent cli env
+if (Test-Path "$HOME/.config/agent-cli-env.ps1") {
+    . "$HOME/.config/agent-cli-env.ps1"
+}
+
 # cancle native alias
 Remove-Item Alias:ls
 
@@ -124,9 +129,8 @@ function la { python $project_genshin_path/code/python/12-ls-alh.py $args --all 
 function lt { python $project_genshin_path/code/python/12-ls-alh.py $args -s time }
 function lss { python $project_genshin_path/code/python/12-ls-alh.py $args -s size }
 
-function genshin { ssh genshin-wkyuu }
 function pve { ssh pve-wkyuu }
-function schale { ssh schale-wkyuu }
+function mac { ssh mac-sparkuru }
 
 function hash { certutil -hashfile $args }
 function tree { & "$TREEPATH/tree.exe" -N -h $args }
@@ -210,39 +214,39 @@ function lcd {
     }
 }
 # wsl
-function kali {
-    $shell = New-Object -ComObject WScript.Shell
-    $running = Get-WmiObject Win32_Process | Where-Object { $_.Name -eq "wsl.exe" } | Select-Object -ExpandProperty CommandLine
-    if ($running -like "*kali*") {
-        wsl --distribution kali
-    } else {
-        $shell.Run("wsl --distribution kali", 0)
-        Write-Host "Starting AMD 14900k + Windows 11 instance in background." -ForegroundColor Yellow
-    }
-}
-function kalidown {
-    $running = Get-WmiObject Win32_Process | Where-Object { $_.Name -eq "wsl.exe" } | Select-Object -ExpandProperty CommandLine
-    if ($running -like "*kali*") {
-        wsl --shutdown kali
-        Write-Host "shutting down AMD 14900k + Windows 11 instance." -ForegroundColor Yellow
-        $service = Get-Service -Name "WSLKaliService" -ErrorAction SilentlyContinue
-        if ($service) {
-            Stop-Service -Name "WSLKaliService"
-            Write-Host "WSL Kali service stopped." -ForegroundColor Yellow
-        }
-    } else {
-        Write-Host "no AMD 14900k + Windows 11 instance running, type kali to start one." -ForegroundColor Yellow
-    }
-}
-function k {
-    $running = Get-WmiObject Win32_Process | Where-Object { $_.Name -eq "wsl.exe" } | Select-Object -ExpandProperty CommandLine
-    if ($running -like "*kali*") {
-        wsl zsh -l -c "~/.genshin/call-bridge.sh $args"
-    } else {
-        & kali
-        Write-Host "run you cmd after kali started." -ForegroundColor Yellow
-    }
-}
+# function kali {
+#     $shell = New-Object -ComObject WScript.Shell
+#     $running = Get-WmiObject Win32_Process | Where-Object { $_.Name -eq "wsl.exe" } | Select-Object -ExpandProperty CommandLine
+#     if ($running -like "*kali*") {
+#         wsl --distribution kali
+#     } else {
+#         $shell.Run("wsl --distribution kali", 0)
+#         Write-Host "Starting AMD 14900k + Windows 11 instance in background." -ForegroundColor Yellow
+#     }
+# }
+# function kalidown {
+#     $running = Get-WmiObject Win32_Process | Where-Object { $_.Name -eq "wsl.exe" } | Select-Object -ExpandProperty CommandLine
+#     if ($running -like "*kali*") {
+#         wsl --shutdown kali
+#         Write-Host "shutting down AMD 14900k + Windows 11 instance." -ForegroundColor Yellow
+#         $service = Get-Service -Name "WSLKaliService" -ErrorAction SilentlyContinue
+#         if ($service) {
+#             Stop-Service -Name "WSLKaliService"
+#             Write-Host "WSL Kali service stopped." -ForegroundColor Yellow
+#         }
+#     } else {
+#         Write-Host "no AMD 14900k + Windows 11 instance running, type kali to start one." -ForegroundColor Yellow
+#     }
+# }
+# function k {
+#     $running = Get-WmiObject Win32_Process | Where-Object { $_.Name -eq "wsl.exe" } | Select-Object -ExpandProperty CommandLine
+#     if ($running -like "*kali*") {
+#         wsl zsh -l -c "~/.genshin/call-bridge.sh $args"
+#     } else {
+#         & kali
+#         Write-Host "run you cmd after kali started." -ForegroundColor Yellow
+#     }
+# }
 # frida
 function frida {
     if ($env:VIRTUAL_ENV -and (python -c "import sys; print(sys.prefix == sys.base_prefix)")) {

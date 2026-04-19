@@ -1,417 +1,524 @@
 # -*- coding: utf-8 -*-
 # pip install colorama argparse
 
-import os
-import sys
-import ctypes
-import re
-from datetime import datetime
 import argparse
+import ctypes
+import inspect
+import os
+import re
+import shutil
+import sys
+import traceback
+from datetime import datetime
+from typing import Any
 
 from colorama import Fore, Style, init as colorama_init
+
 if sys.platform == "win32":
     colorama_init(autoreset=True)
 
-# Import modules based on operating system
 if sys.platform != "win32":
-    import pwd
     import grp
+    import pwd
 else:
-    # Create empty pwd and grp modules for Windows
-    class PwdModule:
-        def getpwuid(self, uid):
-            class Passwd:
-                def __init__(self):
+    class _PwdModule:
+        """Fallback pwd module for Windows."""
+
+        def getpwuid(self, uid: int) -> Any:
+            """Return a simple owner object for Windows."""
+
+            class _Passwd:
+                def __init__(self) -> None:
                     self.pw_name = "Unknown"
 
-            return Passwd()
+            return _Passwd()
 
-    pwd = PwdModule()
+    class _GrpModule:
+        """Fallback grp module for Windows."""
 
-    class GrpModule:
-        def getgrgid(self, gid):
-            class Group:
-                def __init__(self):
+        def getgrgid(self, gid: int) -> Any:
+            """Return a simple group object for Windows."""
+
+            class _Group:
+                def __init__(self) -> None:
                     self.gr_name = "Unknown"
 
-            return Group()
+            return _Group()
 
-    grp = GrpModule()
+    pwd = _PwdModule()
+    grp = _GrpModule()
 
-# Global variables
+
 DEBUG_MODE = False
-VERSION = "1.1.4"
-
-# CLI colors
-CLI_COLORS = {
-    "TITLE": 7,  # Cyan - Main title
-    "SUB_TITLE": 2,  # Red - Subtitle
-    "CONTENT": 3,  # Green - Normal content
-    "EXAMPLE": 6,  # Purple - Examples
-    "WARNING": 4,  # Yellow - Warnings
-    "ERROR": 2,  # Red - Errors
-    "DIR": 4,  # Yellow - Directories
-    "FILE": 5,  # Blue - Files
-    "HIDDEN": 2,  # Red - Hidden files
-}
+VERSION = "1.2.1"
+DEFAULT_PATH = "."
+DEFAULT_SORT = "name"
+DEFAULT_DETAIL_LEVEL = 1
+DEFAULT_DECIMAL_PLACES = 2
+MODE_WIDTH = 5
+SIZE_WIDTH = 10
+USER_WIDTH = 8
+GROUP_WIDTH = 8
+TIME_WIDTH = 20
+NAME_WIDTH = 40
+NAME_PADDING = 4
 
 
-def color(text: str, color_code: int = 0) -> str:
-    """Add color to text output"""
-    color_table = {
-        0: "{}",  # No color
-        1: "\033[1;30m{}\033[0m",  # Bold black
-        2: "\033[1;31m{}\033[0m",  # Bold red
-        3: "\033[1;32m{}\033[0m",  # Bold green
-        4: "\033[1;33m{}\033[0m",  # Bold yellow
-        5: "\033[1;34m{}\033[0m",  # Bold blue
-        6: "\033[1;35m{}\033[0m",  # Bold purple
-        7: "\033[1;36m{}\033[0m",  # Bold cyan
-        8: "\033[1;37m{}\033[0m",  # Bold white
+class CLIStyle:
+    """CLI tool unified style config."""
+
+    COLORS = {
+        "TITLE": 7,
+        "SUB_TITLE": 2,
+        "CONTENT": 3,
+        "EXAMPLE": 7,
+        "WARNING": 4,
+        "ERROR": 2,
+        "DIR": 4,
+        "FILE": 5,
+        "HIDDEN": 2,
+        "HEADER": 3,
+        "STATS_DIR": 7,
+        "STATS_FILE": 5,
+        "STATS_HIDDEN": 2,
+        "STATS_SIZE": 3,
     }
-    return color_table[color_code].format(text)
+
+    @staticmethod
+    def color(text: str = "", color: int = COLORS["CONTENT"]) -> str:
+        """Unified color processing function."""
+        color_table = {
+            0: "{}",
+            1: "\033[1;30m{}\033[0m",
+            2: "\033[1;31m{}\033[0m",
+            3: "\033[1;32m{}\033[0m",
+            4: "\033[1;33m{}\033[0m",
+            5: "\033[1;34m{}\033[0m",
+            6: "\033[1;35m{}\033[0m",
+            7: "\033[1;36m{}\033[0m",
+            8: "\033[1;37m{}\033[0m",
+        }
+        return color_table[color].format(text)
 
 
-def debug(*args, file=None, append=True, **kwargs) -> None:
-    """Print debug information with file and line number"""
+class ColoredArgumentParser(argparse.ArgumentParser):
+    """Argument parser with colored help output."""
+
+    def _format_action_invocation(self, action: argparse.Action) -> str:
+        """Format argument invocation with CLI colors."""
+        if not action.option_strings:
+            (metavar,) = self._metavar_formatter(action, action.dest)(1)
+            return CLIStyle.color(metavar, CLIStyle.COLORS["SUB_TITLE"])
+
+        parts: list[str] = []
+        if action.nargs == 0:
+            parts.extend(
+                CLIStyle.color(option, CLIStyle.COLORS["SUB_TITLE"])
+                for option in action.option_strings
+            )
+        else:
+            args_string = self._format_args(action, action.dest.upper())
+            for option in action.option_strings:
+                parts.append(
+                    CLIStyle.color(
+                        f"{option} {args_string}",
+                        CLIStyle.COLORS["SUB_TITLE"],
+                    )
+                )
+        return ", ".join(parts)
+
+    def format_help(self) -> str:
+        """Render colored help text."""
+        formatter = self._get_formatter()
+        if self.description:
+            formatter.add_text(
+                CLIStyle.color(self.description, CLIStyle.COLORS["TITLE"])
+            )
+
+        formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
+        formatter.add_text(
+            CLIStyle.color("\nOptional Arguments:", CLIStyle.COLORS["TITLE"])
+        )
+
+        for action_group in self._action_groups:
+            formatter.start_section(action_group.title)
+            formatter.add_arguments(action_group._group_actions)
+            formatter.end_section()
+
+        if self.epilog:
+            formatter.add_text(self.epilog)
+
+        return formatter.format_help()
+
+
+def write_output(text: str = "") -> None:
+    """Write a line to stdout."""
+    print(text)
+
+
+def write_error(message: str) -> None:
+    """Write an error line with standard styling."""
+    write_output(CLIStyle.color(message, CLIStyle.COLORS["ERROR"]))
+
+
+def write_warning(message: str) -> None:
+    """Write a warning line with standard styling."""
+    write_output(CLIStyle.color(message, CLIStyle.COLORS["WARNING"]))
+
+
+def debug(*args: Any, file: str | None = None, append: bool = True, **kwargs: Any) -> None:
+    """
+    Print the arguments with their file and line number.
+    ```python
+    debug("Hello", "World", file="debug.log", append=False)
+
+    return = None
+    ```
+    """
     if not DEBUG_MODE:
         return
 
-    import inspect
-    import re
+    frame = inspect.currentframe()
+    caller_frame = frame.f_back if frame is not None else None
+    if caller_frame is None:
+        return
 
-    frame = inspect.currentframe().f_back
-    info = inspect.getframeinfo(frame)
+    info = inspect.getframeinfo(caller_frame)
+    output = (
+        f"{CLIStyle.color(os.path.basename(info.filename), 3)}: "
+        f"{CLIStyle.color(str(info.lineno), 4)} "
+        f"{CLIStyle.color('|', 7)} "
+    )
 
-    output = f"{color(os.path.basename(info.filename), 3)}: {color(str(info.lineno), 4)} {color('|', 7)} "
+    for arg in args:
+        output += f"{CLIStyle.color(str(arg), 2)} "
 
-    for i, arg in enumerate(args):
-        arg_str = str(arg)
-        output += f"{color(arg_str, 2)} "
-
-    for k, v in kwargs.items():
-        output += f"{color(k + '=', 6)}{color(str(v), 2)} "
+    for key, value in kwargs.items():
+        output += (
+            f"{CLIStyle.color(f'{key}=', 6)}"
+            f"{CLIStyle.color(str(value), 2)} "
+        )
 
     output += "\n"
 
-    if file:
-        mode = "a" if append else "w"
-        with open(file, mode) as f:
+    if file is not None:
+        file_mode = "a" if append else "w"
+        with open(file, file_mode, encoding="utf-8") as file_handle:
             clean_output = re.sub(r"\033\[\d+;\d+m|\033\[0m", "", output)
-            f.write(clean_output)
-    else:
-        print(output, end="")
+            file_handle.write(clean_output)
+        return
+
+    print(output, end="")
 
 
-def divider(text: str = None, char: str = "=") -> None:
-    """Print a divider line with optional text"""
-    divider_str = char * 10
-    text = text if text else "Divider"
-    print(
-        f"{color(divider_str, CLI_COLORS['TITLE'])} {text} {color(divider_str, CLI_COLORS['TITLE'])}"
-    )
+def create_example_text(
+    script_name: str,
+    examples: list[tuple[str, str]],
+    notes: list[str] | None = None,
+) -> str:
+    """Create the formatted examples section for help output."""
+    text = f"\n{CLIStyle.color('Examples:', CLIStyle.COLORS['SUB_TITLE'])}"
+    for description, command in examples:
+        text += (
+            f"\n  {CLIStyle.color(f'# {description}', CLIStyle.COLORS['EXAMPLE'])}"
+        )
+        text += (
+            f"\n  {CLIStyle.color(f'{script_name} {command}'.rstrip(), CLIStyle.COLORS['CONTENT'])}\n"
+        )
+
+    if notes:
+        text += f"\n{CLIStyle.color('Notes:', CLIStyle.COLORS['SUB_TITLE'])}"
+        for note in notes:
+            text += f"\n  {CLIStyle.color(f'- {note}', CLIStyle.COLORS['CONTENT'])}"
+
+    return text
 
 
-def human_readable_size(size: int, decimal_places: int = 2) -> str:
-    """Convert file size to human readable format"""
+def human_readable_size(
+    size: int,
+    decimal_places: int = DEFAULT_DECIMAL_PLACES,
+) -> str:
+    """Convert file size to human readable format."""
+    value = float(size)
     for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if abs(size) < 1024.0 or unit == "TB":
-            break
-        size /= 1024.0
-    return f"{size:>{decimal_places + 4}.{decimal_places}f} {unit}"
+        if abs(value) < 1024.0 or unit == "TB":
+            return f"{value:>{decimal_places + 4}.{decimal_places}f} {unit}"
+        value /= 1024.0
+    return f"{value:>{decimal_places + 4}.{decimal_places}f} TB"
 
 
-def is_hidden(filepath: str) -> bool:
-    """Check if a file is hidden"""
-    # Windows method
+def is_hidden(path: str) -> bool:
+    """Check whether the target path is hidden."""
     if sys.platform == "win32":
         try:
-            attrs = ctypes.windll.kernel32.GetFileAttributesW(filepath)
-            assert attrs != -1
-            result = bool(attrs & 2)
-        except (AttributeError, AssertionError):
-            result = False
-        return result
-    # Unix method
-    else:
-        return os.path.basename(filepath).startswith(".")
+            attributes = ctypes.windll.kernel32.GetFileAttributesW(path)
+            return attributes != -1 and bool(attributes & 2)
+        except AttributeError:
+            return False
+    return os.path.basename(path).startswith(".")
 
 
-def get_terminal_size() -> int:
-    """Get terminal width"""
-    try:
-        from shutil import get_terminal_size as get_size
-
-        columns, _ = get_size()
-        return columns
-    except ImportError:
-        return 80
+def get_terminal_width() -> int:
+    """Get terminal width."""
+    return shutil.get_terminal_size(fallback=(80, 24)).columns
 
 
-def natural_sort_key(s):
-    """Natural sort key function - sorts strings with numbers naturally"""
+def natural_sort_key(text: str) -> list[Any]:
+    """Generate a natural sort key."""
     return [
-        int(text) if text.isdigit() else text.lower() for text in re.split(r"(\d+)", s)
+        int(item) if item.isdigit() else item.lower()
+        for item in re.split(r"(\d+)", text)
     ]
 
 
-class FileFormatter:
-    """File formatting class for ls-alh"""
+class PathEntryAdapter:
+    """Adapter that provides a DirEntry-like interface for one path."""
 
-    def __init__(self, show_hidden=False, plain_output=False, show_owner=False):
-        """Initialize formatter with options"""
-        self.show_hidden = show_hidden
+    def __init__(self, path: str) -> None:
+        """Initialize a path adapter."""
+        normalized_path = os.path.normpath(path)
+        self.path = path
+        self.name = os.path.basename(normalized_path) or normalized_path
+
+    def is_dir(self) -> bool:
+        """Return whether the path is a directory."""
+        return os.path.isdir(self.path)
+
+    def stat(self) -> os.stat_result:
+        """Return file status."""
+        return os.stat(self.path)
+
+
+class FileFormatter:
+    """Format rows, headers, and statistics for display."""
+
+    def __init__(self, plain_output: bool = False, show_owner: bool = False) -> None:
+        """Initialize the file formatter."""
         self.plain_output = plain_output
         self.show_owner = show_owner
         self.can_show_owner = sys.platform != "win32"
 
-    def format_mode(self, entry) -> str:
-        """Format permission mode string for entry"""
+    def format_mode(self, entry: Any) -> str:
+        """Format the mode column."""
         mode = "d" if entry.is_dir() else "-"
         mode += "r" if os.access(entry.path, os.R_OK) else "-"
         mode += "w" if os.access(entry.path, os.W_OK) else "-"
         mode += "x" if os.access(entry.path, os.X_OK) else "-"
         return mode
 
-    def format_size(self, entry) -> str:
-        """Format size for entry"""
+    def format_size(self, entry: Any) -> str:
+        """Format the size column."""
         if entry.is_dir():
             return ""
         return human_readable_size(entry.stat().st_size)
 
-    def format_time(self, entry) -> str:
-        """Format last modified time for entry"""
-        info = entry.stat()
-        return datetime.fromtimestamp(info.st_mtime).strftime("%Y/%m/%d %H:%M:%S")
+    def format_time(self, entry: Any) -> str:
+        """Format the last modified time column."""
+        return datetime.fromtimestamp(entry.stat().st_mtime).strftime(
+            "%Y/%m/%d %H:%M:%S"
+        )
 
-    def format_owner(self, entry) -> tuple:
-        """Format owner and group information"""
+    def format_owner(self, entry: Any) -> tuple[str, str]:
+        """Format user and group columns."""
         if not self.show_owner or not self.can_show_owner:
             return "", ""
 
         try:
             stat_info = entry.stat()
-            uid = stat_info.st_uid
-            gid = stat_info.st_gid
-
-            user = pwd.getpwuid(uid).pw_name
-            group = grp.getgrgid(gid).gr_name
-
-            return user, group
-        except (ImportError, KeyError, AttributeError):
+            return (
+                pwd.getpwuid(stat_info.st_uid).pw_name,
+                grp.getgrgid(stat_info.st_gid).gr_name,
+            )
+        except (AttributeError, ImportError, KeyError):
             return "", ""
 
-    def get_color_for_entry(self, entry) -> tuple:
-        """Get appropriate color and format for entry"""
+    def get_name_style(self, entry: Any) -> tuple[int, str]:
+        """Return name color and display text."""
         hidden = is_hidden(entry.path)
-
         if hidden:
-            return (
-                Fore.RED,
-                f"{entry.name} [hide]" if not self.plain_output else entry.name,
-            )
-        elif entry.is_dir():
-            return Fore.YELLOW, entry.name
-        else:
-            return Fore.BLUE, entry.name
+            name = f"{entry.name} [hide]" if not self.plain_output else entry.name
+            return CLIStyle.COLORS["HIDDEN"], name
+        if entry.is_dir():
+            return CLIStyle.COLORS["DIR"], entry.name
+        return CLIStyle.COLORS["FILE"], entry.name
+
+    def _base_row(
+        self,
+        entry: Any,
+        mode_width: int,
+        size_width: int,
+        user_width: int,
+        group_width: int,
+        time_width: int,
+        name_width: int,
+    ) -> str:
+        """Build the plain row text before color application."""
+        mode = self.format_mode(entry)
+        size = self.format_size(entry)
+        _, name = self.get_name_style(entry)
+        modified_time = self.format_time(entry)
+        user, group = self.format_owner(entry)
+
+        row = f"{mode:<{mode_width}} {size:<{size_width}} "
+        if self.show_owner and self.can_show_owner:
+            row += f"{user:<{user_width}} {group:<{group_width}} "
+        row += f"{modified_time:<{time_width}} {name:<{name_width}}"
+        return row
 
     def format_row(
         self,
-        entry,
-        mode_width=5,
-        size_width=10,
-        user_width=8,
-        group_width=8,
-        time_width=20,
-        name_width=40,
+        entry: Any,
+        mode_width: int = MODE_WIDTH,
+        size_width: int = SIZE_WIDTH,
+        user_width: int = USER_WIDTH,
+        group_width: int = GROUP_WIDTH,
+        time_width: int = TIME_WIDTH,
+        name_width: int = NAME_WIDTH,
     ) -> str:
-        """Format a row for the entry"""
-        mode = self.format_mode(entry)
-        size = self.format_size(entry)
-        time = self.format_time(entry)
-        color_code, name = self.get_color_for_entry(entry)
-        user, group = self.format_owner(entry)
-
-        owner_part = (
-            f"{user:<{user_width}} {group:<{group_width}} "
-            if self.show_owner and self.can_show_owner
-            else ""
+        """Format one display row."""
+        row = self._base_row(
+            entry,
+            mode_width,
+            size_width,
+            user_width,
+            group_width,
+            time_width,
+            name_width,
         )
-
         if self.plain_output:
-            base = f"{mode:<{mode_width}} {size:<{size_width}} "
-            if self.show_owner and self.can_show_owner:
-                base += f"{user:<{user_width}} {group:<{group_width}} "
-            base += f"{time:<{time_width}} {name:<{name_width}}"
-            return base
-        else:
-            if is_hidden(entry.path):
-                base = Fore.RED + f"{mode:<{mode_width}} {size:<{size_width}} "
-                if self.show_owner and self.can_show_owner:
-                    base += f"{user:<{user_width}} {group:<{group_width}} "
-                base += f"{time:<{time_width}} {name:<{name_width}}" + Style.RESET_ALL
-                return base
-            elif entry.is_dir():
-                base = Fore.YELLOW + f"{mode:<{mode_width}} {size:<{size_width}} "
-                if self.show_owner and self.can_show_owner:
-                    base += f"{user:<{user_width}} {group:<{group_width}} "
-                base += f"{time:<{time_width}} {name:<{name_width}}" + Style.RESET_ALL
-                return base
-            else:
-                base = Fore.BLUE + f"{mode:<{mode_width}} {size:<{size_width}} "
-                if self.show_owner and self.can_show_owner:
-                    base += f"{user:<{user_width}} {group:<{group_width}} "
-                base += f"{time:<{time_width}} {name:<{name_width}}" + Style.RESET_ALL
-                return base
+            return row
+
+        color_code, _ = self.get_name_style(entry)
+        return CLIStyle.color(row, color_code)
 
     def format_header(
         self,
-        mode_width=5,
-        size_width=10,
-        user_width=8,
-        group_width=8,
-        time_width=20,
-        name_width=40,
+        mode_width: int = MODE_WIDTH,
+        size_width: int = SIZE_WIDTH,
+        user_width: int = USER_WIDTH,
+        group_width: int = GROUP_WIDTH,
+        time_width: int = TIME_WIDTH,
+        name_width: int = NAME_WIDTH,
     ) -> str:
-        """Format the header row"""
-        owner_part = (
-            f"{'User':<{user_width}} {'Group':<{group_width}} "
-            if self.show_owner and self.can_show_owner
-            else ""
-        )
+        """Format the header row."""
+        row = f"{'Mode':<{mode_width}} {'Size':<{size_width}} "
+        if self.show_owner and self.can_show_owner:
+            row += f"{'User':<{user_width}} {'Group':<{group_width}} "
+        row += f"{'Last Modified':<{time_width}} {'Name':<{name_width}}"
 
         if self.plain_output:
-            base = f"{'Mode':<{mode_width}} {'Size':<{size_width}} "
-            if self.show_owner and self.can_show_owner:
-                base += f"{'User':<{user_width}} {'Group':<{group_width}} "
-            base += f"{'Last Modified':<{time_width}} {'Name':<{name_width}}"
-            return base
-        else:
-            base = Fore.GREEN + f"{'Mode':<{mode_width}} {'Size':<{size_width}} "
-            if self.show_owner and self.can_show_owner:
-                base += f"{'User':<{user_width}} {'Group':<{group_width}} "
-            base += (
-                f"{'Last Modified':<{time_width}} {'Name':<{name_width}}"
-                + Style.RESET_ALL
-            )
-            return base
+            return row
+        return CLIStyle.color(row, CLIStyle.COLORS["HEADER"])
 
-    def format_stats(self, total_dirs, total_files, hidden_count, total_size) -> str:
-        """Format statistics output"""
-        stats = [
-            (
-                f"{Fore.CYAN if not self.plain_output else ''}Dirs:{Style.RESET_ALL if not self.plain_output else ''}",
-                total_dirs,
-            ),
-            (
-                f"{Fore.BLUE if not self.plain_output else ''}Files:{Style.RESET_ALL if not self.plain_output else ''}",
-                total_files,
-            ),
-            (
-                f"{Fore.RED if not self.plain_output else ''}Hidden:{Style.RESET_ALL if not self.plain_output else ''}",
-                hidden_count,
-            ),
-            (
-                f"{Fore.GREEN if not self.plain_output else ''}Total Size:{Style.RESET_ALL if not self.plain_output else ''}",
-                human_readable_size(total_size),
-            ),
-        ]
-        return "\n" + " | ".join(f"{label} {value}" for label, value in stats)
+    def format_stats(
+        self,
+        total_dirs: int,
+        total_files: int,
+        hidden_count: int,
+        total_size: int,
+    ) -> str:
+        """Format the statistics block."""
+        if self.plain_output:
+            stats = [
+                f"Dirs: {total_dirs}",
+                f"Files: {total_files}",
+                f"Hidden: {hidden_count}",
+                f"Total Size: {human_readable_size(total_size)}",
+            ]
+        else:
+            stats = [
+                f"{CLIStyle.color('Dirs:', CLIStyle.COLORS['STATS_DIR'])} {total_dirs}",
+                f"{CLIStyle.color('Files:', CLIStyle.COLORS['STATS_FILE'])} {total_files}",
+                f"{CLIStyle.color('Hidden:', CLIStyle.COLORS['STATS_HIDDEN'])} {hidden_count}",
+                (
+                    f"{CLIStyle.color('Total Size:', CLIStyle.COLORS['STATS_SIZE'])} "
+                    f"{human_readable_size(total_size)}"
+                ),
+            ]
+        return "\n" + " | ".join(stats)
 
 
 class DirectoryLister:
-    """Directory listing class for ls-alh"""
+    """List one directory or one file target."""
 
     def __init__(
         self,
-        path=".",
-        show_all=False,
-        sort_by="name",
-        plain_output=False,
-        detail_level=1,
-        show_owner=False,
-    ):
-        """Initialize with options"""
+        path: str = DEFAULT_PATH,
+        show_all: bool = False,
+        sort_by: str = DEFAULT_SORT,
+        plain_output: bool = False,
+        detail_level: int = DEFAULT_DETAIL_LEVEL,
+        show_owner: bool = False,
+    ) -> None:
+        """Initialize the directory lister."""
         self.path = path
         self.show_all = show_all
         self.sort_by = sort_by
         self.plain_output = plain_output
         self.detail_level = detail_level
         self.show_owner = show_owner
-        self.formatter = FileFormatter(show_all, plain_output, show_owner)
-
-        # Statistics
+        self.single_target = False
+        self.formatter = FileFormatter(
+            plain_output=plain_output,
+            show_owner=show_owner,
+        )
         self.total_files = 0
         self.total_dirs = 0
         self.total_size = 0
         self.hidden_count = 0
 
-    def get_sorted_entries(self) -> list:
-        """Get sorted directory entries"""
+    def _emit_error(self, message: str) -> None:
+        """Emit an error according to the current output mode."""
+        if self.plain_output:
+            write_output(message)
+            return
+        write_error(message)
+
+    def _sort_key(self, entry: Any) -> tuple[Any, ...]:
+        """Build a stable directory-first sort key."""
+        is_file = not entry.is_dir()
+        stat_info = entry.stat()
+        name_key = natural_sort_key(entry.name)
+
+        if self.sort_by == "size":
+            return (is_file, -stat_info.st_size, name_key)
+        if self.sort_by == "time":
+            return (is_file, -stat_info.st_mtime, name_key)
+        return (is_file, name_key)
+
+    def get_entries(self) -> list[Any]:
+        """Get entries for either a directory target or a single file target."""
         try:
+            if os.path.isfile(self.path):
+                self.single_target = True
+                return [PathEntryAdapter(self.path)]
+
+            if not os.path.isdir(self.path):
+                raise NotADirectoryError(self.path)
+
             with os.scandir(self.path) as scanner:
                 entries = list(scanner)
-
-                # First sort directories before files
-                entries = sorted(
-                    entries, key=lambda entry: entry.is_dir(), reverse=True
-                )
-
-                # Then apply user-specified sort with natural sorting
-                if self.sort_by == "name":
-                    entries = sorted(
-                        entries, key=lambda entry: natural_sort_key(entry.name)
-                    )
-                elif self.sort_by == "size":
-                    # Use natural sorting as secondary sort criteria
-                    entries = sorted(
-                        entries,
-                        key=lambda entry: (
-                            entry.stat().st_size,
-                            natural_sort_key(entry.name),
-                        ),
-                        reverse=True,
-                    )
-                elif self.sort_by == "time":
-                    # Use natural sorting as secondary sort criteria
-                    entries = sorted(
-                        entries,
-                        key=lambda entry: (
-                            entry.stat().st_mtime,
-                            natural_sort_key(entry.name),
-                        ),
-                        reverse=True,
-                    )
-
-                return entries
-        except PermissionError:
-            if not self.plain_output:
-                print(
-                    f"{Fore.RED}Error: No permission to access directory {self.path}{Style.RESET_ALL}"
-                )
-            else:
-                print(f"Error: No permission to access directory {self.path}")
-            return []
+            return sorted(entries, key=self._sort_key)
         except FileNotFoundError:
-            if not self.plain_output:
-                print(
-                    f"{Fore.RED}Error: Directory {self.path} does not exist{Style.RESET_ALL}"
-                )
-            else:
-                print(f"Error: Directory {self.path} does not exist")
+            self._emit_error(f"Error: Path '{self.path}' does not exist")
             return []
-        except Exception as e:
-            if not self.plain_output:
-                print(f"{Fore.RED}Error: {str(e)}{Style.RESET_ALL}")
-            else:
-                print(f"Error: {str(e)}")
+        except PermissionError:
+            self._emit_error(f"Error: No permission to access '{self.path}'")
+            return []
+        except NotADirectoryError:
+            self._emit_error(
+                f"Error: Path '{self.path}' is not a directory or regular file"
+            )
+            return []
+        except Exception as error:
+            self._emit_error(f"Error: {str(error)}")
             return []
 
-    def process_entry(self, entry) -> None:
-        """Process and collect statistics for an entry"""
+    def process_entry(self, entry: Any) -> bool:
+        """Update statistics and decide whether the entry should be displayed."""
         if is_hidden(entry.path):
             self.hidden_count += 1
-            if not self.show_all:
+            if not self.show_all and not self.single_target:
                 return False
 
         if entry.is_dir():
@@ -422,260 +529,245 @@ class DirectoryLister:
 
         return True
 
-    def display_detailed_list(self, entries) -> None:
-        """Display detailed list with permissions, size and time"""
-        mode_width = 5
-        size_width = 10
-        user_width = 8
-        group_width = 8
-        time_width = 20
-        name_width = 40
-
-        # Print header
-        print(
+    def display_detailed_list(self, entries: list[Any]) -> None:
+        """Display a detailed listing."""
+        write_output(
             self.formatter.format_header(
-                mode_width, size_width, user_width, group_width, time_width, name_width
+                MODE_WIDTH,
+                SIZE_WIDTH,
+                USER_WIDTH,
+                GROUP_WIDTH,
+                TIME_WIDTH,
+                NAME_WIDTH,
             )
         )
 
-        # Process and print entries
         for entry in entries:
             if not self.process_entry(entry):
                 continue
-
-            print(
+            write_output(
                 self.formatter.format_row(
                     entry,
-                    mode_width,
-                    size_width,
-                    user_width,
-                    group_width,
-                    time_width,
-                    name_width,
+                    MODE_WIDTH,
+                    SIZE_WIDTH,
+                    USER_WIDTH,
+                    GROUP_WIDTH,
+                    TIME_WIDTH,
+                    NAME_WIDTH,
                 )
             )
 
-    def display_simple_list(self, entries) -> None:
-        """Display simple list with just names"""
-        terminal_width = get_terminal_size()
-        max_name_length = max([len(entry.name) for entry in entries]) + 4
-        cols = max(1, terminal_width // max_name_length)
+    def display_simple_list(self, entries: list[Any]) -> None:
+        """Display a compact listing."""
+        visible_entries = [
+            entry
+            for entry in entries
+            if self.process_entry(entry)
+        ]
+        if not visible_entries:
+            return
 
-        row = []
-        for i, entry in enumerate(entries):
-            if not self.process_entry(entry):
-                continue
+        max_name_length = max(len(entry.name) for entry in visible_entries) + NAME_PADDING
+        columns = max(1, get_terminal_width() // max_name_length)
+        row: list[str] = []
 
-            color_code, name = self.formatter.get_color_for_entry(entry)
-
+        for index, entry in enumerate(visible_entries, start=1):
+            color_code, name = self.formatter.get_name_style(entry)
             if self.plain_output:
                 row.append(f"{name:<{max_name_length}}")
             else:
-                row.append(f"{color_code}{name:<{max_name_length}}{Style.RESET_ALL}")
+                row.append(
+                    CLIStyle.color(f"{name:<{max_name_length}}", color_code)
+                )
 
-            if (i + 1) % cols == 0:
-                print("".join(row))
+            if index % columns == 0:
+                write_output("".join(row))
                 row = []
 
         if row:
-            print("".join(row))
+            write_output("".join(row))
 
-    def list_directory(self) -> None:
-        """List directory contents"""
-        entries = self.get_sorted_entries()
-
+    def list_target(self) -> int:
+        """List directory or file content and print statistics."""
+        entries = self.get_entries()
         if not entries:
-            return
+            return 1
 
-        if self.detail_level >= 1:
-            self.display_detailed_list(entries)
-        else:
+        if self.detail_level == 0:
             self.display_simple_list(entries)
+        else:
+            self.display_detailed_list(entries)
 
-        # Print statistics
-        print(
+        write_output(
             self.formatter.format_stats(
-                self.total_dirs, self.total_files, self.hidden_count, self.total_size
+                self.total_dirs,
+                self.total_files,
+                self.hidden_count,
+                self.total_size,
             )
         )
+        return 0
 
 
-def create_example_text() -> str:
-    """Create formatted example text for help menu"""
-    script_name = os.path.basename(sys.argv[0])
-
+def build_examples(script_name: str) -> str:
+    """Build help examples and notes."""
     examples = [
         ("List current directory", ""),
         ("List all files including hidden", "-a"),
-        ("List files in a specific directory", "-d /path/to/dir"),
-        ("Sort files by size", "-s size"),
-        ("Sort files by modification time", "-s time"),
-        ("Simple display mode", "-l 0"),
-        ("Show owner and group (Unix/Linux)", "-o"),
-        ("Plain output (no colors)", "-p"),
-        ("Debug mode", "--debug"),
+        ("List a specific directory", "/path/to/dir"),
+        ("List a specific file", "/path/to/file"),
+        ("Sort entries by size", "-s size"),
+        ("Sort entries by modification time", "-s time"),
+        ("Use simple display mode", "-l 0"),
+        ("Show owner and group on Unix-like systems", "-o"),
+        ("Disable colors", "-p"),
+        ("Enable debug logging", "--log"),
     ]
-
-    text = f"\n{color('Examples:', CLI_COLORS['SUB_TITLE'])}"
-
-    for desc, cmd in examples:
-        text += f"\n  {color(f'# {desc}', CLI_COLORS['EXAMPLE'])}"
-        text += f"\n  {color(f'{script_name} {cmd}', CLI_COLORS['CONTENT'])}"
-        text += "\n"
-
     notes = [
-        "The -a/--all option shows hidden files",
-        "The -d/--dir option specifies which directory to list",
-        "The -s/--sort option can sort by name, size, or time",
-        "The -l/--level option sets detail level (0=simple, 1=detailed)",
-        "The -o/--owner option shows user and group (Unix/Linux only)",
-        "Hidden files are displayed in red",
-        "Directories are displayed in yellow",
-        "Regular files are displayed in blue",
+        "PATH accepts either a directory or a file.",
+        "Directories always appear before regular files.",
+        "The -a/--all option shows hidden files in directory listings.",
+        "A hidden file passed as PATH is still shown explicitly.",
+        "The -l/--level option supports 0 for simple and 1 for detailed output.",
     ]
-
-    text += f"\n{color('Notes:', CLI_COLORS['SUB_TITLE'])}"
-    for note in notes:
-        text += f"\n  {color(f'- {note}', CLI_COLORS['CONTENT'])}"
-
-    return text
+    return create_example_text(script_name, examples, notes)
 
 
-def create_help_text(parser: argparse.ArgumentParser) -> str:
-    """Create formatted help text for the parser"""
-    help_parts = []
-
-    # Add description
-    if parser.description:
-        help_parts.append(color(parser.description, CLI_COLORS["TITLE"]))
-        help_parts.append("")
-
-    # Add usage
-    prog_name = parser.prog
-    help_parts.append(f"{color('Usage:', CLI_COLORS['TITLE'])} {prog_name} [OPTIONS]")
-    help_parts.append("")
-
-    # Add options
-    help_parts.append(color("Options:", CLI_COLORS["TITLE"]))
-    help_parts.extend(
-        [
-            f"  {color('-h, --help', CLI_COLORS['SUB_TITLE'])}         Show this help message and exit",
-            f"  {color('-d, --dir', CLI_COLORS['SUB_TITLE'])} DIR      Directory to list (default: current directory)",
-            f"  {color('-a, --all', CLI_COLORS['SUB_TITLE'])}          Show all files including hidden files",
-            f"  {color('-s, --sort', CLI_COLORS['SUB_TITLE'])} SORT    Sort by name, size, or time (default: name)",
-            f"  {color('-l, --level', CLI_COLORS['SUB_TITLE'])} LEVEL  Detail level (0=simple, 1=detailed) (default: 1)",
-            f"  {color('-o, --owner', CLI_COLORS['SUB_TITLE'])}        Show owner and group information (Unix/Linux only)",
-            f"  {color('-p, --plain', CLI_COLORS['SUB_TITLE'])}        Plain output (no colors)",
-            f"  {color('--debug', CLI_COLORS['SUB_TITLE'])}            Enable debug mode",
-            f"  {color('-v, --version', CLI_COLORS['SUB_TITLE'])}      Show program version",
-        ]
-    )
-    help_parts.append("")
-
-    # Add examples
-    help_parts.append(create_example_text())
-
-    return "\n".join(help_parts)
-
-
-def main():
-    parser = argparse.ArgumentParser(
+def build_parser() -> ColoredArgumentParser:
+    """Build the CLI argument parser."""
+    script_name = os.path.basename(sys.argv[0])
+    parser = ColoredArgumentParser(
+        prog=script_name,
         description="ls-alh - Enhanced directory listing with colors and statistics",
-        add_help=False,
+        epilog=build_examples(script_name),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    # Options
     parser.add_argument(
-        "-h", "--help", action="store_true", help="Show this help message and exit"
-    )
-    parser.add_argument(
-        "-d",
-        "--dir",
+        "path",
         nargs="?",
-        default=".",
-        type=str,
-        help="Directory to list (default: current directory)",
+        default=None,
+        metavar=CLIStyle.color("PATH", CLIStyle.COLORS["SUB_TITLE"]),
+        help=CLIStyle.color(
+            "File or directory to list (default: current directory)",
+            CLIStyle.COLORS["CONTENT"],
+        ),
     )
     parser.add_argument(
-        "-a", "--all", action="store_true", help="Show all files including hidden files"
+        "-a",
+        "--all",
+        action="store_true",
+        help=CLIStyle.color(
+            "Show all files including hidden files",
+            CLIStyle.COLORS["CONTENT"],
+        ),
     )
     parser.add_argument(
         "-s",
         "--sort",
         choices=["name", "size", "time"],
-        default="name",
-        help="Sort by name, size, or time (default: name)",
+        default=DEFAULT_SORT,
+        metavar=CLIStyle.color("SORT", CLIStyle.COLORS["SUB_TITLE"]),
+        help=CLIStyle.color(
+            "Sort by name, size, or time (default: name)",
+            CLIStyle.COLORS["CONTENT"],
+        ),
     )
     parser.add_argument(
         "-l",
         "--level",
         type=int,
         choices=[0, 1],
-        default=1,
-        help="Detail level (0=simple, 1=detailed) (default: 1)",
-    )
-    parser.add_argument(
-        "-p", "--plain", action="store_true", help="Plain output (no colors)"
+        default=DEFAULT_DETAIL_LEVEL,
+        metavar=CLIStyle.color("LEVEL", CLIStyle.COLORS["SUB_TITLE"]),
+        help=CLIStyle.color(
+            "Detail level (0=simple, 1=detailed)",
+            CLIStyle.COLORS["CONTENT"],
+        ),
     )
     parser.add_argument(
         "-o",
         "--owner",
         action="store_true",
-        help="Show owner and group information (Unix/Linux only)",
+        help=CLIStyle.color(
+            "Show owner and group information (Unix/Linux only)",
+            CLIStyle.COLORS["CONTENT"],
+        ),
     )
-    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument(
+        "-p",
+        "--plain",
+        action="store_true",
+        help=CLIStyle.color(
+            "Plain output without colors",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
+    parser.add_argument(
+        "--log",
+        "--debug",
+        dest="log",
+        action="store_true",
+        help=CLIStyle.color(
+            "Enable debug mode",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
     parser.add_argument(
         "-v",
         "--version",
         action="version",
         version=f"%(prog)s {VERSION}",
-        help="Show program version",
+        help=CLIStyle.color(
+            "Show program version",
+            CLIStyle.COLORS["CONTENT"],
+        ),
     )
+    return parser
 
+
+def resolve_target_path(args: argparse.Namespace) -> str:
+    """Resolve PATH into the final target path."""
+    if args.path is None:
+        return DEFAULT_PATH
+    return args.path
+
+
+def main() -> int:
+    """Main program logic."""
+    parser = build_parser()
     args = parser.parse_args()
 
-    # Show help
-    if args.help:
-        print(create_help_text(parser))
-        return
+    global DEBUG_MODE
+    DEBUG_MODE = args.log
+    if DEBUG_MODE:
+        debug("Debug mode enabled", target=resolve_target_path(args))
 
-    if args.debug:
-        global DEBUG_MODE
-        DEBUG_MODE = True
-        debug("Debug mode enabled")
-
-    # Check if owner display is supported
     if args.owner and sys.platform == "win32":
-        print(
-            color(
-                "Warning: Owner/group display is not supported on Windows",
-                CLI_COLORS["WARNING"],
-            )
-        )
+        write_warning("Warning: Owner/group display is not supported on Windows")
 
-    # Run directory listing
     lister = DirectoryLister(
-        path=args.dir,
+        path=resolve_target_path(args),
         show_all=args.all,
         sort_by=args.sort,
         plain_output=args.plain,
         detail_level=args.level,
         show_owner=args.owner,
     )
-
-    lister.list_directory()
+    return lister.list_target()
 
 
 if __name__ == "__main__":
     try:
-        main()
+        sys.exit(main())
+    except FileNotFoundError as error:
+        write_error(f"Error: File not found: {str(error)}")
+        sys.exit(1)
     except KeyboardInterrupt:
-        print(color("\nOperation cancelled by user", CLI_COLORS["ERROR"]))
+        write_error("Operation cancelled by user")
         sys.exit(0)
-    except Exception as e:
+    except Exception as error:
         if DEBUG_MODE:
-            import traceback
-
             traceback.print_exc()
-        print(color(f"\nError: {str(e)}", CLI_COLORS["ERROR"]))
+        write_error(f"Error: {str(error)}")
         sys.exit(1)
