@@ -155,6 +155,8 @@ EOF
 cat <<EOF >/etc/pip.conf
 [global]
 index-url = https://mirrors.ustc.edu.cn/pypi/simple
+break-system-packages = true
+user = true
 [install]
 trusted-host = https://mirrors.ustc.edu.cn
 EOF
@@ -186,7 +188,7 @@ for user in "${VALID_USER_LIST[@]}"; do
 		sudo -u $user git config --global pull.rebase true
 
 		sudo -u $user _curl "/home/$user/.gitignore_global" $GITHUB_URL_BASE/mtf/.gitignore_global
-		sudo -u $user git config --global include.path "/home/$user/.gitignore_global"
+		sudo -u $user git config --global core.excludesfile "/home/$user/.gitignore_global"
 
 		sudo -u $user git config --global --list
 		ln -s "/home/$user/.gitconfig" "/root/.gitconfig"
