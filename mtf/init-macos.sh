@@ -44,11 +44,17 @@ brew install curl net-tools openvpn rsync proxychains-ng jq tcp-traceroute iprou
 	ghidra rizin radare2 patchelf \
 	nmap hydra john telnet \
 	scroll-reverser \
-	nmap hydra john telnet fd scroll-reverser android-platform-tools tree glow btop pidof
+	nmap hydra john telnet fd scroll-reverser android-platform-tools tree glow btop pidof \
+	toml
 
 pip install setuptools setuptools_rust datetime argparse ipython getpass4 colorama cryptography ifaddr \
   virtualenv ropgadget pwntools shodan \
   ollama readchar rich watchdog psutil faker python-docx
+
+# vim
+_curl /tmp/tmp/unix-install-vim.sh $GITHUB_URL_BASE/mtf/unix-install-vim.sh
+chmod +x /tmp/tmp/unix-install-vim.sh
+/tmp/tmp/unix-install-vim.sh install
 
 # 到 System Settings → General → Sharing → Remote Login 启用 ssh 登录
 

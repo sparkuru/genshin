@@ -172,7 +172,8 @@ for user in "${VALID_USER_LIST[@]}"; do
 		watchdog psutil \
 		legacy-cgi \
 		pyinstaller staticx \
-		faker python-docx
+		faker python-docx \
+		toml
 done
 
 # git
@@ -196,7 +197,7 @@ for user in "${VALID_USER_LIST[@]}"; do
 done
 
 # vim
-curl -fLo /tmp/tmp/unix-install-vim.sh $GITHUB_URL_BASE/mtf/unix-install-vim.sh
+_curl /tmp/tmp/unix-install-vim.sh $GITHUB_URL_BASE/mtf/unix-install-vim.sh
 chmod +x /tmp/tmp/unix-install-vim.sh
 for user in "${VALID_USER_LIST[@]}"; do
 	sudo -u $user /tmp/tmp/unix-install-vim.sh
