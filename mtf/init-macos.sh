@@ -7,6 +7,26 @@ PROXY_POINT="http://198.18.0.1:1080"
 GITHUB_URL_BASE="https://raw.githubusercontent.com/sparkuru/genshin/main"
 export all_proxy="$PROXY_POINT"
 
+to_install_list=(
+	curl net-tools openvpn rsync proxychains-ng jq tcp-traceroute iproute2mac
+	gnupg2 binutils file fd-find btop tmux strace coreutils
+	scons squashfs subversion swig texinfo upx unzip 7z-zip git
+	python
+    qemu
+	fzf ripgrep vim
+	docker docker-compose colima
+	ghidra rizin radare2 patchelf
+	nmap hydra john telnet scroll-reverser
+	nmap hydra john telnet fd scroll-reverser android-platform-tools tree glow btop pidof
+	node
+	openjdk
+)
+
+brew install ${to_install_list[@]}
+
+# java, jdk
+sudo ln -sfn /opt/homebrew/opt/openjdk/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk
+
 # git
 git config --global user.email wkyuu@majo.im
 git config --global user.name sparkuru
@@ -34,22 +54,9 @@ user = true
 trusted-host = https://mirrors.ustc.edu.cn
 EOF
 
-brew install curl net-tools openvpn rsync proxychains-ng jq tcp-traceroute iproute2mac \
-	gnupg2 binutils file fd-find btop tmux strace coreutils \
-	scons squashfs subversion swig texinfo upx unzip 7z-zip git \
-	python \
-    qemu \
-	fzf ripgrep vim \
-	docker docker-compose colima \
-	ghidra rizin radare2 patchelf \
-	nmap hydra john telnet \
-	scroll-reverser \
-	nmap hydra john telnet fd scroll-reverser android-platform-tools tree glow btop pidof \
-	toml
-
 pip install setuptools setuptools_rust datetime argparse ipython getpass4 colorama cryptography ifaddr \
   virtualenv ropgadget pwntools shodan \
-  ollama readchar rich watchdog psutil faker python-docx
+  ollama readchar rich watchdog psutil faker python-docx toml
 
 # vim
 _curl /tmp/tmp/unix-install-vim.sh $GITHUB_URL_BASE/mtf/unix-install-vim.sh
