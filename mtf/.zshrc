@@ -1051,6 +1051,11 @@ case $os_type in
 esac
 export PATH=$export_path
 
+## agent cli env
+if [[ -f "$HOME/.config/agent-cli-env" ]]; then
+    source $HOME/.config/agent-cli-env
+fi
+
 # alias
 ## condition alias
 if [[ -f "$HOME/$leader_path_name/game/minecraft/tool/rcon.py" ]]; then
