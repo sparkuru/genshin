@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-# pip install colorama argparse
+# pip install colorama requests
 # Thanks to https://ipapi.co for providing the API
 
-import subprocess
 import json
 import argparse
 import os
 import sys
+import requests
 
 if sys.platform == "win32":
     from colorama import init as colorama_init
@@ -119,20 +119,20 @@ class Config:
     BASE_URL = "https://ipapi.co"
 
 
-def execute_curl(url):
-    """Execute curl command and return response"""
+def execute_request(url, timeout=5):
+    """Execute HTTP request and return response text"""
     try:
-        result = subprocess.run(
-            ["curl", "-s", "--connect-timeout", "5", "-m", "10", url],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
+        response = requests.get(
+            url,
+            timeout=(min(timeout, 5), max(timeout, 10)),
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "ip-status.py/1.0 (+requests)",
+            },
         )
-        if result.returncode == 0:
-            return result.stdout.strip()
-        else:
-            raise Exception(f"Request failed: {result.stderr}")
-    except subprocess.TimeoutExpired:
+        response.raise_for_status()
+        return response.text.strip()
+    except requests.Timeout:
         print(CLIStyle.color("\nError: Request timed out", CLIStyle.COLORS["ERROR"]))
         print(
             CLIStyle.color(
@@ -141,15 +141,15 @@ def execute_curl(url):
             )
         )
         exit(1)
-    except Exception as e:
+    except requests.RequestException as e:
         print(
             CLIStyle.color(
-                f"\nError executing curl command: {str(e)}", CLIStyle.COLORS["ERROR"]
+                f"\nError requesting API: {str(e)}", CLIStyle.COLORS["ERROR"]
             )
         )
         print(
             CLIStyle.color(
-                "Please make sure curl is installed and network is accessible",
+                "Please make sure requests is installed and network is accessible",
                 CLIStyle.COLORS["WARNING"],
             )
         )
@@ -168,7 +168,7 @@ class IPRSSClient:
             url = f"{Config.BASE_URL}/{self.ip}/json/"
         else:
             url = f"{Config.BASE_URL}/json/"
-        response = execute_curl(url)
+        response = execute_request(url, timeout=self.args["timeout"])
         response_json = json.loads(response)
 
         if response_json.get("ip"):
@@ -225,13 +225,17 @@ def check_ip_and_return_str(ip: str) -> str:
     ip_match = re.search(r"\d+\.\d+\.\d+\.\d+", ip)
     if ip_match:
         return ip_match.group()
-    
+
     domain = re.sub(r"^(https?://)?", "", ip)
     domain = re.sub(r"[:/].*$", "", domain)
-    
+
     try:
         resolved_ip = socket.gethostbyname(domain)
-        print(CLIStyle.color(f"Resolved {domain} -> {resolved_ip}", CLIStyle.COLORS["WARNING"]))
+        print(
+            CLIStyle.color(
+                f"Resolved {domain} -> {resolved_ip}", CLIStyle.COLORS["WARNING"]
+            )
+        )
         return resolved_ip
     except socket.gaierror:
         raise AssertionError(f"Cannot resolve domain or find valid IP: {domain}")
@@ -243,7 +247,7 @@ def main():
     examples = [
         ("Check your own IP", ""),
         ("Check specific IP", "8.8.8.8"),
-        ("Show curl command", "-c"),
+        ("Show request URL", "-c"),
         ("Output as JSON", "-f json"),
     ]
 
@@ -275,7 +279,7 @@ def main():
         "--cmd",
         action="store_true",
         help=CLIStyle.color(
-            "Show corresponding curl command", CLIStyle.COLORS["CONTENT"]
+            "Show corresponding request URL", CLIStyle.COLORS["CONTENT"]
         ),
     )
     ap.add_argument(
@@ -306,18 +310,18 @@ def main():
         args["ip"] = ""
 
     if args["cmd"]:
-        print(CLIStyle.color("curl command:", CLIStyle.COLORS["TITLE"]))
+        print(CLIStyle.color("Request URL:", CLIStyle.COLORS["TITLE"]))
         if args["ip"]:
             print(
                 CLIStyle.color(
-                    f"{' ' * 2}curl {Config.BASE_URL}/{args['ip']}/json/",
+                    f"{' ' * 2}{Config.BASE_URL}/{args['ip']}/json/",
                     CLIStyle.COLORS["CONTENT"],
                 )
             )
         else:
             print(
                 CLIStyle.color(
-                    f"{' ' * 2}curl {Config.BASE_URL}/json/", CLIStyle.COLORS["CONTENT"]
+                    f"{' ' * 2}{Config.BASE_URL}/json/", CLIStyle.COLORS["CONTENT"]
                 )
             )
         exit()

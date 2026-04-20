@@ -3,6 +3,7 @@
 *.pdf
 
 .claude
+.codex
 .cursor
 .pmt
 .venv

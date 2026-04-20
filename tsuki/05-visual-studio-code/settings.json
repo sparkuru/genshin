@@ -91,6 +91,10 @@
 	"containers.enableComposeLanguageService": false,
 	"terminal.integrated.initialHint.copilotCli": false,
 	"chat.disableAIFeatures": true,
+	"[python]": {
+		"editor.defaultFormatter": "charliermarsh.ruff"
+	},
+	"extensions.ignoreRecommendations": true,
 	// "files.watcherExclude": {
 	// 	"**/archive/**": true,
 	// 	"**/.git/objects/**": true,
