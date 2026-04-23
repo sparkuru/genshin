@@ -16,12 +16,6 @@ char_threshold=60
 max_merge_cols=3
 format_table=true
 
-dont_cover_file_index=(
-	"01"
-	"02"
-	"03"
-)
-
 tool_dir="$link_dir"
 
 flag=0
@@ -156,7 +150,6 @@ for file in "${file_list[@]}"; do
 		filename="${filename%.[mM][dD]}"
 		;;
 	esac
-	file_index="${filename%%-*}"
 	case "$file" in
 	/*)
 		src_markdown_file="$file"
@@ -178,19 +171,6 @@ for file in "${file_list[@]}"; do
 			echo -e "${red}[$(date +%Y-%m-%d\ %H:%M:%S)] ${dst_docx_file##*/} already exists, skip...${reset}"
 			continue
 		fi
-	fi
-
-	skip_this_file=0
-	for ignore_index in "${dont_cover_file_index[@]}"; do
-		if [ "$file_index" = "$ignore_index" ]; then
-			skip_this_file=1
-			break
-		fi
-	done
-
-	if [ $skip_this_file -eq 1 ]; then
-		echo -e "${yellow}[$(date +%Y-%m-%d\ %H:%M:%S)] ${dst_docx_file##*/} is in the ignore list, skip...${reset}"
-		continue
 	fi
 
 	echo -e "${green}[$(date +%Y-%m-%d\ %H:%M:%S)] convert \n ${src_markdown_file##*/} --> ${dst_docx_file##*/}${reset}"

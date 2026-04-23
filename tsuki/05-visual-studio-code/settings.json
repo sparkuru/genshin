@@ -87,32 +87,45 @@
 	"docker.enableDockerComposeLanguageService": false,
 	"claudeCode.preferredLocation": "panel",
 	"workbench.editor.editorActionsLocation": "titleBar",
-	"workbench.layoutControl.enabled": false,
 	"containers.enableComposeLanguageService": false,
 	"terminal.integrated.initialHint.copilotCli": false,
-	"chat.disableAIFeatures": true,
 	"[python]": {
 		"editor.defaultFormatter": "charliermarsh.ruff"
 	},
 	"extensions.ignoreRecommendations": true,
-	// "files.watcherExclude": {
-	// 	"**/archive/**": true,
-	// 	"**/.git/objects/**": true,
-	// 	"**/.git/subtree-cache/**": true,
-	// 	"**/__pycache__/**": true,
-	// 	"**/node_modules/**": true,
-	// 	"**/.venv/**": true,
-	// 	"**/venv/**": true
-	// },
-	// "search.exclude": {
-	// 	"**/archive/**": true,
-	// 	"**/__pycache__/**": true,
-	// 	"**/node_modules/**": true,
-	// 	"**/.venv/**": true,
-	// 	"**/venv/**": true
-	// },
-	// "files.exclude": {
-	// 	"**/archive": true,
-	// 	"**/__pycache__": true
-	// }
+	"workbench.layoutControl.enabled": false,
+	"chat.viewSessions.orientation": "stacked",
+	"github.copilot.chat.backgroundAgent.enabled": false,
+	"github.copilot.chat.localeOverride": "zh-CN",
+	"files.watcherExclude": {
+		"**/archive/**": true,
+		"**/.git/objects/**": true,
+		"**/.git/subtree-cache/**": true,
+		"**/__pycache__/**": true,
+		"**/node_modules/**": true,
+		"**/.venv/**": true,
+		"**/venv/**": true
+	},
+	"search.exclude": {
+		"**/archive/**": true,
+		"**/__pycache__/**": true,
+		"**/node_modules/**": true,
+		"**/.venv/**": true,
+		"**/venv/**": true
+	},
+	"files.exclude": {
+		"**/archive": true,
+		"**/__pycache__": true
+	},
+	"github.copilot.chat.claudeAgent.enabled": false,
+	"github.copilot.chat.cloudAgent.enabled": false,
+	"github.copilot.chat.organizationInstructions.enabled": false,
+	"github.copilot.chat.reviewAgent.enabled": false,
+	"github.copilot.chat.organizationCustomAgents.enabled": false,
+	"github.copilot.chat.reviewSelection.enabled": false,
+	"github.copilot.chat.copilotDebugCommand.enabled": false,
+	"workbench.browser.enableChatTools": false,
+	"workbench.commandPalette.showAskInChat": false,
+	"chat.agent.enabled": false,
+	"chat.disableAIFeatures": true
 }
