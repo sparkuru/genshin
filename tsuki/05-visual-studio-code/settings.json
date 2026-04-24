@@ -15,6 +15,7 @@
 	"workbench.iconTheme": "material-icon-theme",
 	"http.proxyStrictSSL": false,
 	"remote.SSH.localServerDownload": "always",
+	"python.REPL.enableREPLSmartSend": false,
 	"update.showReleaseNotes": false,
 	"extensions.autoUpdate": false,
 	"extensions.autoCheckUpdates": false,
@@ -113,10 +114,10 @@
 		"**/.venv/**": true,
 		"**/venv/**": true
 	},
-	"files.exclude": {
-		"**/archive": true,
-		"**/__pycache__": true
-	},
+	// "files.exclude": {
+	// 	"**/archive": true,
+	// 	"**/__pycache__": true
+	// },
 	"github.copilot.chat.claudeAgent.enabled": false,
 	"github.copilot.chat.cloudAgent.enabled": false,
 	"github.copilot.chat.organizationInstructions.enabled": false,
