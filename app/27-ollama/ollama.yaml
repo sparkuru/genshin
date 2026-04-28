@@ -1,0 +1,15 @@
+services:
+  ollama-cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: remote-ollama-cli:latest
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OLLAMA_MODEL: ${OLLAMA_MODEL}
+      OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT}
+    stdin_open: true
+    tty: true
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace

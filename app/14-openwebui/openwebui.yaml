@@ -1,0 +1,17 @@
+services:
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: openwebui
+    environment:
+      UID: "${UID}"
+      GID: "${GID}"
+      TZ: "${OPENWEBUI_TZ}"
+      WEBUI_SECRET_KEY: "${WEBUI_SECRET_KEY}"
+      ENABLE_OLLAMA_API: "${ENABLE_OLLAMA_API}"
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL}"
+      RAG_OLLAMA_BASE_URL: "${RAG_OLLAMA_BASE_URL}"
+    volumes:
+      - ./data:/app/backend/data
+    ports:
+      - "${OPENWEBUI_PORT}:8080"
+    restart: unless-stopped
