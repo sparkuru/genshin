@@ -6,6 +6,7 @@ Expects reference.docx to define: 表格整体样式, 表格表头样式, 表格
 """
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -26,7 +27,7 @@ STYLE_HEADER = "表格表头样式"
 STYLE_CELL_SHORT = "表格单元格正文样式 A"
 STYLE_CELL_LONG = "表格单元格正文样式 B"
 STYLE_CAPTION = "表题"
-CAPTION_PREFIXES = ("表：", "表:")
+CAPTION_PATTERN = re.compile(r"^表(?:\s+|[:：]\s*)?(.*)$")
 CHAR_THRESHOLD = 60
 MAX_MERGE_COLS = 3
 FORMAT_TABLE_ENABLED = False
@@ -206,6 +207,17 @@ def _apply_caption_style(paragraph, caption_text: str, doc) -> None:
         paragraph.add_run(caption_text)
 
 
+def _extract_caption_text(text: str) -> str | None:
+    """Return normalized caption text when the paragraph is a table caption."""
+    match = CAPTION_PATTERN.match(text.strip())
+    if match is None:
+        return None
+    caption_text = match.group(1).strip()
+    if not caption_text:
+        return None
+    return caption_text
+
+
 def _apply_table_styles(table, doc) -> None:
     rows = table.rows
     if not rows:
@@ -246,11 +258,9 @@ def process_document(doc: Document) -> None:
             next_block = blocks[i + 1]
             if isinstance(next_block, Table):
                 text = (block.text or "").strip()
-                for prefix in CAPTION_PREFIXES:
-                    if text.startswith(prefix):
-                        caption_text = text[len(prefix) :].strip()
-                        _apply_caption_style(block, caption_text, doc)
-                        break
+                caption_text = _extract_caption_text(text)
+                if caption_text is not None:
+                    _apply_caption_style(block, caption_text, doc)
         if isinstance(block, Table):
             if FORMAT_TABLE_ENABLED:
                 _format_table_content(block, MAX_MERGE_COLS)
