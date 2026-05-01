@@ -139,6 +139,52 @@ function env { Start-Process powershell "-Command & {rundll32 sysdm.cpl,EditEnvi
 function magnet { echo magnet:?xt=urn:btih:$args }
 function code { & $software_base_path/visual-studio-code/binary/Code.exe --extensions-dir "$software_base_path/visual-studio-code/extension" $args }
 function rmrf { Remove-Item -Recurse -Force $args }
+function chown {
+    $recursive = $false
+    $username = $null
+    $path = $null
+
+    foreach ($arg in $args) {
+        if ($arg -eq "-R" -or $arg -eq "-r") {
+            $recursive = $true
+        } elseif ($arg -eq "-h" -or $arg -eq "--help") {
+            $username = $null
+            break
+        } elseif ($null -eq $username) {
+            $username = $arg
+        } else {
+            $path = $arg
+        }
+    }
+
+    if (-not $username) {
+        Write-Host "usage: chown [-R] USERNAME [PATH]" -ForegroundColor Yellow
+        Write-Host "  tip: run 'whoami' to see current username" -ForegroundColor DarkGray
+        Write-Host "  tip: requires administrator privileges" -ForegroundColor DarkGray
+        return
+    }
+
+    if (-not $path) { $path = (Get-Location).Path }
+
+    if (-not (Test-Path $path)) {
+        Write-Host "chown: cannot access '$path': No such file or directory" -ForegroundColor Red
+        return
+    }
+
+    $account = if ($username -like '*\*') { $username } else { "$env:COMPUTERNAME\$username" }
+    try {
+        $null = (New-Object System.Security.Principal.NTAccount($account)).Translate([System.Security.Principal.SecurityIdentifier])
+    } catch {
+        Write-Host "chown: unknown user '$username'" -ForegroundColor Red
+        return
+    }
+
+    if ($recursive) {
+        icacls $path /setowner $username /t /c /q
+    } else {
+        icacls $path /setowner $username /c /q
+    }
+}
 function xpath {
     $convertedPath = $args -replace '\\', '/'
     Write-Host $convertedPath -ForegroundColor Yellow
