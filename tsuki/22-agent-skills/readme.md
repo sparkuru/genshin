@@ -20,3 +20,9 @@
 其他要求:
 
 1. 参考当前目录下其他 skill 写法, 确保风格统一
+
+
+## refer
+
+1. [awesome-claude-code](https://github.com/hesreallyhim/awesome-claude-code.git)
+2. 

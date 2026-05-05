@@ -47,6 +47,8 @@ What it does:
 
 ## wps view option
 
+在 wps 里，配置下面的选项
+
 ### 页面显示选项
 
 - [x] 任务窗格(R)
