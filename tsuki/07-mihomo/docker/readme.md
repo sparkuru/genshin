@@ -1,7 +1,7 @@
 
 build: `docker build -t mihomua:v1 .`
 
-docker compose: `docker compose -f $PWD/mihomua.yml up -d`
+docker compose: `docker compose -f $PWD/mihomua.yaml up -d`
 
 tree like thie:
 

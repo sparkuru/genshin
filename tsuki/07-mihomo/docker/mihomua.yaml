@@ -2,7 +2,12 @@ services:
   mihomua:
     image: mihomua:v1
     container_name: mihomua
-    # network_mode: host
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
     environment:
       - TZ=Asia/Shanghai
       - WEB_PORT=7894

@@ -8,7 +8,7 @@ repo：https://github.com/jeessy2/ddns-go.git
 
 3. 访问 `http://localhost:9420` 开始配置 ddns-go，[参照](https://www.dynadot.com/zh/community/help/question/set-up-DNS)
 
-   1. 默认账密是 `admin@example.com / changeme`
+   1. 默认账密是 `admin@example.com / changeme`；如果忘记了账密，可以在 `./root/.ddns_go_config.yaml` 里查看，或删掉后重建
 
    2. 在域名的 `DNS 设置` 里选择 `Dynadot DNS`，记录类型随便填一个 `A: xxx.xxx.xxx.xxx`，打开下边的 `动态 DNS`，复制 `动态 DNS 密码`
 
