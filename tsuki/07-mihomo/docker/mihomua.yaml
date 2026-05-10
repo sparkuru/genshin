@@ -19,6 +19,22 @@ services:
       - ./config:/root/.config/mihomo
     restart: always
 
+  mihomua-bypass:
+    build: ./bypass
+    image: mihomua-bypass:v1
+    container_name: mihomua-bypass
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - WAN_IFACE=vmbr0          # adjust to your host's WAN/LAN-facing iface
+      - TUN_IFACE=paimon         # mihomo tun.device name in mihomo config file
+      - MARK=0x100/0x100
+      - RULE_PREF=8500           # must be < mihomo auto-route's pref (9002)
+    depends_on:
+      - mihomua
+    restart: unless-stopped
+
 networks:
   default:
     name: mihomua-network
