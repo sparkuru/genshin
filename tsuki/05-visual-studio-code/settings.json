@@ -42,7 +42,6 @@
 	"editor.accessibilitySupport": "off",
 	"editor.fontFamily": "'MonoLisa-Medium', '文泉驿等宽微米黑'",
 	"nginx-conf-hint.format.align": true,
-	"window.titleBarStyle": "native",
 	"editor.find.addExtraSpaceOnTop": false,
 	"terminal.explorerKind": "external",
 	"breadcrumbs.icons": false,
@@ -128,5 +127,6 @@
 	"workbench.browser.enableChatTools": false,
 	"workbench.commandPalette.showAskInChat": false,
 	"chat.agent.enabled": false,
-	"chat.disableAIFeatures": true
+	"chat.disableAIFeatures": true,
+	"workbench.colorTheme": "Quiet Light"
 }
