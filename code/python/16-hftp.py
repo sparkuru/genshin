@@ -12,6 +12,7 @@ import ipaddress
 import mimetypes
 import os
 import re
+import shlex
 import shutil
 import signal
 import socket
@@ -3357,9 +3358,20 @@ def handle_generate_service(port: int) -> int:
 
     return = exit code
     """
-    script_path = os.path.abspath(sys.argv[0])
+    exec_cmd = resolve_exec_command()
     work_dir = os.getcwd()
-    service_content = generate_systemd_service(port, work_dir, script_path)
+    if _is_unstable_exec_path(exec_cmd):
+        print(
+            CLIStyle.color(
+                "Warning: detected binary running from a volatile path "
+                "(e.g. /tmp/staticx-* or PyInstaller _MEI* extraction dir). "
+                "Move the distributed binary to a stable location "
+                "(e.g. /usr/local/bin/hftp) before generating the service, "
+                "otherwise systemd will fail to restart it.",
+                CLIStyle.COLORS["WARNING"],
+            )
+        )
+    service_content = generate_systemd_service(port, work_dir, exec_cmd)
 
     output_file = os.path.join(work_dir, "hftp.service")
     try:
@@ -3407,7 +3419,39 @@ def handle_generate_service(port: int) -> int:
         return 1
 
 
-def generate_systemd_service(port: int, work_dir: str, script_path: str) -> str:
+def resolve_exec_command() -> str:
+    """
+    Resolve the ExecStart command for the current runtime form.
+    ```python
+    # source run:     "/usr/bin/python3 /abs/path/16-hftp.py"
+    # pyinstaller:    "/abs/path/hftp"
+    # staticx wrap:   "/abs/path/hftp"  (via STATICX_PROG_PATH)
+
+    return = shell-quoted command string
+    ```
+    """
+    staticx_path = os.environ.get("STATICX_PROG_PATH")
+    if staticx_path:
+        return shlex.quote(staticx_path)
+    if getattr(sys, "frozen", False):
+        return shlex.quote(sys.executable)
+    return f"{shlex.quote(sys.executable)} {shlex.quote(os.path.abspath(sys.argv[0]))}"
+
+
+def _is_unstable_exec_path(exec_cmd: str) -> bool:
+    """Return True when the resolved binary lives in a volatile path."""
+    parts = shlex.split(exec_cmd)
+    if not parts:
+        return False
+    first = parts[0]
+    return (
+        first.startswith("/tmp/staticx-")
+        or "/_MEI" in first
+        or first.startswith("/tmp/_MEI")
+    )
+
+
+def generate_systemd_service(port: int, work_dir: str, exec_cmd: str) -> str:
     """Generate systemd service file content."""
     service_content = f"""[Unit]
 Description=FAST FILE TRANSFER SERVER by HTTP
@@ -3417,9 +3461,10 @@ After=network.target
 Type=simple
 User={os.getenv("USER", "root")}
 WorkingDirectory={work_dir}
-ExecStart={sys.executable} {script_path} --port {port} --batch
-ExecReload=/usr/bin/pkill -HUP $MAINPID
-ExecStop=/usr/bin/pkill -TERM $MAINPID
+ExecStart={exec_cmd} --port {port} --batch
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStop=/bin/kill -TERM $MAINPID
+KillMode=mixed
 Restart=on-failure
 RestartSec=5s
 StandardOutput=journal
@@ -3470,6 +3515,7 @@ def main() -> int:
     signal.signal(signal.SIGTERM, signal_handler)
 
     script_name = os.path.basename(sys.argv[0])
+    script_path = os.path.realpath(__file__)
 
     examples = [
         ("Basic usage (serve current directory)", ""),
@@ -3494,7 +3540,9 @@ def main() -> int:
     ]
 
     parser = ColoredArgumentParser(
-        description=CLIStyle.color("Fast HTTP File Server", CLIStyle.COLORS["TITLE"]),
+        description=CLIStyle.color("Fast HTTP File Server", CLIStyle.COLORS["TITLE"])
+        + "\n"
+        + CLIStyle.color(f"Script path: {script_path}", CLIStyle.COLORS["CONTENT"]),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=create_example_text(script_name, examples, notes),
     )
