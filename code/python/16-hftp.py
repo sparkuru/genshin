@@ -3423,7 +3423,7 @@ def resolve_exec_command() -> str:
     """
     Resolve the ExecStart command for the current runtime form.
     ```python
-    # source run:     "/usr/bin/python3 /abs/path/16-hftp.py"
+    # source run:     "/usr/bin/python3 /abs/path/hftp.py"
     # pyinstaller:    "/abs/path/hftp"
     # staticx wrap:   "/abs/path/hftp"  (via STATICX_PROG_PATH)
 

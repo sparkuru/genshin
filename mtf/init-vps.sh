@@ -5,9 +5,7 @@ if [ "$(id -u)" -ne 0 ]; then
 	exit 1
 fi
 
-PROXY_POINT="http://198.18.0.1:1080"
 GITHUB_URL_BASE="https://raw.githubusercontent.com/sparkuru/genshin/main"
-export all_proxy="$PROXY_POINT"
 
 VALID_USER_LIST=("root")
 while read -r line; do
@@ -46,36 +44,26 @@ rm -f $tmp_ssh_authorized_keys_path
 _curl /etc/ssh/sshd_config $GITHUB_URL_BASE/mtf/etc/sshd_config
 systemctl start ssh && systemctl enable ssh
 
-# software
-# cat <<EOF >/etc/apt/sources.list
-# deb https://mirrors.ustc.edu.cn/kali kali-rolling main non-free non-free-firmware contrib
-# deb-src https://mirrors.ustc.edu.cn/kali kali-rolling main non-free non-free-firmware contrib
-# EOF
-
 to_install_list=(
   autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
   g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
   libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg libxml2 libguestfs-tools
   zsh git asciidoc pandoc curl pkexec tree dkms aptitude
   ack fd-find fzf ripgrep
-  glances iftop inotify-tools aria2 sshpass telnet network-manager-openvpn arch-install-scripts
+  glances iftop inotify-tools sshpass
   docker.io docker-compose virt-manager qemu-system qemu-user bridge-utils
   fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
-  fcitx5 fcitx5-table fcitx5-chinese-addons fcitx5-rime fcitx5-anthy fcitx5-frontend-all fcitx5-frontend-gtk* fcitx5-frontend-qt* kde-config-fcitx5
-  filezilla okteta putty picocom glow mtools epub-utils
   upx p7zip p7zip-full
   python3-pip python3-venv python-is-python3
-  gnupg2 patchelf binwalk wireshark tcpdump
-  strace android-sdk-platform-tools
-  winetricks k3b gimp digikam krdc cups ffmpeg npm
-  genisoimage device-tree-compiler
+  gnupg2 patchelf binwalk tcpdump
+  strace
+  krdc cups ffmpeg npm
+  device-tree-compiler
   antlr3 antlr4 swig
   debsums msmtp xxd ftp shfmt rlwrap pdfgrep
-  wireguard resolvconf mariadb-client-compat
-  unrar snmp snmp-mibs-downloader sqlmap sqlitebrowser
+  resolvconf mariadb-client-compat
+  unrar sqlmap
   enca dos2unix
-  kile kile-l10n
-  obs-studio simplescreenrecorder
   davfs2
   webp
 )
@@ -103,38 +91,14 @@ apt autoremove -y
 
 update-alternatives --install /usr/bin/fd fd /usr/bin/fdfind 1
 
-# fonts
-tmp_fonts_conf_path="/tmp/fonts.conf"
-_curl $tmp_fonts_conf_path $GITHUB_URL_BASE/mtf/fonts.conf
-for user in "${VALID_USER_LIST[@]}"; do
-	mkdir -p /home/$user/.config/fontconfig
-	_cp $tmp_fonts_conf_path /home/$user/.config/fontconfig/fonts.conf
-done
-fc-cache -f
-rm -f $tmp_fonts_conf_path
-
-# rime
-tmp_oh_my_rime_path="/tmp/oh_my_rime"
-git clone https://github.com/Mintimate/oh-my-rime.git $tmp_oh_my_rime_path
-for user in "${VALID_USER_LIST[@]}"; do
-	if [ $user = "root" ]; then
-		user_rime_path="/root/.config/fcitx5/rime"
-	else
-		user_rime_path="/home/$user/.config/fcitx5/rime"
-	fi
-	sudo -u $user mkdir -p $user_rime_path
-	sudo -u $user cp -f $tmp_oh_my_rime_path $user_rime_path
-done
-rm -f $tmp_oh_my_rime_path
-
 # docker
 mkdir -p /etc/systemd/system/docker.service.d
-cat <<EOF >/etc/systemd/system/docker.service.d/proxy.conf
-[Service]
-Environment="HTTP_PROXY=http://198.18.0.1:1080"
-Environment="HTTPS_PROXY=http://198.18.0.1:1080"
-Environment="NO_PROXY=localhost,198.18.0.1"
-EOF
+# cat <<EOF >/etc/systemd/system/docker.service.d/proxy.conf
+# [Service]
+# Environment="HTTP_PROXY=http://198.18.0.1:1080"
+# Environment="HTTPS_PROXY=http://198.18.0.1:1080"
+# Environment="NO_PROXY=localhost,198.18.0.1"
+# EOF
 mkdir -p /etc/docker/
 cat <<EOF >/etc/docker/daemon.json
 {
@@ -152,14 +116,14 @@ cat <<EOF >/etc/docker/daemon.json
 EOF
 
 # python
-cat <<EOF >/etc/pip.conf
-[global]
-index-url = https://mirrors.ustc.edu.cn/pypi/simple
-break-system-packages = true
-user = true
-[install]
-trusted-host = https://mirrors.ustc.edu.cn
-EOF
+# cat <<EOF >/etc/pip.conf
+# [global]
+# index-url = https://mirrors.ustc.edu.cn/pypi/simple
+# break-system-packages = true
+# user = true
+# [install]
+# trusted-host = https://mirrors.ustc.edu.cn
+# EOF
 
 for user in "${VALID_USER_LIST[@]}"; do
 	sudo -u $user pip install \
@@ -217,6 +181,3 @@ done
 for user in "${VALID_USER_LIST[@]}"; do
 	chown -R $user:$user /home/$user
 done
-
-# 其他需要安装的软件
-# siyuan-note、百度网盘、wps（12.1.0.17881）、wechat、linuxqq、wemeet、vmware-workstation、mihomua
