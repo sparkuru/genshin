@@ -534,6 +534,26 @@ w2u() {
     echo "$unix_path"
 }
 
+_vmware() {
+    case "$1" in
+    start)
+        echo "starting vmware service."
+        sudo systemctl start vmware.service vmware-USBArbitrator.service
+        echo "done."
+        ;;
+    stop)
+        echo "stoping vmware service."
+        sudo systemctl stop vmware.service vmware-USBArbitrator.service
+        sudo modprobe -r vmnet vmmon kvm_amd kvm
+        echo "done."
+        ;;
+    *)
+        echo "usage: _vmware {start|stop}" >&2
+        return 1
+        ;;
+    esac
+}
+
 update_zshrc() {
 	DESCRIPTION="update .zshrc from github"
     zshrc_path="$HOME/.zshrc"

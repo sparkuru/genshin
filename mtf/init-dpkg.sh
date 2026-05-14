@@ -28,8 +28,11 @@ _cp() {
 tmp_zshrc_path="/tmp/zshrc"
 _curl $tmp_zshrc_path $GITHUB_URL_BASE/mtf/.zshrc
 for user in "${VALID_USER_LIST[@]}"; do
-	mkdir -p /home/$user/.zsh
-	_cp $tmp_zshrc_path /home/$user/.zshrc
+	if [ $user = "root" ]; then
+		_cp $tmp_zshrc_path /root/.zshrc
+	else
+		_cp $tmp_zshrc_path /home/$user/.zshrc
+	fi
 done
 rm -f $tmp_zshrc_path
 
@@ -53,31 +56,31 @@ systemctl start ssh && systemctl enable ssh
 # EOF
 
 to_install_list=(
-  autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
-  g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
-  libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg libxml2 libguestfs-tools
-  zsh git asciidoc pandoc curl pkexec tree dkms aptitude
-  ack fd-find fzf ripgrep
-  glances iftop inotify-tools aria2 sshpass telnet network-manager-openvpn arch-install-scripts
-  docker.io docker-compose virt-manager qemu-system qemu-user bridge-utils
-  fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
-  fcitx5 fcitx5-table fcitx5-chinese-addons fcitx5-rime fcitx5-anthy fcitx5-frontend-all fcitx5-frontend-gtk* fcitx5-frontend-qt* kde-config-fcitx5
-  filezilla okteta putty picocom glow mtools epub-utils
-  upx p7zip p7zip-full
-  python3-pip python3-venv python-is-python3
-  gnupg2 patchelf binwalk wireshark tcpdump
-  strace android-sdk-platform-tools
-  winetricks k3b gimp digikam krdc cups ffmpeg npm
-  genisoimage device-tree-compiler
-  antlr3 antlr4 swig
-  debsums msmtp xxd ftp shfmt rlwrap pdfgrep
-  wireguard resolvconf mariadb-client-compat
-  unrar snmp snmp-mibs-downloader sqlmap sqlitebrowser
-  enca dos2unix
-  kile kile-l10n
-  obs-studio simplescreenrecorder
-  davfs2
-  webp
+	autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
+	g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
+	libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg libxml2 libqt6help6 libguestfs-tools
+	zsh git asciidoc pandoc curl pkexec tree dkms aptitude
+	ack fd-find fzf ripgrep
+	glances iftop inotify-tools aria2 sshpass telnet network-manager-openvpn arch-install-scripts
+	docker.io docker-compose virt-manager qemu-system qemu-user bridge-utils
+	fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
+	fcitx5 fcitx5-table fcitx5-chinese-addons fcitx5-rime fcitx5-anthy fcitx5-frontend-all fcitx5-frontend-gtk* fcitx5-frontend-qt* kde-config-fcitx5
+	filezilla okteta putty picocom glow mtools epub-utils
+	upx p7zip p7zip-full
+	python3-pip python3-venv python-is-python3
+	gnupg2 patchelf binwalk wireshark tcpdump
+	strace android-sdk-platform-tools
+	winetricks k3b gimp digikam krdc cups ffmpeg npm
+	genisoimage device-tree-compiler
+	antlr3 antlr4 swig
+	debsums msmtp xxd ftp shfmt rlwrap pdfgrep
+	wireguard resolvconf mariadb-client-compat
+	unrar snmp snmp-mibs-downloader sqlmap sqlitebrowser
+	enca dos2unix
+	kile kile-l10n
+	obs-studio simplescreenrecorder
+	davfs2
+	webp
 )
 
 apt update
@@ -219,4 +222,4 @@ for user in "${VALID_USER_LIST[@]}"; do
 done
 
 # 其他需要安装的软件
-# siyuan-note、百度网盘、wps（12.1.0.17881）、wechat、linuxqq、wemeet、vmware-workstation、mihomua
+# siyuan-note、百度网盘、wps（12.1.0.17881）、wechat、linuxqq、wemeet、vmware-workstation、virtualbox、mihomua

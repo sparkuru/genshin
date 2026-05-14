@@ -23,11 +23,13 @@ _cp() {
 }
 
 # init zsh
-tmp_zshrc_path="/tmp/zshrc"
 _curl $tmp_zshrc_path $GITHUB_URL_BASE/mtf/.zshrc
 for user in "${VALID_USER_LIST[@]}"; do
-	mkdir -p /home/$user/.zsh
-	_cp $tmp_zshrc_path /home/$user/.zshrc
+	if [ $user = "root" ]; then
+		_cp $tmp_zshrc_path /root/.zshrc
+	else
+		_cp $tmp_zshrc_path /home/$user/.zshrc
+	fi
 done
 rm -f $tmp_zshrc_path
 
@@ -45,27 +47,27 @@ _curl /etc/ssh/sshd_config $GITHUB_URL_BASE/mtf/etc/sshd_config
 systemctl start ssh && systemctl enable ssh
 
 to_install_list=(
-  autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
-  g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
-  libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg libxml2 libguestfs-tools
-  zsh git asciidoc pandoc curl pkexec tree dkms aptitude
-  ack fd-find fzf ripgrep
-  glances iftop inotify-tools sshpass
-  docker.io docker-compose virt-manager qemu-system qemu-user bridge-utils
-  fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
-  upx p7zip p7zip-full
-  python3-pip python3-venv python-is-python3
-  gnupg2 patchelf binwalk tcpdump
-  strace
-  krdc cups ffmpeg npm
-  device-tree-compiler
-  antlr3 antlr4 swig
-  debsums msmtp xxd ftp shfmt rlwrap pdfgrep
-  resolvconf mariadb-client-compat
-  unrar sqlmap
-  enca dos2unix
-  davfs2
-  webp
+	autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
+	g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
+	libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg libxml2 libguestfs-tools
+	zsh git asciidoc pandoc curl pkexec tree dkms aptitude
+	ack fd-find fzf ripgrep
+	glances iftop inotify-tools sshpass
+	docker.io docker-compose virt-manager qemu-system qemu-user bridge-utils
+	fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
+	upx p7zip p7zip-full
+	python3-pip python3-venv python-is-python3
+	gnupg2 patchelf binwalk tcpdump
+	strace
+	krdc cups ffmpeg npm
+	device-tree-compiler
+	antlr3 antlr4 swig
+	debsums msmtp xxd ftp shfmt rlwrap pdfgrep
+	resolvconf mariadb-client-compat
+	unrar sqlmap
+	enca dos2unix
+	davfs2
+	webp nginx
 )
 
 apt update
