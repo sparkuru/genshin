@@ -790,7 +790,7 @@ def create_example_text() -> str:
         "All commands support -d/--dirs option to include directories",
         "Use --debug option to enable debug mode",
         "Fast rename supports file types: image, video",
-        "try replace 'sth' '\"\"' to remove the string",
+        "use --blank flag or pass empty string to delete: replace 'sth' --blank",
         "Interactive rename uses '>' symbol to mark custom input positions",
         "Lowercase command converts all uppercase letters to lowercase in filenames",
         "Files are sorted using natural sort (e.g., 1.txt, 2.txt, 10.txt instead of 1.txt, 10.txt, 2.txt)",
@@ -885,11 +885,14 @@ def create_command_help(parser: argparse.ArgumentParser, command: str) -> str:
     elif command == "replace":
         help_parts.extend(
             [
-                f"{color('Usage:', CLI_COLORS['TITLE'])} {prog_name} replace OLD NEW",
+                f"{color('Usage:', CLI_COLORS['TITLE'])} {prog_name} replace OLD [NEW]",
                 "",
                 color("Arguments:", CLI_COLORS["TITLE"]),
                 f"  OLD                  Text to replace",
-                f"  NEW                  Replacement text",
+                f"  NEW                  Replacement text (omit when using --blank)",
+                "",
+                color("Options:", CLI_COLORS["TITLE"]),
+                f"  {color('--blank', CLI_COLORS['SUB_TITLE'])}              Replace with empty string (delete the text)",
             ]
         )
     elif command == "sort":
@@ -969,7 +972,10 @@ def main():
     # Replace text command
     replace_parser = subparsers.add_parser("replace", help="Replace text in filenames")
     replace_parser.add_argument("old", help="Text to replace")
-    replace_parser.add_argument("new", help="Replacement text")
+    replace_parser.add_argument("new", nargs="?", default=None, help="Replacement text")
+    replace_parser.add_argument(
+        "--blank", action="store_true", help="Replace with empty string (delete the text)"
+    )
 
     # Sort files command
     sort_parser = subparsers.add_parser("sort", help="Sort and rename files")
@@ -1009,7 +1015,14 @@ def main():
     elif args.command == "interactive":
         renamer.interactive_rename(file_list)
     elif args.command == "replace":
-        renamer.replace_in_name(file_list, args.old, args.new)
+        if args.blank:
+            new_text = ""
+        elif args.new is not None:
+            new_text = args.new
+        else:
+            print(color("Error: provide replacement text or use --blank to delete", CLI_COLORS["ERROR"]))
+            return
+        renamer.replace_in_name(file_list, args.old, new_text)
     elif args.command == "sort":
         renamer.sort_files(file_list, args.width)
     elif args.command == "lowercase":
