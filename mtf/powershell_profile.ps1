@@ -135,6 +135,7 @@ function mac { ssh mac-sparkuru }
 function hash { certutil -hashfile $args }
 function tree { & "$TREEPATH/tree.exe" -N -h $args }
 function geek { & "$bin_base_path/geek.exe" }
+function fscan { & "$bin_base_path/fscan.exe" $args }
 function env { Start-Process powershell "-Command & {rundll32 sysdm.cpl,EditEnvironmentVariables}" -Verb RunAs }
 function magnet { echo magnet:?xt=urn:btih:$args }
 function code { & $software_base_path/visual-studio-code/binary/Code.exe --extensions-dir "$software_base_path/visual-studio-code/extension" $args }
