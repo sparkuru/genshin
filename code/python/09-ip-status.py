@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 # pip install colorama requests
-# Thanks to https://ipapi.co for providing the API
+# Thanks to https://freeipapi.com/ for providing the API
 
-import json
 import argparse
+import json
 import os
+import re
+import socket
 import sys
+
 import requests
 
 if sys.platform == "win32":
@@ -116,14 +119,15 @@ def create_example_text(script_name: str, examples: list, notes: list = None) ->
 
 
 class Config:
-    BASE_URL = "https://ipapi.co"
+    BASE_URL = "https://freeipapi.com/api/json"
 
 
-def execute_request(url, timeout=5):
+def execute_request(url: str, timeout: int = 5) -> str:
     """Execute HTTP request and return response text"""
     try:
         response = requests.get(
             url,
+            allow_redirects=True,
             timeout=(min(timeout, 5), max(timeout, 10)),
             headers={
                 "Accept": "application/json",
@@ -157,26 +161,26 @@ def execute_request(url, timeout=5):
 
 
 class IPRSSClient:
-    def __init__(self, args):
+    def __init__(self, args: dict) -> None:
         self.ip = ""
         self.args = args
 
-    def get_ip_with_location(self):
+    def get_ip_with_location(self) -> None:
         """Get public IP address with location details"""
         if self.args["ip"] != "":
             self.ip = self.args["ip"]
-            url = f"{Config.BASE_URL}/{self.ip}/json/"
+            url = f"{Config.BASE_URL}/{self.ip}"
         else:
-            url = f"{Config.BASE_URL}/json/"
+            url = Config.BASE_URL
         response = execute_request(url, timeout=self.args["timeout"])
         response_json = json.loads(response)
 
-        if response_json.get("ip"):
+        if response_json.get("ipAddress"):
             print(CLIStyle.color("IP with Location:", CLIStyle.COLORS["TITLE"]))
         else:
             print(CLIStyle.color("IP Query Result:", CLIStyle.COLORS["TITLE"]))
 
-        self.ip = response_json.get("ip", self.ip)
+        self.ip = response_json.get("ipAddress", self.ip)
         format_dict(response_json, indent=2, exclude_keys=[])
 
 
@@ -219,9 +223,6 @@ def check_ip_and_return_str(ip: str) -> str:
     Raises:
         AssertionError: When no valid IP address is found
     """
-    import re
-    import socket
-
     ip_match = re.search(r"\d+\.\d+\.\d+\.\d+", ip)
     if ip_match:
         return ip_match.group()
@@ -241,7 +242,7 @@ def check_ip_and_return_str(ip: str) -> str:
         raise AssertionError(f"Cannot resolve domain or find valid IP: {domain}")
 
 
-def main():
+def main() -> None:
     script_name = os.path.basename(sys.argv[0])
 
     examples = [
@@ -261,7 +262,8 @@ def main():
 
     ap = ColoredArgumentParser(
         description=CLIStyle.color(
-            "IP Address Lookup Tool - Powered by ipapi.co", CLIStyle.COLORS["TITLE"]
+            "IP Address Lookup Tool - Powered by freeipapi.com",
+            CLIStyle.COLORS["TITLE"],
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=create_example_text(script_name, examples, notes),
@@ -314,14 +316,14 @@ def main():
         if args["ip"]:
             print(
                 CLIStyle.color(
-                    f"{' ' * 2}{Config.BASE_URL}/{args['ip']}/json/",
+                    f"{' ' * 2}{Config.BASE_URL}/{args['ip']}",
                     CLIStyle.COLORS["CONTENT"],
                 )
             )
         else:
             print(
                 CLIStyle.color(
-                    f"{' ' * 2}{Config.BASE_URL}/json/", CLIStyle.COLORS["CONTENT"]
+                    f"{' ' * 2}{Config.BASE_URL}", CLIStyle.COLORS["CONTENT"]
                 )
             )
         exit()
