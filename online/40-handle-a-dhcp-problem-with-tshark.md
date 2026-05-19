@@ -1,6 +1,6 @@
 # handle a dhcp promblem with tshark
 
-是在网关 192.168.9.1 里，为我的 linux 设备 enp2s0 mac 绑定静态 ip 后，发现 linux 端无论如何也没法拿到想要的 ip；然而在网关 dhcp 已分配租约里，没有看到该 ip 被分配的迹象
+在网关 192.168.9.1 里，为我的 linux 设备 enp2s0 mac 绑定静态 ip 后，发现 linux 端无论如何也没法拿到想要的 ip；然而在网关 dhcp 已分配租约里，没有看到该 ip 被分配的迹象
 
 通过 tcpdump（wireshark）抓取以太网卡的启动协商过程流量
 

@@ -1,0 +1,11 @@
+patch:
+  'menu/page_size': 9
+  'speller/algebra':
+    - xlit/āáǎàōóǒòēéěèīíǐìūúǔùǖǘǚǜü/aaaaooooeeeeiiiiuuuuvvvvv/
+    - xform/^ng$/eng/
+    - xform/ńg|ňg|ǹg/eng/
+    - xform/ń|ň|ǹ/en/
+    - erase/^xx$/
+    - derive/([jqxy])u/$1v/
+    - derive/([nl])ue/$1ve/
+    - abbrev/^([a-z]).+$/$1/

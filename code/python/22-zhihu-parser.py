@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -150,7 +151,7 @@ def normalize_href(href: Optional[str]) -> str:
     """Convert protocol-relative Zhihu hrefs to absolute https URLs."""
     if not href:
         return ""
-    return urljoin("https:", href)
+    return urljoin("https://www.zhihu.com", href)
 
 
 def text_content(node: Optional[Tag]) -> str:
@@ -166,31 +167,61 @@ def parse_int(value: Optional[str]) -> Optional[int]:
     return int(digits) if digits else None
 
 
+def parse_json_attr(node: Tag, attr_name: str) -> Dict[str, Any]:
+    """Parse a JSON attribute and return an empty dict on invalid input."""
+    value = node.get(attr_name)
+    if not isinstance(value, str) or not value:
+        return {}
+    try:
+        data = json.loads(value)
+    except json.JSONDecodeError:
+        debug("Invalid JSON attribute", attr=attr_name)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def question_url_from_answer(answer_url: str) -> str:
+    """Return the question URL portion from a Zhihu answer URL."""
+    if not answer_url:
+        return ""
+    return re.sub(r"/answer/\d+(?:$|[?#].*)", "", answer_url)
+
+
+def answer_url_from_meta(card: Tag) -> str:
+    """Extract the answer URL from scoped metadata."""
+    urls = card.select('meta[itemprop="url"]')
+    for meta in urls:
+        content = meta.get("content")
+        if isinstance(content, str) and "/answer/" in content:
+            return normalize_href(content)
+    return ""
+
+
 def parse_card(card: Tag) -> Dict[str, Any]:
     """Parse a single Zhihu answer card into a structured dictionary."""
+    zop_data = parse_json_attr(card, "data-zop")
     title_link = card.select_one("h2.ContentItem-title a")
     author_meta = card.select_one('meta[itemprop="name"]')
     author_link = card.select_one(".AuthorInfo-content a.UserLink-link")
-    answer_meta_url = card.select_one('meta[itemprop="url"]')
     upvote_meta = card.select_one('meta[itemprop="upvoteCount"]')
     created_meta = card.select_one('meta[itemprop="dateCreated"]')
     modified_meta = card.select_one('meta[itemprop="dateModified"]')
     rich_text = card.select_one("span.RichText")
     vote_button = card.find("button", attrs={"aria-label": lambda v: v and "赞同" in v})
+    answer_url = answer_url_from_meta(card)
+    title = text_content(title_link) or str(zop_data.get("title") or "")
 
     return {
-        "title": text_content(title_link),
+        "title": title,
         "question_url": normalize_href(title_link["href"])
         if title_link and title_link.has_attr("href")
-        else "",
+        else question_url_from_answer(answer_url),
         "author": (
             author_meta.get("content")
             if author_meta and author_meta.get("content")
-            else text_content(author_link)
+            else text_content(author_link) or str(zop_data.get("authorName") or "")
         ),
-        "answer_url": normalize_href(answer_meta_url["content"])
-        if answer_meta_url and answer_meta_url.has_attr("content")
-        else "",
+        "answer_url": answer_url,
         "created_at": created_meta.get("content")
         if created_meta and created_meta.get("content")
         else "",
@@ -206,7 +237,7 @@ def parse_card(card: Tag) -> Dict[str, Any]:
 def parse_html(html: str) -> List[Dict[str, Any]]:
     """Parse HTML containing Zhihu cards and return a list of answer dicts."""
     soup = BeautifulSoup(html, "html.parser")
-    cards = soup.select("div.Card.TopstoryItem")
+    cards = soup.select("div.Card.TopstoryItem, div.ContentItem.AnswerItem")
     return [parse_card(card) for card in cards]
 
 
