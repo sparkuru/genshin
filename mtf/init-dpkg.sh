@@ -58,7 +58,7 @@ systemctl start ssh && systemctl enable ssh
 to_install_list=(
 	autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
 	g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
-	libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg libxml2 libqt6help6 libguestfs-tools
+	libssl-dev libbz2-dev libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libreadline-dev libc6-dbg libxml2 libqt6help6 libguestfs-tools libyaml-cpp-dev libeigen3-dev libboost-all-dev libspdlog-dev libfmt-dev
 	zsh git asciidoc pandoc curl pkexec tree dkms aptitude
 	ack fd-find fzf ripgrep
 	glances iftop inotify-tools aria2 sshpass telnet network-manager-openvpn arch-install-scripts

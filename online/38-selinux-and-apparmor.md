@@ -58,3 +58,8 @@ EOF
 ```
 
 然后重载并应用该配置：`sudo apparmor_parser -r /etc/apparmor.d/cursor_sandbox`
+
+## refer
+
+1. https://people.redhat.com/duffy/selinux/selinux-coloring-book_A4-Stapled.pdf
+2. 
