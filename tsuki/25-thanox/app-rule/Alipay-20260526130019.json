@@ -1,0 +1,29 @@
+{
+  "disabledComponents": [
+    "com.eg.android.AlipayGphone/com.google.ar.core.InstallActivity",
+    "com.eg.android.AlipayGphone/com.huawei.hms.activity.EnableServiceActivity",
+    "com.eg.android.AlipayGphone/com.alipay.mobile.security.widget.provider.AlipayStudentScheduleWidgetProvider",
+    "com.eg.android.AlipayGphone/com.meizu.cloud.pushsdk.NotificationService",
+    "com.eg.android.AlipayGphone/com.alipay.mobile.security.widget.provider.AlipaySmartWidgetProvider",
+    "com.eg.android.AlipayGphone/com.huawei.hms.hwid.internal.ui.activity.HwIdSignInHubActivity",
+    "com.eg.android.AlipayGphone/com.google.android.play.core.common.PlayCoreDialogWrapperActivity",
+    "com.eg.android.AlipayGphone/com.huawei.hms.support.api.push.PushMsgReceiver",
+    "com.eg.android.AlipayGphone/com.xingin.xhssharesdk.core.XhsShareActivity",
+    "com.eg.android.AlipayGphone/com.alipay.mobile.security.widget.provider.AlipayExpressWidgetProvider",
+    "com.eg.android.AlipayGphone/com.meizu.cloud.pushsdk.MzPushSystemReceiver",
+    "com.eg.android.AlipayGphone/com.alipay.mobile.security.widget.provider.FarmWidgetProvider",
+    "com.eg.android.AlipayGphone/com.huawei.hms.account.internal.ui.activity.AccountSignInHubActivity",
+    "com.eg.android.AlipayGphone/com.huawei.hms.support.api.push.PushReceiver",
+    "com.eg.android.AlipayGphone/com.alipay.mobile.about.service.UpdateService",
+    "com.eg.android.AlipayGphone/com.alipay.mobile.security.widget.provider.AlipayVideoWidgetProvider",
+    "com.eg.android.AlipayGphone/com.alipay.mobile.security.widget.provider.AlipayPlayWidgetProvider",
+    "com.eg.android.AlipayGphone/com.huawei.agconnect.core.ServiceDiscovery",
+    "com.eg.android.AlipayGphone/com.huawei.hms.activity.BridgeActivity",
+    "com.eg.android.AlipayGphone/com.xiaomi.mipush.sdk.NotificationClickedActivity",
+    "com.eg.android.AlipayGphone/com.sina.weibo.sdk.web.WebActivity",
+    "com.eg.android.AlipayGphone/com.huawei.hms.support.api.push.TransActivity",
+    "com.eg.android.AlipayGphone/com.sina.weibo.sdk.share.ShareTransActivity",
+    "com.eg.android.AlipayGphone/com.huawei.hms.support.api.push.service.HmsMsgService",
+    "com.eg.android.AlipayGphone/com.alipay.mobile.security.widget.provider.AlipayBaBaFarmWidgetProvider"
+  ]
+}
