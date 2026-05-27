@@ -4,19 +4,30 @@ mode: rule
 log-level: info
 ipv6: false
 external-controller: 0.0.0.0:7893
+unified-delay: true
+sniffer:
+  sniff:
+    TLS: { ports: [443], override-destination: true }
+    HTTP: { ports: [443], override-destination: true }
+  enable: true
+  parse-pure-ip: false
+  force-dns-mapping: true
+  override-destination: true
 tun:
   enable: true
-  device: maho
+  device: paimon
   stack: mixed
   dns-hijack:
     - any:53
   auto-route: true
   auto-detect-interface: true
   route-exclude-address:
-    - 10.172.0.0/12
-    - 10.168.0.0/16
     - 10.8.0.0/24
-    - 192.168.9.0/24
+    - 10.10.0.0/16
+    - 10.160.0.0/16
+    - 10.168.0.0/16
+    - 10.172.0.0/16
+    - 192.168.0.0/16
 clash-for-android:
   append-system-dns: false
 profile:
@@ -146,6 +157,12 @@ proxy-groups:
     type: select
     proxies:
       - test
+  - name: inside
+    type: select
+    proxies:
+      - DIRECT
+      - outside
+      - reject
   - name: other
     type: select
     proxies:
@@ -156,16 +173,19 @@ proxy-groups:
     proxies:
       - DIRECT
       - outside
+      - inside
   - name: apple
     type: select
     proxies:
       - DIRECT
       - outside
+      - inside
   - name: steam
     type: select
     proxies:
       - DIRECT
       - outside
+      - inside
   - name: reject
     type: select
     proxies:
@@ -173,6 +193,12 @@ proxy-groups:
       - DIRECT
       - REJECT
 rules:
+  - DOMAIN-SUFFIX,chatgpt.com,outside
+  - DOMAIN,juicyads.com,reject
+  - DOMAIN,iida.ro,DIRECT
+  - DOMAIN,4.ipw.cn,DIRECT
+  - DOMAIN,ip.3322.net,DIRECT
+  - DOMAIN,ddns.oray.com,DIRECT
   - DOMAIN-SUFFIX,xn--ngstr-lra8j.com,DIRECT
   - DOMAIN-SUFFIX,*.xn--ngstr-lra8j.com,DIRECT
   - DOMAIN-SUFFIX,googleapis.cn,DIRECT
@@ -182,7 +208,6 @@ rules:
   - DOMAIN,update.googleapis.com,outside
   - DOMAIN,clientservices.googleapis.com,outside
   - DOMAIN,services.googleapis.cn,DIRECT
-  - IP-CIDR,8.141.125.156/32,DIRECT,no-resolve
   - DOMAIN-SUFFIX,0.r.msn.com,reject
   - DOMAIN-SUFFIX,0.twitter.com,reject
   - DOMAIN-SUFFIX,0127.adsame.com,reject
@@ -26161,6 +26186,7 @@ rules:
   - DOMAIN-SUFFIX,ironsrc.com,reject
   - DOMAIN-SUFFIX,iskyworker.com,reject
   - DOMAIN-SUFFIX,jizzads.com,reject
+  - DOMAIN-SUFFIX,jads.co,reject
   - DOMAIN-SUFFIX,juicyads.com,reject
   - DOMAIN-SUFFIX,kochava.com,reject
   - DOMAIN-SUFFIX,leadbolt.com,reject
@@ -26263,7 +26289,7 @@ rules:
   - DOMAIN-SUFFIX,c.tenor.com,reject
   - DOMAIN-SUFFIX,gamebanana.com,outside
   - DOMAIN-SUFFIX,s-microsoft.com,outside
-  - DOMAIN-SUFFIX,zhihu.com,other
+  - DOMAIN-SUFFIX,zhihu.com,inside
   - DOMAIN-SUFFIX,360buying.com,DIRECT
   - DOMAIN-SUFFIX,jd.com,DIRECT
   - DOMAIN,data.bilibili.com,bilibili
@@ -26283,29 +26309,29 @@ rules:
   - DOMAIN-SUFFIX,jmapinode.top,outside
   - DOMAIN-SUFFIX,oaistatic.com,outside
   - DOMAIN-SUFFIX,auth0.com,outside
-  - DOMAIN-SUFFIX,music.163.com,other
-  - DOMAIN,nstool.netease.com,other
-  - DOMAIN,wanproxy.127.net,other
-  - DOMAIN,mam.netease.com,other
-  - DOMAIN,dt.netease.im,other
-  - DOMAIN,api.iplay.163.com,other
-  - DOMAIN,api.k.163.com,other
-  - DOMAIN,lbs.netease.im,other
-  - DOMAIN,wannos.127.net,other
-  - DOMAIN,ac.dun.163.com,other
-  - DOMAIN-SUFFIX,laiqukankan.com,other
-  - DOMAIN-SUFFIX,music.ntes53.netease.com,other
-  - IP-CIDR,101.71.154.241/32,other,no-resolve
-  - IP-CIDR,103.126.92.132/32,other,no-resolve
-  - IP-CIDR,103.126.92.133/32,other,no-resolve
-  - IP-CIDR,112.13.119.18/32,other,no-resolve
-  - IP-CIDR,112.13.122.4/32,other,no-resolve
-  - IP-CIDR,115.236.118.34/32,other,no-resolve
-  - IP-CIDR,115.236.121.4/32,other,no-resolve
-  - IP-CIDR,45.254.48.1/32,other,no-resolve
-  - IP-CIDR,59.111.160.195/32,other,no-resolve
-  - IP-CIDR,59.111.19.33/32,other,no-resolve
-  - IP-CIDR,59.111.19.53/32,other,no-resolve
+  - DOMAIN-SUFFIX,music.163.com,inside
+  - DOMAIN,nstool.netease.com,inside
+  - DOMAIN,wanproxy.127.net,inside
+  - DOMAIN,mam.netease.com,inside
+  - DOMAIN,dt.netease.im,inside
+  - DOMAIN,api.iplay.163.com,inside
+  - DOMAIN,api.k.163.com,inside
+  - DOMAIN,lbs.netease.im,inside
+  - DOMAIN,wannos.127.net,inside
+  - DOMAIN,ac.dun.163.com,inside
+  - DOMAIN-SUFFIX,laiqukankan.com,inside
+  - DOMAIN-SUFFIX,music.ntes53.netease.com,inside
+  - IP-CIDR,101.71.154.241/32,inside,no-resolve
+  - IP-CIDR,103.126.92.132/32,inside,no-resolve
+  - IP-CIDR,103.126.92.133/32,inside,no-resolve
+  - IP-CIDR,112.13.119.18/32,inside,no-resolve
+  - IP-CIDR,112.13.122.4/32,inside,no-resolve
+  - IP-CIDR,115.236.118.34/32,inside,no-resolve
+  - IP-CIDR,115.236.121.4/32,inside,no-resolve
+  - IP-CIDR,45.254.48.1/32,inside,no-resolve
+  - IP-CIDR,59.111.160.195/32,inside,no-resolve
+  - IP-CIDR,59.111.19.33/32,inside,no-resolve
+  - IP-CIDR,59.111.19.53/32,inside,no-resolve
   - DOMAIN-SUFFIX,zijieapi.com,DIRECT
   - DOMAIN-SUFFIX,ecombdapi.com,DIRECT
   - DOMAIN-SUFFIX,hls3-akm.douyucdn.cn,DIRECT
@@ -26330,18 +26356,18 @@ rules:
   - DOMAIN-SUFFIX,img-static.mihoyo.com,DIRECT
   - DOMAIN-SUFFIX,minor-api.mihoyo.com,DIRECT
   - DOMAIN-SUFFIX,act-webstatic.mihoyo.com,DIRECT
-  - DOMAIN-SUFFIX,log-upload.mihoyo.com,other
+  - DOMAIN-SUFFIX,log-upload.mihoyo.com,inside
   - DOMAIN-SUFFIX,bbs-static.miyoushe.com,DIRECT
-  - DOMAIN-SUFFIX,bbs-api.miyoushe.com,other
-  - DOMAIN-SUFFIX,bbs-api.mihoyo.com,other
-  - DOMAIN-SUFFIX,api-takumi-record.miyoushe.com,other
-  - DOMAIN-SUFFIX,account.mihoyo.com,other
-  - DOMAIN-SUFFIX,user.mihoyo.com,other
-  - DOMAIN-SUFFIX,api-takumi-record.mihoyo.com,other
-  - DOMAIN-SUFFIX,api-takumi.mihoyo.com,other
-  - DOMAIN-SUFFIX,passport-api.mihoyo.com,other
-  - DOMAIN-SUFFIX,gameapi-account.mihoyo.com,other
-  - DOMAIN-SUFFIX,passport-api-v4.mihoyo.com,other
+  - DOMAIN-SUFFIX,bbs-api.miyoushe.com,inside
+  - DOMAIN-SUFFIX,bbs-api.mihoyo.com,inside
+  - DOMAIN-SUFFIX,api-takumi-record.miyoushe.com,inside
+  - DOMAIN-SUFFIX,account.mihoyo.com,inside
+  - DOMAIN-SUFFIX,user.mihoyo.com,inside
+  - DOMAIN-SUFFIX,api-takumi-record.mihoyo.com,inside
+  - DOMAIN-SUFFIX,api-takumi.mihoyo.com,inside
+  - DOMAIN-SUFFIX,passport-api.mihoyo.com,inside
+  - DOMAIN-SUFFIX,gameapi-account.mihoyo.com,inside
+  - DOMAIN-SUFFIX,passport-api-v4.mihoyo.com,inside
   - DOMAIN-SUFFIX,xunkong.cc,DIRECT
   - DOMAIN-SUFFIX,ati.com,outside
   - DOMAIN-KEYWORD,pubscholar.cn,outside
@@ -26430,9 +26456,9 @@ rules:
   - DOMAIN-KEYWORD,dmhy,outside
   - DOMAIN-KEYWORD,imageshack,outside
   - DOMAIN-KEYWORD,greasyfork,outside
-  - DOMAIN-KEYWORD,sinaimg,other
-  - DOMAIN-KEYWORD,weibocdn,other
-  - DOMAIN-KEYWORD,weibo,other
+  - DOMAIN-KEYWORD,sinaimg,inside
+  - DOMAIN-KEYWORD,weibocdn,inside
+  - DOMAIN-KEYWORD,weibo,inside
   - DOMAIN-KEYWORD,cmake,outside
   - DOMAIN-KEYWORD,upos-hz-mirrorakam.akamaized,outside
   - DOMAIN-KEYWORD,simplesvg,outside
@@ -26500,7 +26526,7 @@ rules:
   - DOMAIN-KEYWORD,addthis,outside
   - DOMAIN-KEYWORD,bleepingcomputer,outside
   - DOMAIN-KEYWORD,byrut,outside
-  - DOMAIN-KEYWORD,jumpw,other
+  - DOMAIN-KEYWORD,jumpw,inside
   - DOMAIN-KEYWORD,poe,outside
   - DOMAIN-KEYWORD,pages,outside
   - DOMAIN-KEYWORD,intercom,outside
@@ -26567,8 +26593,6 @@ rules:
   - DOMAIN-KEYWORD,superchat.live,outside
   - DOMAIN-KEYWORD,xlivrdr.com,outside
   - DOMAIN-KEYWORD,sb-cd.com,outside
-  - DOMAIN-KEYWORD,juicyads.com,outside
-  - DOMAIN-KEYWORD,jads.co,outside
   - DOMAIN-KEYWORD,realsrv.com,outside
   - DOMAIN-KEYWORD,hanime1.me,outside
   - DOMAIN-KEYWORD,nhentai.net,outside
@@ -27002,7 +27026,7 @@ rules:
   - DOMAIN-SUFFIX,udn.com,outside
   - DOMAIN-SUFFIX,unseen.is,outside
   - DOMAIN-SUFFIX,upmedia.mg,outside
-  - DOMAIN-SUFFIX,uptodother.com,outside
+  - DOMAIN-SUFFIX,uptodSchale.com,outside
   - DOMAIN-SUFFIX,urbandictionary.com,outside
   - DOMAIN-SUFFIX,ustream.tv,outside
   - DOMAIN-SUFFIX,uwants.com,outside
@@ -27679,7 +27703,7 @@ rules:
   - IP-CIDR,118.89.204.198/23,reject,no-resolve
   - IP-CIDR6,2402:4e00:1200:ed00:0:9089:6dac:96b6/40,reject,no-resolve
   - IP-CIDR,119.29.29.98/32,reject,no-resolve
-  - DOMAIN,dotherload.jetbrains.com,DIRECT
+  - DOMAIN,dSchaleload.jetbrains.com,DIRECT
   - DOMAIN,images-cn.ssl-images-amazon.com,DIRECT
   - IP-CIDR,119.28.28.28/32,DIRECT,no-resolve
   - GEOIP,CN,DIRECT
