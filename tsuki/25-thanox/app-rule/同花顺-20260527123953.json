@@ -1,0 +1,25 @@
+{
+  "disabledComponents": [
+    "com.hexin.plat.android/com.huawei.hms.support.api.push.service.HmsMsgService",
+    "com.hexin.plat.android/com.sina.weibo.sdk.web.WebActivity",
+    "com.hexin.plat.android/com.xiaomi.push.service.receivers.NetworkStatusReceiver",
+    "com.hexin.plat.android/com.huawei.hms.support.api.push.PushReceiver",
+    "com.hexin.plat.android/com.hexin.pusher.receivers.HuaWeiPushService",
+    "com.hexin.plat.android/com.sina.weibo.sdk.share.ShareTransActivity",
+    "com.hexin.plat.android/com.huawei.hms.activity.EnableServiceActivity",
+    "com.hexin.plat.android/com.bytedance.sdk.open.douyin.ui.DouYinWebAuthorizeActivity",
+    "com.hexin.plat.android/com.xiaomi.push.service.XMPushService",
+    "com.hexin.plat.android/com.huawei.hms.support.api.push.TransActivity",
+    "com.hexin.plat.android/com.vivo.push.sdk.service.CommandClientService",
+    "com.hexin.plat.android/com.xiaomi.mipush.sdk.PushMessageHandler",
+    "com.hexin.plat.android/com.xiaomi.mipush.sdk.NotificationClickedActivity",
+    "com.hexin.plat.android/com.meizu.cloud.pushsdk.MzPushSystemReceiver",
+    "com.hexin.plat.android/com.xiaomi.mipush.sdk.MessageHandleService",
+    "com.hexin.plat.android/com.huawei.agconnect.core.ServiceDiscovery",
+    "com.hexin.plat.android/com.meizu.cloud.pushsdk.NotificationService",
+    "com.hexin.plat.android/com.huawei.hms.support.api.push.PushMsgReceiver",
+    "com.hexin.plat.android/com.xiaomi.push.service.receivers.PingReceiver",
+    "com.hexin.plat.android/com.huawei.hms.activity.BridgeActivity",
+    "com.hexin.plat.android/com.xiaomi.push.service.XMJobService"
+  ]
+}

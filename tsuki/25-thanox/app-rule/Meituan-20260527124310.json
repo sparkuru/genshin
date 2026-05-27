@@ -1,0 +1,26 @@
+{
+  "disabledComponents": [
+    "com.sankuai.meituan/com.huawei.hms.support.api.push.TransActivity",
+    "com.sankuai.meituan/com.xiaomi.mipush.sdk.NotificationClickedActivity",
+    "com.sankuai.meituan/com.xiaomi.mipush.sdk.MessageHandleService",
+    "com.sankuai.meituan/com.heytap.msp.push.service.CompatibleDataMessageCallbackService",
+    "com.sankuai.meituan/com.vivo.push.sdk.service.CommandClientService",
+    "com.sankuai.meituan/com.huawei.hms.support.api.push.service.HmsMsgService",
+    "com.sankuai.meituan/com.xiaomi.push.service.XMJobService",
+    "com.sankuai.meituan/com.heytap.msp.push.service.DataMessageCallbackService",
+    "com.sankuai.meituan/com.huawei.hms.support.api.push.PushProvider",
+    "com.sankuai.meituan/com.huawei.hms.aaid.InitProvider",
+    "com.sankuai.meituan/com.huawei.hms.support.api.push.PushMsgReceiver",
+    "com.sankuai.meituan/com.xiaomi.push.service.XMPushService",
+    "com.sankuai.meituan/com.xiaomi.mipush.sdk.PushMessageHandler",
+    "com.sankuai.meituan/com.huawei.hms.activity.BridgeActivity",
+    "com.sankuai.meituan/com.huawei.agconnect.core.ServiceDiscovery",
+    "com.sankuai.meituan/com.huawei.agconnect.core.provider.AGConnectInitializeProvider",
+    "com.sankuai.meituan/com.meizu.cloud.pushsdk.NotificationService",
+    "com.sankuai.meituan/com.xiaomi.push.service.receivers.PingReceiver",
+    "com.sankuai.meituan/com.dianping.huaweipush.DpHmsMessageService",
+    "com.sankuai.meituan/com.huawei.hms.support.api.push.PushReceiver",
+    "com.sankuai.meituan/com.huawei.hms.activity.EnableServiceActivity",
+    "com.sankuai.meituan/com.meizu.cloud.pushsdk.MzPushSystemReceiver"
+  ]
+}

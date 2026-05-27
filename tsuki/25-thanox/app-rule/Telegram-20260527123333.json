@@ -1,0 +1,9 @@
+{
+  "disabledComponents": [
+    "org.telegram.messenger/org.telegram.messenger.WearReplyReceiver",
+    "org.telegram.messenger/org.telegram.messenger.voip.VoIPMediaButtonReceiver",
+    "org.telegram.messenger/org.telegram.messenger.ContactsSyncAdapterService",
+    "org.telegram.messenger/org.telegram.messenger.ShortcutResultReceiver",
+    "org.telegram.messenger/org.telegram.messenger.voip.VoIPActionsReceiver"
+  ]
+}
