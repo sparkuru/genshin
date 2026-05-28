@@ -1,0 +1,18 @@
+{
+  "disabledComponents": [
+    "com.xunmeng.pinduoduo/com.xunmeng.pinduoduo.app_widget.stub.WidgetStubs$ExpressWidgetOneXOne",
+    "com.xunmeng.pinduoduo/com.xunmeng.pinduoduo.app_widget.stub.WidgetStubs$RedPacketWidgetOneXOne",
+    "com.xunmeng.pinduoduo/com.google.android.gms.common.api.GoogleApiActivity",
+    "com.xunmeng.pinduoduo/com.google.android.gms.auth.api.signin.RevocationBoundService",
+    "com.xunmeng.pinduoduo/com.xunmeng.pinduoduo.comment.VideoClipActivity",
+    "com.xunmeng.pinduoduo/com.xunmeng.pinduoduo.market_ad_common.quick_setting.ImageSearchService",
+    "com.xunmeng.pinduoduo/com.huawei.updatesdk.service.otaupdate.AppUpdateActivity",
+    "com.xunmeng.pinduoduo/com.xunmeng.app_upgrade.ui.SolutionActivity",
+    "com.xunmeng.pinduoduo/com.xunmeng.pinduoduo.market_ad_common.scheduler.channel.MarketMsgCenterService",
+    "com.xunmeng.pinduoduo/com.xunmeng.pinduoduo.image_search.floating.ScreenShotAdapterService",
+    "com.xunmeng.pinduoduo/com.xunmeng.pdd_av_foundation.pddlivescene.float_window.book_float_window.ListenBookRemoteService",
+    "com.xunmeng.pinduoduo/com.xiaomi.mipush.sdk.NotificationClickedActivity",
+    "com.xunmeng.pinduoduo/com.google.android.gms.auth.api.signin.internal.SignInHubActivity",
+    "com.xunmeng.pinduoduo/com.xunmeng.pdd_av_foundation.pddvideocapturekit.uno.UnoCameraActivity"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "disabledComponents": [
+    "com.bilibili.app.in/com.bilibili.ad.adview.imax.AdIMaxActivity",
+    "com.bilibili.app.in/com.bilibili.game.service.DownloadService",
+    "com.bilibili.app.in/com.bilibili.ad.preload.AdWebViewPreloadService4WebProcess",
+    "com.bilibili.app.in/com.bilibili.ad.adview.download.setting.ADDownloadSettingActivity",
+    "com.bilibili.app.in/com.bilibili.ad.adview.pegasus.holders.inline.player.egg.eggvideo.EggVideoActivity",
+    "com.bilibili.app.in/com.bilibili.adcommon.basic.click.AdCallUpActivity2",
+    "com.bilibili.app.in/com.bilibili.ad.adview.download.ADDownloadManagerActivity",
+    "com.bilibili.app.in/com.bilibili.digital.widget.mediumwidget.DigitalMediumAppWidget",
+    "com.bilibili.app.in/com.bilibili.adcommon.apkdownload.open.AdOpenApkProvider",
+    "com.bilibili.app.in/com.bilibili.ad.adview.web.AdWebActivity",
+    "com.bilibili.app.in/com.bilibili.app.comm.list.common.downloadapk.DownloadApkService",
+    "com.bilibili.app.in/com.bilibili.adgame.AdGameDetailActivity",
+    "com.bilibili.app.in/tv.danmaku.bili.ui.webview.service.adv.BleAdvService",
+    "com.bilibili.app.in/com.bilibili.biligame.ui.welfare.GameWelfareCenterActivity",
+    "com.bilibili.app.in/com.bilibili.game.service.filedownload.FileDownloadServiceV2",
+    "com.bilibili.app.in/com.bilibili.adcommon.basic.click.AdCallUpActivityWeb",
+    "com.bilibili.app.in/com.bilibili.adcommon.sdk.rewardvideo.view.GameAdVideoActivity",
+    "com.bilibili.app.in/com.bilibili.ad.preload.AdWebViewPreloadService4MainProcess",
+    "com.bilibili.app.in/com.bilibili.adcommon.apkdownload.AdFileProvider",
+    "com.bilibili.app.in/com.bilibili.digital.widget.smallwidget.DigitalSmallAppWidget",
+    "com.bilibili.app.in/com.bilibili.adcommon.basic.click.AdCallUpActivity",
+    "com.bilibili.app.in/com.bilibili.adcommon.apkdownload.ADDownloadService",
+    "com.bilibili.app.in/com.bilibili.adcommon.apkdownload.install.ApkInstallActivity",
+    "com.bilibili.app.in/com.bilibili.ad.adview.feed.index.inline.player.egg.eggvideo.EggVideoActivity",
+    "com.bilibili.app.in/com.bilibili.ad.adview.miniprogram.AdHistoryContentProvider",
+    "com.bilibili.app.in/com.bilibili.biligame.ui.set.SetWxRemindActivity"
+  ]
+}

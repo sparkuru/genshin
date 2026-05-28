@@ -1,0 +1,24 @@
+{
+  "disabledComponents": [
+    "com.alibaba.android.rimet/com.vivo.push.sdk.LinkProxyClientActivity",
+    "com.alibaba.android.rimet/com.google.android.gms.common.api.GoogleApiActivity",
+    "com.alibaba.android.rimet/com.alibaba.alimei.mail.activity.CMailSettingsFolderPushV6Activity",
+    "com.alibaba.android.rimet/com.xiaomi.push.service.receivers.NetworkStatusReceiver",
+    "com.alibaba.android.rimet/com.google.android.play.core.missingsplits.PlayCoreMissingSplitsActivity",
+    "com.alibaba.android.rimet/com.huawei.hms.activity.BridgeActivity",
+    "com.alibaba.android.rimet/com.vivo.push.sdk.service.CommandClientService",
+    "com.alibaba.android.rimet/com.xiaomi.push.service.XMPushService",
+    "com.alibaba.android.rimet/com.xiaomi.mipush.sdk.PushMessageHandler",
+    "com.alibaba.android.rimet/com.meizu.cloud.pushsdk.MzPushSystemReceiver",
+    "com.alibaba.android.rimet/com.xiaomi.mipush.sdk.NotificationClickedActivity",
+    "com.alibaba.android.rimet/com.huawei.hms.activity.EnableServiceActivity",
+    "com.alibaba.android.rimet/com.alibaba.alimei.mail.activity.AddCommonExpressionActivity",
+    "com.alibaba.android.rimet/com.alibaba.alimei.mail.activity.ChooseRecipientAddressActivity",
+    "com.alibaba.android.rimet/com.xiaomi.push.service.receivers.PingReceiver",
+    "com.alibaba.android.rimet/com.alibaba.alimei.mail.activity.CMailSettingsFolderPushV2Activity",
+    "com.alibaba.android.rimet/com.google.android.play.core.common.PlayCoreDialogWrapperActivity",
+    "com.alibaba.android.rimet/com.xiaomi.mipush.sdk.MessageHandleService",
+    "com.alibaba.android.rimet/com.huawei.hms.support.api.push.TransActivity",
+    "com.alibaba.android.rimet/com.xiaomi.push.service.XMJobService"
+  ]
+}
