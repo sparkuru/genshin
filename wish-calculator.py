@@ -12,17 +12,16 @@ import numpy as np
 DEBUG_MODE = False
 
 # Default demo scenario, used when running with --demo.
-# One UP character (10 pity, no guarantee) plus one fate-bound weapon, 180 fates.
 DEFAULT_DEMO_CONFIG = {
-    "fates": 180,
-    "target_characters": 1,
-    "char_pity": 10,
-    "char_guaranteed": False,
-    "cr_counter": 1,
-    "target_weapons": 1,
-    "weapon_pity": 0,
-    "weapon_guaranteed": False,
-    "fate_point": 1,
+    "fates": 180,  # 已有抽数预算
+    "target_characters": 3,  # 目标抽到几个角色
+    "char_pity": 50,  # 角色池已垫抽数
+    "char_guaranteed": False,  # 是否为大保底
+    "cr_counter": 1,  # 捕获明光参数，连续歪了几次
+    "target_weapons": 1,  # 目标抽到几把武器
+    "weapon_pity": 50,  # 武器池已垫抽数
+    "weapon_guaranteed": False,  # 是否为大保底（上次出金不为两把 up 之一）
+    "fate_point": 1,  # 武器池命定值
 }
 
 
@@ -762,7 +761,7 @@ def build_parser() -> ColoredArgumentParser:
     """Create the colorized command-line argument parser."""
     script_name = "wish-calculator.py"
     examples = [
-        ("在全新 50/50 下想抽 1 个 UP 角色，有 90 缘", "-c 1 -f 90"),
+        ("在小保底情况下想抽 1 个 UP 角色，有 90 缘", "-c 1 -f 90"),
         (
             "上次歪了（大保底）且已垫 20 抽",
             "-c 1 --char-guaranteed --char-pity 20 -f 70",
@@ -784,7 +783,7 @@ def build_parser() -> ColoredArgumentParser:
         "按账号现状对照填写下列参数：",
         "[角色] -c N：想要的 UP 五星份数（N=2 即 1 命，N=7 即 6 命）。",
         "[角色] --char-pity K：距上次角色池出金已垫的抽数，0..89（第 90 抽必出五星）。",
-        "[角色] --char-guaranteed：仅当上次五星歪了（非 UP）时才加，此时下个五星必为 UP；处于 50/50 时不要加。",
+        "[角色] --char-guaranteed：是否为大保底。仅当上次五星歪了（非 UP）时才加，此时下个五星必为 UP。",
         "[角色] --cr-counter C：捕获明光计数器 0..3（连续歪后强制必中）；不清楚就保持 1。",
         "------",
         "[武器] -w N：想要的定轨武器份数（N=1 即获得该武器，最多 5 为满精）。",

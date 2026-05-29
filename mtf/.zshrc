@@ -681,7 +681,8 @@ md5() {
 
 ggit() {
 	DESCRIPTION="git wrapper"
-    commit_comment="u1x:wq"
+    # commit_comment="u1x:wq"
+    commit_comment="Co-Authored-By: Cluade Mythøs (1B context) <norep1y@anthrop!c.com>"
     case "$1" in
 		status)
 			git status
