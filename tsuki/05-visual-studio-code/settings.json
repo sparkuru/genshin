@@ -73,7 +73,9 @@
 	"cursorpyright.analysis.disableWorkspaceSymbol": true,
 	"files.associations": {
 		"*.pmt": "markdown",
-		"*.tldr": "toml"
+		"*.tldr": "toml",
+		"*.{a80,z80,asm,inc,s}": "asm-collection",
+		"*.{list,lis}": "asm-list-file"
 	},
 	"terminal.integrated.initialHint": false,
 	"workbench.editor.empty.hint": "hidden",
