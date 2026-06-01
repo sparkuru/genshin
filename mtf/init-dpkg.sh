@@ -91,6 +91,7 @@ python_version=$(python3 --version | awk '{print $2}' | awk -F. '{print "python"
 if [[ -f "/usr/lib/${python_version}/EXTERNALLY-MANAGED" ]]; then
 	mv /usr/lib/${python_version}/EXTERNALLY-MANAGED /usr/lib/${python_version}/EXTERNALLY-MANAGED.backup
 fi
+# python_version=$(python3 --version | awk '{print $2}' | awk -F. '{print "python"$1"."$2}'); sudo mv /usr/lib/${python_version}/EXTERNALLY-MANAGED /usr/lib/${python_version}/EXTERNALLY-MANAGED.backup
 
 # nodejs
 # require_version="20.0.0"

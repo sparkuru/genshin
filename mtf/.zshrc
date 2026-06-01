@@ -414,6 +414,29 @@ show_all_custom_functions() {
     }'
 }
 
+find_comment() {
+    DESCRIPTION="find comments and triple-quoted comment blocks"
+    local comment_pattern='("""[\s\S]*?""")|((^|\n)[ \t]*#(?!\s*-\*- coding: utf-8 -\*-\s*$|!/usr/bin/env bash\s*$|!/bin/sh\s*$|!/bin/bash\s*$).*)'
+
+    if [ $# -eq 0 ]; then
+        set -- .
+    fi
+
+    if command -v rg >/dev/null 2>&1; then
+        rg --line-number --with-filename --pcre2 --multiline "$comment_pattern" "$@"
+        return
+    fi
+
+    if command -v grep >/dev/null 2>&1; then
+        grep -RInP --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv \
+            '^[ \t]*#(?!\s*-\*- coding: utf-8 -\*-\s*$|!/usr/bin/env bash\s*$|!/bin/sh\s*$|!/bin/bash\s*$)' "$@"
+        return
+    fi
+
+    echo "Error: rg or grep is required" >&2
+    return 1
+}
+
 ## base on default cmd
 cmd() {
 	DESCRIPTION="show all aliases"
