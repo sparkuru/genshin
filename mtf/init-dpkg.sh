@@ -80,7 +80,7 @@ to_install_list=(
 	kile kile-l10n
 	obs-studio simplescreenrecorder
 	davfs2
-	webp
+	webp libxdo-dev webkitgtk-webdriver
 )
 
 apt update

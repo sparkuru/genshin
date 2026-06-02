@@ -1,0 +1,25 @@
+{
+  "disabledComponents": [
+    "com.mybank.android.phone/com.xiaomi.mipush.sdk.PushMessageHandler",
+    "com.mybank.android.phone/com.huawei.hms.support.api.push.service.HmsMsgService",
+    "com.mybank.android.phone/com.heytap.msp.push.service.CompatibleDataMessageCallbackService",
+    "com.mybank.android.phone/com.xiaomi.push.service.XMJobService",
+    "com.mybank.android.phone/com.xiaomi.mipush.sdk.NotificationClickedActivity",
+    "com.mybank.android.phone/com.huawei.hms.support.api.push.PushProvider",
+    "com.mybank.android.phone/com.huawei.hms.activity.EnableServiceActivity",
+    "com.mybank.android.phone/com.xiaomi.mipush.sdk.MessageHandleService",
+    "com.mybank.android.phone/com.xiaomi.push.service.receivers.PingReceiver",
+    "com.mybank.android.phone/com.xingin.xhssharesdk.core.XhsShareActivity",
+    "com.mybank.android.phone/com.huawei.hms.aaid.InitProvider",
+    "com.mybank.android.phone/com.huawei.hms.support.api.push.TransActivity",
+    "com.mybank.android.phone/com.huawei.agconnect.core.provider.AGConnectInitializeProvider",
+    "com.mybank.android.phone/com.huawei.agconnect.core.ServiceDiscovery",
+    "com.mybank.android.phone/com.xiaomi.push.service.XMPushService",
+    "com.mybank.android.phone/com.huawei.hms.support.api.push.PushMsgReceiver",
+    "com.mybank.android.phone/com.vivo.push.sdk.LinkProxyClientActivity",
+    "com.mybank.android.phone/com.huawei.hms.support.api.push.PushReceiver",
+    "com.mybank.android.phone/com.huawei.hms.activity.BridgeActivity",
+    "com.mybank.android.phone/com.heytap.msp.push.service.DataMessageCallbackService",
+    "com.mybank.android.phone/com.vivo.push.sdk.service.CommandClientService"
+  ]
+}
