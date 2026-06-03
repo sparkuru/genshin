@@ -814,7 +814,7 @@ def run_init_ftp_workspace(
     )
     write_one(
         INIT_FTP_PASSWORDS_TXT,
-        "# One password per line\nchangeme\n",
+        "# One password per line\nchangeme\nsee https://raw.githubusercontent.com/danielmiessler/SecLists/refs/heads/master/Passwords/Common-Credentials/Pwdb_top-10000.txt\n",
     )
 
     py_q = shlex.quote(str(script_py))

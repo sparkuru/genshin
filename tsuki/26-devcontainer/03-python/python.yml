@@ -1,0 +1,15 @@
+services:
+  python:
+    image: python:3.12-slim
+    container_name: python
+    working_dir: /app
+    command: ["python", "-m", "http.server", "8000"]
+    volumes:
+    - ./app:/app
+    ports:
+    - 8000:8000
+    restart: always
+
+# visit: http://127.0.0.1:8000
+# run a script instead:  command: ["python", "main.py"]
+# docker-compose -f $PWD/python.yml up -d

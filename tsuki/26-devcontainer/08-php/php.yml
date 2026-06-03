@@ -1,0 +1,12 @@
+services:
+  php:
+    image: php:apache
+    container_name: php
+    volumes:
+    - ./www:/var/www/html
+    ports:
+    - 8081:80
+    restart: always
+
+# visit: http://127.0.0.1:8081
+# docker-compose -f $PWD/php.yml up -d

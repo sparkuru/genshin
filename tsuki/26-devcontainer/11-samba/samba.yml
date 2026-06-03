@@ -1,0 +1,15 @@
+services:
+  samba:
+    image: dperson/samba
+    container_name: samba
+    command: -u "user;password" -s "share;/share;yes;no;no;user" -p
+    volumes:
+    - ./share:/share
+    ports:
+    - 139:139
+    - 445:445
+    restart: always
+
+# list:  smbclient -L //127.0.0.1 -U user
+# mount: smbclient //127.0.0.1/share -U user%password
+# docker-compose -f $PWD/samba.yml up -d

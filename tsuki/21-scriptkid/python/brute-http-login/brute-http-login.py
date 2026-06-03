@@ -1284,7 +1284,7 @@ def run_init_http_workspace(
     )
     write_one(
         INIT_HTTP_PASSWORDS_TXT,
-        "# One password per line\nchangeme\n",
+        "# One password per line\nchangeme\nsee https://raw.githubusercontent.com/danielmiessler/SecLists/refs/heads/master/Passwords/Common-Credentials/Pwdb_top-10000.txt\n",
     )
 
     py_q = shlex.quote(str(script_py))
@@ -1297,7 +1297,7 @@ def run_init_http_workspace(
         "# EXTRA+=(--verify-tls)\n"
         "# EXTRA+=(--pause-on-success)\n"
         "# EXTRA+=(--log)\n"
-        "# EXTRA+=(--fail-if-body-contains \"InvalidLogin\")\n"
+        '# EXTRA+=(--fail-if-body-contains "InvalidLogin")\n'
         "# Single-attempt example: EXTRA+=(--user admin); EXTRA+=(--password secret)\n"
         f"exec python3 {py_q} \\\n"
         f'  --raw-request-file "$HERE/{INIT_HTTP_RAW_REQUEST}" \\\n'

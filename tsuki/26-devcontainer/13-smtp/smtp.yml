@@ -1,0 +1,11 @@
+services:
+  smtp:
+    image: mailhog/mailhog
+    container_name: smtp
+    ports:
+    - 1025:1025
+    - 8025:8025
+    restart: always
+
+# send to 127.0.0.1:1025, read captured mail at http://127.0.0.1:8025
+# docker-compose -f $PWD/smtp.yml up -d

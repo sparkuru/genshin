@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:alpine
+    container_name: postgres
+    environment:
+    - POSTGRES_USER=postgres
+    - POSTGRES_PASSWORD=postgres
+    - POSTGRES_DB=test
+    - TZ=Asia/Shanghai
+    volumes:
+    - ./data:/var/lib/postgresql
+    ports:
+    - 5432:5432
+    restart: always
+
+# connect: psql -h 127.0.0.1 -U postgres -d test   (password: postgres)
+# docker-compose -f $PWD/postgres.yml up -d

@@ -1,0 +1,14 @@
+services:
+  telnet:
+    build: .
+    container_name: telnet
+    environment:
+      - TELNET_PORT=23
+      - TELNET_USER=user
+      - TELNET_PASS=user
+    ports:
+      - 2323:23
+    restart: unless-stopped
+
+# connect: telnet 127.0.0.1 2323  (login: user / user)
+# docker compose up -d --build

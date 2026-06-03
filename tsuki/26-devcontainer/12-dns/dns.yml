@@ -1,0 +1,15 @@
+services:
+  dns:
+    image: coredns/coredns:latest
+    container_name: dns
+    command: -conf /etc/coredns/Corefile
+    volumes:
+    - ./conf:/etc/coredns:ro
+    ports:
+    - 53:53/udp
+    - 53:53/tcp
+    restart: always
+
+# add A records in ./conf/hosts, change forwarder/zones in ./conf/Corefile
+# point a client resolver at this container, or: dig @<dns-ip> test.local
+# docker-compose -f $PWD/dns.yml up -d

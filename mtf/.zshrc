@@ -415,25 +415,33 @@ show_all_custom_functions() {
 }
 
 find_comment() {
-    DESCRIPTION="find comments and triple-quoted comment blocks"
-    local comment_pattern='("""[\s\S]*?""")|((^|\n)[ \t]*#(?!\s*-\*- coding: utf-8 -\*-\s*$|!/usr/bin/env bash\s*$|!/bin/sh\s*$|!/bin/bash\s*$).*)'
+    local DESCRIPTION="find comments and triple-quoted comment blocks"
+
+    local line_comment_pattern='[ \t]*#(?![ \t]*(?:(?:-\*- coding: utf-8 -\*-|!/usr/bin/env bash|!/bin/sh|!/bin/bash|!/bin/bash -p)[ \t]*$|(?:include|define|ifdef|ifndef|endif|pragma|elif|else|if|undef|error|warning)\b)).*'
+    local triple_quote_pattern='"""[\s\S]*?"""'
+    local final_pattern="($triple_quote_pattern)|((^|\n)$line_comment_pattern)"
 
     if [ $# -eq 0 ]; then
         set -- .
     fi
 
+    if [[ "${1:-}" == "sp" ]]; then
+        printf '%s\n' "$final_pattern"
+        return
+    fi
+
     if command -v rg >/dev/null 2>&1; then
-        rg --line-number --with-filename --pcre2 --multiline "$comment_pattern" "$@"
+        rg --line-number --with-filename --pcre2 --multiline "$final_pattern" "$@"
         return
     fi
 
-    if command -v grep >/dev/null 2>&1; then
+    if command -v grep >/dev/null 2>&1 && grep -P '' /dev/null >/dev/null 2>&1; then
         grep -RInP --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv \
-            '^[ \t]*#(?!\s*-\*- coding: utf-8 -\*-\s*$|!/usr/bin/env bash\s*$|!/bin/sh\s*$|!/bin/bash\s*$)' "$@"
+            "^$line_comment_pattern" "$@"
         return
     fi
 
-    echo "Error: rg or grep is required" >&2
+    echo "Error: rg or GNU grep with -P is required" >&2
     return 1
 }
 

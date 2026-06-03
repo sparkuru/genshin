@@ -1,0 +1,17 @@
+services:
+  openwrt:
+    image: openwrtorg/rootfs:latest
+    container_name: openwrt
+    command: /sbin/init
+    privileged: true
+    volumes:
+    - ./config:/etc/config
+    ports:
+    - 8084:80
+    restart: always
+
+# LuCI web UI is not preinstalled; inside the container run:
+#   opkg update && opkg install luci-ssl && /etc/init.d/uhttpd start
+# then visit http://127.0.0.1:8084
+# arch-specific tag may be needed, e.g. openwrtorg/rootfs:x86-64-<version>
+# docker-compose -f $PWD/openwrt.yml up -d

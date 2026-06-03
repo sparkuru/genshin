@@ -1,0 +1,20 @@
+services:
+  ssh:
+    image: linuxserver/openssh-server
+    container_name: ssh
+    environment:
+    - PUID=1000
+    - PGID=1000
+    - TZ=Asia/Shanghai
+    - PASSWORD_ACCESS=true
+    - USER_NAME=user
+    - USER_PASSWORD=password
+    - SUDO_ACCESS=true
+    volumes:
+    - ./config:/config
+    ports:
+    - 2222:2222
+    restart: always
+
+# connect: ssh user@127.0.0.1 -p 2222   (password: password)
+# docker-compose -f $PWD/ssh.yml up -d

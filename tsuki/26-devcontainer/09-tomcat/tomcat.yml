@@ -1,0 +1,14 @@
+services:
+  tomcat:
+    image: tomcat:9-jdk11
+    container_name: tomcat
+    volumes:
+    - ./webapps:/usr/local/tomcat/webapps
+    ports:
+    - 8082:8080
+    restart: always
+
+# visit: http://127.0.0.1:8082   (drop a .war into ./webapps)
+# default apps live in webapps.dist inside the image:
+#   docker exec tomcat cp -r webapps.dist/. webapps/
+# docker-compose -f $PWD/tomcat.yml up -d
