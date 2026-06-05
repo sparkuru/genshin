@@ -18,6 +18,7 @@
 | 12-dns | coredns/coredns | 53/udp+tcp | 记录在 `./conf/hosts`，转发在 `./conf/Corefile` |
 | 13-smtp | mailhog/mailhog | 1025 / 8025 | SMTP 捕获，web UI `:8025` |
 | 14-openwrt | openwrtorg/rootfs | 8084:80 | privileged 软路由；LuCI 需自行 opkg 安装 |
+| 15-mysql | mysql:8 + phpmyadmin | 3306 / 8085:80 | root/root，库 test；`./init/*.sql` 首次启动自动导入，UI `:8085` |
 
 > 端口互不冲突。redis/mongo 默认无认证（练习用途），生产勿直接暴露。
 

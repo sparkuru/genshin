@@ -193,6 +193,7 @@ proxy-groups:
       - DIRECT
       - REJECT
 rules:
+  - DOMAIN-SUFFIX,docker.io,outside
   - DOMAIN-SUFFIX,chatgpt.com,outside
   - DOMAIN,juicyads.com,reject
   - DOMAIN,iida.ro,DIRECT

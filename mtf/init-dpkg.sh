@@ -81,6 +81,7 @@ to_install_list=(
 	obs-studio simplescreenrecorder
 	davfs2
 	webp libxdo-dev webkitgtk-webdriver
+	rclone 
 )
 
 apt update

@@ -1,0 +1,36 @@
+services:
+  mysql:
+    image: mysql:8
+    container_name: mysql
+    environment:
+    - MYSQL_ROOT_PASSWORD=root
+    - MYSQL_DATABASE=test
+    - MYSQL_USER=user
+    - MYSQL_PASSWORD=password
+    - TZ=Asia/Shanghai
+    volumes:
+    - ./data:/var/lib/mysql
+    - ./init:/docker-entrypoint-initdb.d
+    ports:
+    - 3306:3306
+    restart: always
+
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: phpmyadmin
+    environment:
+    - PMA_HOST=mysql
+    - PMA_PORT=3306
+    - UPLOAD_LIMIT=256M
+    depends_on:
+    - mysql
+    ports:
+    - 8085:80
+    restart: always
+
+# connect: mysql -h 127.0.0.1 -uroot -proot test   (or user/password)
+# phpMyAdmin: http://127.0.0.1:8085  (root/root)
+# auto-import: drop *.sql / *.sql.gz / *.sh into ./init (runs once on first init, data dir empty)
+#   import a single specific file: replace the ./init mount with - ./your.sql:/docker-entrypoint-initdb.d/01-init.sql
+#   re-import after data exists: rm -rf ./data/* then recreate
+# docker-compose -f $PWD/mysql.yml up -d
