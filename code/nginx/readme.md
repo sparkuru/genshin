@@ -491,7 +491,7 @@ server {
 
 ## mail forward
 
-搭建自己的邮箱匿名系统，即以后你可以留下邮箱 wkyuu@majo.im，别人发送后会自动中继转发到你的 @gmail.com；但是 nginx 本身被设计为 http 和 https，虽然有 mail 相关选项，但是本身支持很差，摘自 [github](https://github.com/ltcbuzy/Configuring-NGINX-as-a-Mail-Proxy-Server) 的回答如下：
+搭建自己的邮箱匿名系统，即以后你可以留下邮箱 i@majo.im，别人发送后会自动中继转发到你的 @gmail.com；但是 nginx 本身被设计为 http 和 https，虽然有 mail 相关选项，但是本身支持很差，摘自 [github](https://github.com/ltcbuzy/Configuring-NGINX-as-a-Mail-Proxy-Server) 的回答如下：
 
 > For mail proxy functionality, you would typically use a dedicated mail server software such as Postfix, Exim, or Microsoft Exchange. These mail servers are specifically designed to handle email traffic and implement protocols like SMTP and IMAP.
 
@@ -563,21 +563,21 @@ server {
     myhostname = mail.majo.im
     # postfix 服务器的域名
     mydomain = majo.im
-    # 邮件在发送时的邮件地址, 即在发起转发时使用的 wkyuu@majo.im 里的 majo.im
+    # 邮件在发送时的邮件地址, 即在发起转发时使用的 i@majo.im 里的 majo.im
     myorigin = majo.im
     # 邮件的目标地址
     mydestination = $myhostname, localhost.$mydomain, localhost, $mydomain, gmail.com
     mynetworks = 127.0.0.0/8 0.0.0.0/0
     ```
-5. 配置邮件转发，`vim /etc/postfix/virtual`（可能需要创建），这将使得所有目标为 wkyuu@majo.im 的邮件都被转发到 wkyuu@gmail.com：
+5. 配置邮件转发，`vim /etc/postfix/virtual`（可能需要创建），这将使得所有目标为 i@majo.im 的邮件都被转发到 wkyuu@gmail.com：
 
     ```ini
-    wkyuu@majo.im wkyuu@gmail.com
+    i@majo.im wkyuu@gmail.com
     ```
 
     然后执行：`postmap /etc/postfix/virtual`，`systemctl restart postfix` 来应用更改
 6. 测试：
 
-    1. 输入 `echo "test" | mail -s "test mail" wkyuu@majo.im` 来向本地的 postfix 服务器发送一封邮件；如果不出意外的话在 @gmail.com 里就能看见自己的邮件了，如果迟迟不见邮件，那就是封堵了，这点在日志文件中可以看到 *Network is unreachable* 的字样
+    1. 输入 `echo "test" | mail -s "test mail" i@majo.im` 来向本地的 postfix 服务器发送一封邮件；如果不出意外的话在 @gmail.com 里就能看见自己的邮件了，如果迟迟不见邮件，那就是封堵了，这点在日志文件中可以看到 *Network is unreachable* 的字样
     2. 查看 postfix 的邮件日志 `/var/log/mail.log`
     3. 输入 `mailq` 可以查看当前 postfix 发送队列中的邮件，输入 `postsuper -d ALL` 删除这些邮件

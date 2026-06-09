@@ -184,8 +184,8 @@ done
 # git
 for user in "${VALID_USER_LIST[@]}"; do
 	if [ $user = "wkyuu" ]; then
-		sudo -u $user git config --global user.email wkyuu@majo.im
-		sudo -u $user git config --global user.name sparkuru
+		sudo -u $user git config --global user.email i@majo.im
+		sudo -u $user git config --global user.name wkyuu
 		sudo -u $user git config --global credential.helper store
 		sudo -u $user git config --global init.defaultbranch main
 		sudo -u $user git config --global core.editor vim

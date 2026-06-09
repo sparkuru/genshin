@@ -93,5 +93,6 @@
   },
   "effortLevel": "xhigh",
   "theme": "auto",
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "awaySummaryEnabled": false
 }

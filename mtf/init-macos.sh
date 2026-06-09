@@ -28,8 +28,8 @@ brew install ${to_install_list[@]}
 sudo ln -sfn /opt/homebrew/opt/openjdk/libexec/openjdk.jdk /Library/Java/JavaVirtualMachines/openjdk.jdk
 
 # git
-git config --global user.email wkyuu@majo.im
-git config --global user.name sparkuru
+git config --global user.email i@majo.im
+git config --global user.name wkyuu
 git config --global credential.helper store
 git config --global init.defaultbranch main
 git config --global core.editor vim
