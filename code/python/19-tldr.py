@@ -15,6 +15,7 @@ if sys.platform == "win32":
 
 DEBUG_MODE = False
 TLDR_EXTENSION = ".tldr"
+DEFAULT_CONFIG_DIR = os.path.expanduser("~/.config/tldr")
 
 
 class CLIStyle:
@@ -84,8 +85,19 @@ def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> N
         print(message)
 
 
+def resolve_config_dir(config_dir: Optional[str] = None) -> str:
+    """Resolve the effective config directory, falling back to the default"""
+    return config_dir or DEFAULT_CONFIG_DIR
+
+
 class ColoredArgumentParser(argparse.ArgumentParser):
     """Argument parser with colored output formatting"""
+
+    def __init__(self, *args, **kwargs):
+        """Capture optional config directory for display in help output"""
+        self.config_dir = kwargs.pop("config_dir", None)
+        self.show_config_in_help = kwargs.pop("show_config_in_help", False)
+        super().__init__(*args, **kwargs)
 
     def _format_action_invocation(self, action):
         if not action.option_strings:
@@ -121,6 +133,14 @@ class ColoredArgumentParser(argparse.ArgumentParser):
             )
 
         formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
+
+        if self.show_config_in_help:
+            formatter.add_text(
+                CLIStyle.color("Config directory: ", CLIStyle.COLORS["SUB_TITLE"])
+                + CLIStyle.color(
+                    resolve_config_dir(self.config_dir), CLIStyle.COLORS["CONTENT"]
+                )
+            )
 
         formatter.add_text(CLIStyle.color("\nOptions:", CLIStyle.COLORS["TITLE"]))
         for action_group in self._action_groups:
@@ -160,7 +180,7 @@ class TLDRParser:
 
     def __init__(self, config_dir: str = None):
         """Initialize parser with configuration directory"""
-        self.config_dir = config_dir or os.path.expanduser("~/.config/tldr")
+        self.config_dir = resolve_config_dir(config_dir)
         debug("Initialized TLDRParser", config_dir=self.config_dir)
 
     def format_command(self, command: str) -> str:
@@ -570,7 +590,13 @@ def main() -> int:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=create_example_text(script_name, examples, notes),
+        show_config_in_help=True,
     )
+
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--config-dir", type=str)
+    pre_args, _ = pre_parser.parse_known_args()
+    parser.config_dir = pre_args.config_dir
 
     parser.add_argument("--log", action="store_true", help="Enable debug logging")
     parser.add_argument(
@@ -682,7 +708,7 @@ def main() -> int:
     DEBUG_MODE = args.log
 
     if args.show_config:
-        config_dir = args.config_dir or os.path.expanduser("~/.config/tldr")
+        config_dir = resolve_config_dir(args.config_dir)
         print(CLIStyle.color("Configuration directory:", CLIStyle.COLORS["TITLE"]))
         print(CLIStyle.color(f"  {config_dir}", CLIStyle.COLORS["CONTENT"]))
         if os.path.exists(config_dir):
