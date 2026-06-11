@@ -20,6 +20,7 @@ to_install_list=(
 	nmap hydra john telnet fd scroll-reverser android-platform-tools tree glow btop pidof
 	node
 	openjdk
+	wireguard-tools
 )
 
 brew install ${to_install_list[@]}
