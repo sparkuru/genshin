@@ -4,6 +4,7 @@
 
 geass
 
+.opencode
 .claude
 .codex
 .cursor
@@ -24,4 +25,5 @@ geass
 *.pmt
 
 # ai agent
+.agents
 SKILL.md

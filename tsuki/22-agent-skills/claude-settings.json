@@ -91,8 +91,8 @@
       "Bash(docker compose pull*)"
     ]
   },
-  "effortLevel": "xhigh",
+  "effortLevel": "high",
+  "awaySummaryEnabled": false,
   "theme": "auto",
-  "agentPushNotifEnabled": true,
-  "awaySummaryEnabled": false
+  "agentPushNotifEnabled": true
 }
