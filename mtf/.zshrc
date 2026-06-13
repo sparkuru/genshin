@@ -91,9 +91,103 @@ if [ -n "$force_color_prompt" ]; then
     fi
 fi
 
+demo_mode_file="/tmp/.demo_mode"
+demo_mode_load() {
+    unset DEMO_MODE_USER DEMO_MODE_HOST DEMO_MODE_SYMBOL
+    [[ -f "$demo_mode_file" ]] || return 1
+
+    DEMO_MODE_USER=demo
+    DEMO_MODE_HOST=terminal
+    DEMO_MODE_SYMBOL="@"
+
+    local line
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        case "$line" in
+            user=*)
+                [[ -n "${line#user=}" ]] && DEMO_MODE_USER="${line#user=}"
+                ;;
+            host=*)
+                [[ -n "${line#host=}" ]] && DEMO_MODE_HOST="${line#host=}"
+                ;;
+            symbol=*)
+                [[ -n "${line#symbol=}" ]] && DEMO_MODE_SYMBOL="${line#symbol=}"
+                ;;
+        esac
+    done < "$demo_mode_file"
+
+    return 0
+}
+
+prompt_identity() {
+    local separator="${1:-@}"
+
+    if demo_mode_load; then
+        separator="$DEMO_MODE_SYMBOL"
+        if [ "$is_incognito" ]; then
+            separator="%F{red}${separator}！%F{%(#.red.blue)}"
+        fi
+        printf '%s%s%s%s%s' '%B%F{%(#.red.blue)}' "$DEMO_MODE_USER" "$separator" "$DEMO_MODE_HOST" '%b%F{reset}'
+        return
+    fi
+
+    printf '%s%s%s' '%B%F{%(#.red.blue)}%n' "$separator" '%m%b%F{reset}'
+}
+
+title_identity() {
+    if demo_mode_load; then
+        printf '%s@%s' "$DEMO_MODE_USER" "$DEMO_MODE_HOST"
+        return
+    fi
+
+    printf '%s' '%n@%m'
+}
+
+demo_mode() {
+    case "${1:-}" in
+        on)
+            if [[ ! -f "$demo_mode_file" ]]; then
+                {
+                    printf '%s\n' "user=demo"
+                    printf '%s\n' "host=terminal"
+                    printf '%s\n' "symbol=@"
+                } >| "$demo_mode_file"
+            fi
+
+            demo_mode_load
+            configure_prompt
+            printf '%b\n' "${GREEN}demo mode file: $demo_mode_file enabled${NC}"
+            printf '%b%s%b\n' "${RED}edit it if needed, try ${NC}${GREEN}" "printf 'user=guest\\nhost=terminal\\nsymbol=@\\n' > $demo_mode_file" "${NC}"
+            printf '%b\n' "${RED}next terminal startup will enter demo mode as ${GREEN}${DEMO_MODE_USER}${DEMO_MODE_SYMBOL}${DEMO_MODE_HOST}${NC}"
+            ;;
+        off)
+            rm -f -- "$demo_mode_file"
+            configure_prompt
+            printf '%b\n' "${GREEN}demo mode file: $demo_mode_file removed${NC}"
+            printf '%b\n' "${RED}next terminal startup will restore the real user and host${NC}"
+            ;;
+        status)
+            if demo_mode_load; then
+                printf '%b\n' "${GREEN}demo mode: on (${DEMO_MODE_USER}${DEMO_MODE_SYMBOL}${DEMO_MODE_HOST})${NC}"
+            else
+                printf '%b\n' "${GREEN}demo mode: off${NC}"
+            fi
+            ;;
+        toggle)
+            if [[ -f "$demo_mode_file" ]]; then
+                demo_mode off
+            else
+                demo_mode on
+            fi
+            ;;
+        *)
+            printf '%s\n' "Usage: demo_mode {on|off|status|toggle}" >&2
+            return 1
+            ;;
+    esac
+}
+
 configure_prompt() {    
 
-    # prompt_symbol="(.ᗜ ᴗ ᗜ.)"
     prompt_symbol="(🌸.ᗜ ᴗ ᗜ.)"
 
     if [ "$is_incognito" ]; then
@@ -106,8 +200,45 @@ configure_prompt() {
         local git_status branch repo_name
         if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
             branch=$(git symbolic-ref --short HEAD 2>/dev/null || git describe --tags --always 2>/dev/null)
-            
-            repo_name=$(basename -s .git $(git config --get remote.origin.url 2>/dev/null) 2>/dev/null || basename $(git rev-parse --show-toplevel 2>/dev/null))
+
+            local git_root remote_name remote_url remote_source remote_host remote_path
+            git_root=$(git rev-parse --show-toplevel 2>/dev/null)
+            remote_url=$(git config --get remote.origin.url 2>/dev/null)
+
+            if [[ -z "$remote_url" ]]; then
+                local remotes
+                remotes=(${(f)"$(git remote 2>/dev/null)"})
+                remote_name="${remotes[1]}"
+                [[ -n "$remote_name" ]] && remote_url=$(git remote get-url "$remote_name" 2>/dev/null)
+            fi
+
+            if [[ -n "$remote_url" ]]; then
+                local has_url_scheme=""
+                remote_source="$remote_url"
+                if [[ "$remote_source" == *://* ]]; then
+                    has_url_scheme=1
+                    remote_source="${remote_source#*://}"
+                fi
+                remote_source="${remote_source#*@}"
+
+                if [[ -z "$has_url_scheme" && "$remote_source" == *:* ]]; then
+                    remote_host="${remote_source%%:*}"
+                    remote_path="${remote_source#*:}"
+                elif [[ "$remote_source" == */* ]]; then
+                    remote_host="${remote_source%%/*}"
+                    remote_path="${remote_source#*/}"
+                fi
+
+                remote_host="${remote_host%%:*}"
+                remote_path="${remote_path%.git}"
+                remote_path="${remote_path:t}"
+
+                if [[ -n "$remote_host" && -n "$remote_path" ]]; then
+                    repo_name="$remote_host/$remote_path"
+                fi
+            fi
+
+            [[ -n "$repo_name" ]] || repo_name=$(basename "$git_root" 2>/dev/null)
             
             git_status=$(git status --porcelain 2>/dev/null)
             
@@ -145,7 +276,7 @@ configure_prompt() {
                 fi
             fi
             
-            echo "-(git/$repo_name/$branch)-${status_color}($status_text)%f"
+            echo "-($repo_name/$branch)-${status_color}($status_text)%f"
         else
             echo ""
         fi
@@ -153,16 +284,16 @@ configure_prompt() {
     
     case "$PROMPT_ALTERNATIVE" in
         twoline)
-            PROMPT=$'%F{%(#.blue.green)}┌──${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}(%B%F{%(#.red.blue)}%n'$prompt_symbol$'%m%b%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]$(git_prompt)\n%F{%(#.blue.green)}└─%B%(#.%F{red}#.%F{blue}$)%b%F{reset} '
+            PROMPT=$'%F{%(#.blue.green)}┌──${debian_chroot:+($debian_chroot)─}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))─}($(prompt_identity "'$prompt_symbol$'")%F{%(#.blue.green)})-[%B%F{reset}%(6~.%-1~/…/%4~.%5~)%b%F{%(#.blue.green)}]$(git_prompt)\n%F{%(#.blue.green)}└─%B%(#.%F{red}#.%F{blue}$)%b%F{reset} '
             # Right-side prompt with exit codes and background processes
             #RPROMPT=$'%(?.. %? %F{red}%B⨯%b%F{reset})%(1j. %j %F{yellow}%B⚙%b%F{reset}.)'
             ;;
         oneline)
-            PROMPT=$'${debian_chroot:+($debian_chroot)}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))}%B%F{%(#.red.blue)}%n@%m%b%F{reset}:%B%F{%(#.blue.green)}%~%b%F{reset}$(git_prompt)%(#.#.$) '
+            PROMPT=$'${debian_chroot:+($debian_chroot)}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))}$(prompt_identity @):%B%F{%(#.blue.green)}%~%b%F{reset}$(git_prompt)%(#.#.$) '
             RPROMPT=
             ;;
         backtrack)
-            PROMPT=$'${debian_chroot:+($debian_chroot)}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))}%B%F{red}%n@%m%b%F{reset}:%B%F{blue}%~%b%F{reset}$(git_prompt)%(#.#.$) '
+            PROMPT=$'${debian_chroot:+($debian_chroot)}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))}$(prompt_identity @):%B%F{blue}%~%b%F{reset}$(git_prompt)%(#.#.$) '
             RPROMPT=
             ;;
     esac
@@ -259,7 +390,7 @@ if [ "$color_prompt" = yes ]; then
         ZSH_HIGHLIGHT_STYLES[cursor-matchingbracket]=standout
     fi
 else
-    PROMPT='${debian_chroot:+($debian_chroot)}%n@%m:%~%(#.#.$) '
+    PROMPT='${debian_chroot:+($debian_chroot)}$(prompt_identity @):%~%(#.#.$) '
 fi
 unset color_prompt force_color_prompt
 
@@ -275,18 +406,34 @@ toggle_oneline_prompt(){
 zle -N toggle_oneline_prompt
 bindkey ^P toggle_oneline_prompt
 
-# If this is an xterm set the title to user@host:dir
+toggle_demo_mode_prompt() {
+    demo_mode toggle
+    zle reset-prompt
+}
+zle -N toggle_demo_mode_prompt
+bindkey '^X^P' toggle_demo_mode_prompt
+
+# If this is an xterm-compatible terminal, keep the title aligned with the prompt identity.
 case "$TERM" in
 xterm*|rxvt*|Eterm|aterm|kterm|gnome*|alacritty)
-    TERM_TITLE=$'\e]0;${debian_chroot:+($debian_chroot)}${VIRTUAL_ENV:+($(basename $VIRTUAL_ENV))}%n@%m: %~\a'
+    TERM_TITLE_ENABLED=1
     ;;
 *)
     ;;
 esac
 
+terminal_title() {
+    local title_prefix=""
+
+    [[ -n "${debian_chroot:-}" ]] && title_prefix+="($debian_chroot)"
+    [[ -n "${VIRTUAL_ENV:-}" ]] && title_prefix+="($(basename -- "$VIRTUAL_ENV"))"
+
+    print -Pnr -- $'\e]0;'"${title_prefix}$(title_identity)"$': %~\a'
+}
+
 precmd() {
     # Print the previously configured title
-    print -Pnr -- "$TERM_TITLE"
+    [[ -n "${TERM_TITLE_ENABLED:-}" ]] && terminal_title
 
     # Print a new line before the prompt, but only if it is not the first line
     if [ "$NEWLINE_BEFORE_PROMPT" = yes ]; then
@@ -340,7 +487,8 @@ fi
 # ----------------------------------------- custom script ----------------------------------------- #
 
 # repo
-github_url_base="https://raw.githubusercontent.com/sparkuru/genshin/main"
+github_username="sparkuru"
+github_url_base="https://raw.githubusercontent.com/${sparkuru}/genshin/main"
 # local
 leader_path_name="cargo"
 
@@ -565,25 +713,25 @@ w2u() {
     echo "$unix_path"
 }
 
-_vmware() {
-    case "$1" in
-    start)
-        echo "starting vmware service."
-        sudo systemctl start vmware.service vmware-USBArbitrator.service
-        echo "done."
-        ;;
-    stop)
-        echo "stoping vmware service."
-        sudo systemctl stop vmware.service vmware-USBArbitrator.service
-        sudo modprobe -r vmnet vmmon kvm_amd kvm
-        echo "done."
-        ;;
-    *)
-        echo "usage: _vmware {start|stop}" >&2
-        return 1
-        ;;
-    esac
-}
+# _vmware() {
+#     case "$1" in
+#     start)
+#         echo "starting vmware service."
+#         sudo systemctl start vmware.service vmware-USBArbitrator.service
+#         echo "done."
+#         ;;
+#     stop)
+#         echo "stoping vmware service."
+#         sudo systemctl stop vmware.service vmware-USBArbitrator.service
+#         sudo modprobe -r vmnet vmmon kvm_amd kvm
+#         echo "done."
+#         ;;
+#     *)
+#         echo "usage: _vmware {start|stop}" >&2
+#         return 1
+#         ;;
+#     esac
+# }
 
 update_zshrc() {
 	DESCRIPTION="update .zshrc from github"
@@ -820,20 +968,20 @@ activate() {
 
 ## base on custom script, python, shellscript, etc.
 local_repo_path="$HOME/$leader_path_name/repo/04-flyMe2theStar/03-genshin"
-call_bridge() {
-	DESCRIPTION="call bridge script"
-    this_script_path="code/shellscript/07-call-bridge.sh"
-    if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        call_bridge_path="$local_repo_path/$this_script_path"
-    else
-        call_bridge_path="$HOME/.genshin/call-bridge.sh"
-        if [[ ! -f $call_bridge_path ]]; then
-            _curl $call_bridge_path $github_url_base/$this_script_path
-            chmod +x $call_bridge_path
-        fi
-    fi
-    eval "$call_bridge_path $@"
-}
+# call_bridge() {
+# 	DESCRIPTION="call bridge script"
+#     this_script_path="code/shellscript/07-call-bridge.sh"
+#     if [[ -f "$local_repo_path/$this_script_path" ]]; then
+#         call_bridge_path="$local_repo_path/$this_script_path"
+#     else
+#         call_bridge_path="$HOME/.genshin/call-bridge.sh"
+#         if [[ ! -f $call_bridge_path ]]; then
+#             _curl $call_bridge_path $github_url_base/$this_script_path
+#             chmod +x $call_bridge_path
+#         fi
+#     fi
+#     eval "$call_bridge_path $@"
+# }
 
 password() {
 	DESCRIPTION="python script: generate password"
@@ -1022,6 +1170,22 @@ mdtool() {
     fi
     python3 $markdown_tool_path "$@"
 }
+
+md2docx() {
+	DESCRIPTION="python script: convert markdown to docx via pandoc with custom table styles"
+    this_script_path="tsuki/19-pandoc/md2docx.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        md2docx_path="$local_repo_path/$this_script_path"
+    else
+        md2docx_path="$HOME/.genshin/pandoc/md2docx.py"
+        if [[ ! -f $md2docx_path ]]; then
+            _curl $md2docx_path $github_url_base/$this_script_path
+        fi
+    fi
+    python3 $md2docx_path "$@"
+}
+
+
 
 ## end_custom_function
 
