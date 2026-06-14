@@ -29,6 +29,7 @@ $FZFPATH = "$bin_base_path/fzf"
 $GITPATH = "$bin_base_path/git/cmd"
 $NMAPPATH = "$bin_base_path/nmap"
 $RIPGREPPATH = "$bin_base_path/ripgrep"
+$SCRCPYPATH = "$bin_base_path/scrcpy"
 $TREEPATH = "$bin_base_path/tree/bin"
 $VIMPATH = "$bin_base_path/vim/vim90"
 
@@ -40,6 +41,7 @@ $env:PATH += "$BTOPPATH;" + `
 "$GITPATH;" + `
 "$NMAPPATH;" + `
 "$RIPGREPPATH;" + `
+"$SCRCPYPATH;" + `
 "$TREEPATH;" + `
 "$VIMPATH;"
 
@@ -134,6 +136,7 @@ function mac { ssh mac-sparkuru }
 
 function hash { certutil -hashfile $args }
 function tree { & "$TREEPATH/tree.exe" -N -h $args }
+function monitor { & "$SCRCPYPATH/monitor.bat" }
 function geek { & "$bin_base_path/geek.exe" }
 function fscan { & "$bin_base_path/fscan.exe" $args }
 function env { Start-Process powershell "-Command & {rundll32 sysdm.cpl,EditEnvironmentVariables}" -Verb RunAs }
@@ -294,21 +297,6 @@ function lcd {
 #         Write-Host "run you cmd after kali started." -ForegroundColor Yellow
 #     }
 # }
-# frida
-function frida {
-    if ($env:VIRTUAL_ENV -and (python -c "import sys; print(sys.prefix == sys.base_prefix)")) {
-        & "$FRIDAPATH/venv-frida/Scripts/frida.exe" $args
-    } else {
-        $currentPath = Get-Location
-        Set-Location -Path $FRIDAPATH
-        & "./venv-frida/Scripts/Activate"
-        Write-Host "`n------------------------------------------------" -ForegroundColor Yellow
-        Write-Host " Activated Frida venv environment | $FRIDAPATH" -ForegroundColor Yellow
-        Write-Host " Type 'deactivate' to exit" -ForegroundColor Yellow
-        Write-Host "------------------------------------------------`n" -ForegroundColor Yellow
-        Set-Location -Path $currentPath
-    }
-}
 function ggit {
     $commit_comment = "u1x:wq"
     switch ($args[0]) {
