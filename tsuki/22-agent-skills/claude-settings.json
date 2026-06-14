@@ -14,6 +14,8 @@
       "Bash(stat *)",
       "Bash(tree *)",
       "Bash(tree)",
+      "Bash(curl)",
+      "Bash(curl *)",
       "Bash(du *)",
       "Bash(df *)",
       "Bash(echo *)",

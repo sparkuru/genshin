@@ -9,6 +9,7 @@ import html
 import io
 import inspect
 import ipaddress
+import json
 import mimetypes
 import os
 import re
@@ -40,6 +41,8 @@ SERVER_INSTANCE = None
 DEFAULT_PORT = 7888
 EXIT_EVENT = threading.Event()
 LOCAL_IPS = set()
+PASTEBIN_ENDPOINT = "/__pastebin"
+MAX_PASTEBIN_BYTES = 1024 * 1024
 
 FAVICON_ICO_BASE64 = "AAABAAIAEBAAAAEAIABoBAAAJgAAACAgAAABACAAqBAAAI4EAAAoAAAAEAAAACAAAAABACAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAA/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////+7u7v/h4eH/4eHh/+Hh4f/h4eH/4eHh/+Hh4f/h4eH/4eHh/+Hh4f/h4eH/4eHh/+Hh4f/h4eH/6enp//39/f///////////87Ozv89PT3/HR0d/x4eHv8eHh7/Hh4e/x4eHv8eHh7/Hh4e/x4eHv8eHh7/HR0d/ysrK/+oqKj///////////+IiIj/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/UlJS//v7+///////gICA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/0pKSv/5+fn//////4CAgP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/SkpK//n5+f//////gICA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/0pKSv/5+fn//////4CAgP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP9KSkr/+fn5//////+AgID/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/0pKSv/5+fn//////4CAgP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP9MTEz/+vr6//////+Dg4P/AAAA/wAAAP8AAAD/AAAA/wEBAf8FBQX/BQUF/wUFBf8FBQX/BQUF/wUFBf8FBQX/BQUF/wUFBf8LCwv/iYmJ////////////t7e3/xkZGf8EBAT/BQUF/wcHB/9iYmL/tra2/7a2tv+2trb/tra2/7a2tv+2trb/xMTE//T09P////////////v7+//Pz8//tra2/7a2tv+7u7v/7+/v/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAoAAAAIAAAAEAAAAABACAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAA///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////7+/v/6urq/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/5OTk//Pz8//+/v7/////////////////////////////////5+fn/3t7e/8vLy//Gxsb/xwcHP8cHBz/HBwc/xwcHP8cHBz/HBwc/xwcHP8cHBz/HBwc/xwcHP8cHBz/HBwc/xwcHP8cHBz/HBwc/xwcHP8fHx//TU1N/7W1tf/9/f3///////////////////////39/f96enr/AQEB/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/JSUl/9TU1P//////////////////////6urq/zAwMP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/CAgL/lJSU///////////////////////j4+P/HBwc/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/4CAgP//////////////////////4+Pj/xwcHP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/gICA///////////////////////j4+P/HBwc/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/+AgID//////////////////////+Pj4/8cHBz/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/4CAgP//////////////////////4+Pj/xwcHP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/4ODg///////////////////////4+Pj/xwcHP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8MDAz/sbGx///////////////////////k5OT/Hx8f/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/CwsL/2FhYf/w8PD///////////////////////Pz8/9OTk7/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8BAQH/RkZG/4GBgf+AgID/f39//39/f/9/f3//f39//39/f/9/f3//f39//39/f/9/f3//f39//4ODg/+xsbH/8PDw/////////////////////////////////7W1tf8kJCT/AwMD/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/09PT//k5OT//////////////////////////////////////////////////////////////////////////////////////////////////////////////////f39/9TU1P+Tk5P/f39//39/f/9/f3//f39//39/f/+JiYn/4+Pj/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 FAVICON_ICO_BYTES = base64.b64decode(FAVICON_ICO_BASE64)
@@ -80,6 +83,7 @@ class NewFileTracker:
 
 
 NEW_FILE_TRACKER = NewFileTracker()
+
 
 TEXT_EXTENSIONS = {
     ".txt",
@@ -191,6 +195,43 @@ VIDEO_MIME_TYPES = {
     ".3gp": "video/3gpp",
     ".3g2": "video/3gpp2",
 }
+
+
+class TemporaryPastebin:
+    """Store one shared temporary text snippet for the running server process."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._text = ""
+        self._updated_at = 0.0
+        self._updated_by = ""
+
+    def snapshot(self) -> dict:
+        with self._lock:
+            return {
+                "text": self._text,
+                "updated_at": self._updated_at,
+                "updated_by": self._updated_by,
+                "size": len(self._text.encode("utf-8")),
+            }
+
+    def update(self, text: str, updated_by: str) -> dict:
+        with self._lock:
+            self._text = text
+            self._updated_at = time.time()
+            self._updated_by = updated_by
+            return {
+                "text": self._text,
+                "updated_at": self._updated_at,
+                "updated_by": self._updated_by,
+                "size": len(self._text.encode("utf-8")),
+            }
+
+    def clear(self, updated_by: str) -> dict:
+        return self.update("", updated_by)
+
+
+PASTEBIN = TemporaryPastebin()
 
 
 def is_text_file(filepath: str) -> bool:
@@ -354,6 +395,7 @@ def access_log(
         "delete": CLIStyle.COLORS["ERROR"],
         "view": CLIStyle.COLORS["TITLE"],
         "download": 5,
+        "paste": CLIStyle.COLORS["SUB_TITLE"],
     }
     action_color = action_color_map.get(action, CLIStyle.COLORS["CONTENT"])
 
@@ -400,6 +442,14 @@ def get_request_ip(handler: http.server.BaseHTTPRequestHandler) -> str:
         candidate = _extract_ip(handler.client_address[0])
         if candidate:
             fallback = candidate
+            if candidate not in local_ips:
+                debug(
+                    "Request IP resolved",
+                    mode="peer",
+                    peer=candidate,
+                    chosen=candidate,
+                )
+                return candidate
 
     candidates: List[str] = []
     try:
@@ -438,13 +488,28 @@ def get_request_ip(handler: http.server.BaseHTTPRequestHandler) -> str:
             continue
         if ip in local_ips:
             continue
+        debug(
+            "Request IP resolved",
+            mode="forwarded",
+            peer=fallback,
+            chosen=ip,
+            raw=raw,
+        )
         return ip
 
     for raw in candidates:
         ip = _extract_ip(raw)
         if ip:
+            debug(
+                "Request IP resolved",
+                mode="forwarded-fallback",
+                peer=fallback,
+                chosen=ip,
+                raw=raw,
+            )
             return ip
 
+    debug("Request IP resolved", mode="fallback", peer=fallback, chosen=fallback)
     return fallback
 
 
@@ -699,6 +764,9 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 # Client may cancel favicon request; avoid noisy stack traces.
                 pass
             return
+        if parsed.path == PASTEBIN_ENDPOINT:
+            self._serve_pastebin(query)
+            return
         path = self._translate_path_for_read(parsed.path)
 
         if os.path.isfile(path):
@@ -736,6 +804,127 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         else:
             self.path = parsed.path
             super().do_GET()
+
+    def _serve_pastebin(self, query: dict) -> None:
+        """Return the current temporary pastebin state."""
+        snapshot = PASTEBIN.snapshot()
+        raw_mode = query.get("raw", ["0"])[0].lower() in ("1", "true", "yes", "text")
+
+        if raw_mode:
+            payload = snapshot["text"].encode("utf-8")
+            content_type = "text/plain; charset=utf-8"
+        else:
+            payload = json.dumps(snapshot, ensure_ascii=False).encode("utf-8")
+            content_type = "application/json; charset=utf-8"
+
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def _read_limited_request_body(self, max_bytes: int) -> Optional[bytes]:
+        """Read a regular or chunked request body with a size limit."""
+        transfer_encoding = self.headers.get("Transfer-Encoding", "").lower()
+        if "chunked" not in transfer_encoding:
+            length = int(self.headers.get("Content-Length", 0))
+            if length > max_bytes:
+                access_log(self, "paste", "413")
+                self.send_error(413, "Paste is too large")
+                return None
+            return self.rfile.read(length)
+
+        data = bytearray()
+        try:
+            while True:
+                line = self.rfile.readline(128)
+                if not line:
+                    raise ValueError("Invalid chunked body")
+
+                size_text = line.split(b";", 1)[0].strip()
+                chunk_size = int(size_text, 16)
+                if chunk_size == 0:
+                    self._discard_chunked_trailers()
+                    return bytes(data)
+
+                if len(data) + chunk_size > max_bytes:
+                    access_log(self, "paste", "413")
+                    self.send_error(413, "Paste is too large")
+                    return None
+
+                data.extend(self.rfile.read(chunk_size))
+                self.rfile.read(2)
+        except ValueError:
+            access_log(self, "paste", "400")
+            self.send_error(400, "Invalid chunked request body")
+            return None
+
+    def _discard_chunked_trailers(self) -> None:
+        """Consume optional HTTP chunked trailers."""
+        while True:
+            line = self.rfile.readline(65536)
+            if line in (b"\r\n", b"\n", b""):
+                return
+
+    def _handle_pastebin_post(self) -> None:
+        """Update or clear the shared temporary pastebin text."""
+        raw = self._read_limited_request_body(MAX_PASTEBIN_BYTES)
+        if raw is None:
+            return
+
+        content_type = self.headers.get("Content-Type", "")
+        text = ""
+        action = "save"
+
+        if "application/json" in content_type:
+            try:
+                data = json.loads(raw.decode("utf-8", errors="replace") or "{}")
+                text = str(data.get("text", ""))
+                action = str(data.get("action", "save"))
+            except json.JSONDecodeError:
+                access_log(self, "paste", "400")
+                self.send_error(400, "Invalid JSON")
+                return
+        elif "application/x-www-form-urlencoded" in content_type:
+            data = parse_qs(raw.decode("utf-8", errors="replace"))
+            text = data.get("text", [""])[0]
+            action = data.get("action", ["save"])[0]
+        else:
+            text = raw.decode("utf-8", errors="replace")
+
+        updated_by = get_request_ip(self)
+        if action == "clear":
+            snapshot = PASTEBIN.clear(updated_by)
+        else:
+            if len(text.encode("utf-8")) > MAX_PASTEBIN_BYTES:
+                access_log(self, "paste", "413")
+                self.send_error(413, "Paste is too large")
+                return
+            snapshot = PASTEBIN.update(text, updated_by)
+
+        access_log(self, "paste", "200", f"{snapshot['size']} bytes")
+        payload = json.dumps(snapshot, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def _handle_pastebin_put(self) -> None:
+        """Overwrite the shared temporary pastebin text with the raw request body."""
+        raw = self._read_limited_request_body(MAX_PASTEBIN_BYTES)
+        if raw is None:
+            return
+
+        text = raw.decode("utf-8", errors="replace")
+        snapshot = PASTEBIN.update(text, get_request_ip(self))
+        access_log(self, "paste", "200", f"{snapshot['size']} bytes")
+        payload = json.dumps(snapshot, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
     def _serve_ranged(self, filepath: str, log_action: Optional[str] = None) -> None:
         """Serve a file with HTTP Range request support. log_action: 'download' or None (no log)."""
@@ -1636,7 +1825,12 @@ initTheme();
         self.wfile.write(encoded)
 
     def do_PUT(self) -> None:
-        """Handle PUT requests for file uploads"""
+        """Handle PUT requests for pastebin updates or file uploads."""
+        parsed = urlparse(self.path)
+        if parsed.path == PASTEBIN_ENDPOINT:
+            self._handle_pastebin_put()
+            return
+
         path = self.translate_path(self.path)
         if path.endswith("/"):
             access_log(self, "upload", "400")
@@ -1751,6 +1945,11 @@ initTheme();
         displaypath = unquote(self.path)
         enc = sys.getfilesystemencoding()
         title = f"Directory: {displaypath}"
+        paste_snapshot = PASTEBIN.snapshot()
+        paste_text = html.escape(paste_snapshot["text"])
+        paste_size = self._format_size(paste_snapshot["size"])
+        paste_updated = self._format_paste_time(paste_snapshot["updated_at"])
+        paste_updated_by = html.escape(paste_snapshot["updated_by"] or "-")
 
         html_content = f'''<!DOCTYPE html>
 <html lang="en">
@@ -1902,6 +2101,154 @@ header h1 {{
     transition: opacity 0.2s;
 }}
 .upload-zone .btn:hover {{ opacity: 0.9; }}
+
+/* Pastebin Section */
+.paste-section {{
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+}}
+.paste-section.collapsed .paste-header {{
+    margin-bottom: 0;
+}}
+.paste-section.collapsed .paste-body {{
+    display: none;
+}}
+.paste-header {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}}
+.paste-header-left {{
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}}
+.paste-title {{
+    font-size: 0.9rem;
+    font-weight: 600;
+}}
+.paste-meta {{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+}}
+.paste-meta-highlight {{
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    line-height: 1;
+    opacity: 0.9;
+}}
+.paste-meta-time {{
+    color: var(--accent-yellow);
+    border: 1px solid var(--accent-yellow);
+}}
+.paste-meta-ip {{
+    color: var(--accent-purple);
+    border: 1px solid var(--accent-purple);
+}}
+.paste-meta-size {{
+    color: var(--accent-blue);
+    font-weight: 600;
+}}
+.paste-cli {{
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 0.75rem;
+}}
+.paste-command-row {{
+    display: flex;
+    align-items: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    overflow: hidden;
+}}
+.paste-command-row code {{
+    flex: 1;
+    padding: 6px 10px;
+    font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    font-size: 0.8em;
+    white-space: nowrap;
+    overflow-x: auto;
+    background: transparent;
+}}
+.paste-command-row button {{
+    flex-shrink: 0;
+    padding: 4px 8px;
+    background: transparent;
+    border: none;
+    border-left: 1px solid var(--border-color);
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 0.75em;
+}}
+.paste-editor {{
+    width: 100%;
+    min-height: 10rem;
+    resize: vertical;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    font-size: 0.86rem;
+    line-height: 1.5;
+}}
+.paste-editor:focus {{
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 1px;
+}}
+.paste-actions {{
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
+}}
+.paste-btn {{
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.15s;
+}}
+.paste-btn:hover {{
+    background: var(--hover-bg);
+    border-color: var(--accent-blue);
+}}
+.paste-btn.primary {{
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+    color: #fff;
+}}
+.paste-btn.danger {{
+    color: var(--accent-red);
+}}
+.paste-status {{
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    min-height: 1.2rem;
+}}
 
 /* Progress Bar */
 .progress-container {{
@@ -2219,6 +2566,59 @@ footer {{
         </button>
     </header>
 
+    <div class="paste-section collapsed" id="pasteSection">
+        <div class="paste-header">
+            <div class="paste-header-left">
+                <div class="paste-title">Temporary Pastebin</div>
+                <div class="paste-meta" id="pasteMeta">
+                    <span>Updated</span>
+                    <span class="paste-meta-highlight paste-meta-time" id="pasteUpdatedAt">{paste_updated}</span>
+                    <span>by</span>
+                    <span class="paste-meta-highlight paste-meta-ip" id="pasteUpdatedBy">{paste_updated_by}</span>
+                    <span>·</span>
+                    <span class="paste-meta-size" id="pasteSize">{paste_size}</span>
+                </div>
+            </div>
+            <button type="button" class="paste-btn" id="pasteToggle" onclick="togglePastebin()">Expand</button>
+        </div>
+        <div class="paste-body">
+            <textarea class="paste-editor" id="pasteText" spellcheck="false" maxlength="{MAX_PASTEBIN_BYTES}">{paste_text}</textarea>
+            <div class="paste-actions">
+                <button type="button" class="paste-btn primary" onclick="savePaste()">Save</button>
+                <button type="button" class="paste-btn" onclick="loadPaste(true)">Refresh</button>
+                <button type="button" class="paste-btn" onclick="copyPaste()">Copy</button>
+                <button type="button" class="paste-btn danger" onclick="clearPaste()">Clear</button>
+                <span class="paste-status" id="pasteStatus"></span>
+            </div>
+            <div class="paste-cli">
+                <div class="paste-command-row">
+                    <code id="cmdPasteCurlGet"></code>
+                    <button onclick="copyCmd(this, window.__hftpPasteCmds.curlGet)" title="Copy">⎘</button>
+                </div>
+                <div class="paste-command-row">
+                    <code id="cmdPasteCurlPut"></code>
+                    <button onclick="copyCmd(this, window.__hftpPasteCmds.curlPut)" title="Copy">⎘</button>
+                </div>
+                <div class="paste-command-row">
+                    <code id="cmdPasteCurlPipe"></code>
+                    <button onclick="copyCmd(this, window.__hftpPasteCmds.curlPipe)" title="Copy">⎘</button>
+                </div>
+                <div class="paste-command-row">
+                    <code id="cmdPasteWgetGet"></code>
+                    <button onclick="copyCmd(this, window.__hftpPasteCmds.wgetGet)" title="Copy">⎘</button>
+                </div>
+                <div class="paste-command-row">
+                    <code id="cmdPasteWgetPut"></code>
+                    <button onclick="copyCmd(this, window.__hftpPasteCmds.wgetPut)" title="Copy">⎘</button>
+                </div>
+                <div class="paste-command-row">
+                    <code id="cmdPasteWgetPipe"></code>
+                    <button onclick="copyCmd(this, window.__hftpPasteCmds.wgetPipe)" title="Copy">⎘</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="upload-section">
         <div class="upload-title">Upload File</div>
         <div class="upload-zone" id="uploadZone">
@@ -2425,6 +2825,120 @@ function formatTime(seconds) {
     if (seconds < 60) return Math.round(seconds) + 's';
     if (seconds < 3600) return Math.round(seconds / 60) + 'm ' + Math.round(seconds % 60) + 's';
     return Math.floor(seconds / 3600) + 'h ' + Math.round((seconds % 3600) / 60) + 'm';
+}
+
+function updatePasteStatus(message, isError) {
+    var status = document.getElementById('pasteStatus');
+    if (!status) return;
+    status.textContent = message || '';
+    status.style.color = isError ? 'var(--accent-red)' : 'var(--text-secondary)';
+}
+
+function togglePastebin() {
+    var section = document.getElementById('pasteSection');
+    var toggle = document.getElementById('pasteToggle');
+    if (!section || !toggle) return;
+    var collapsed = section.classList.toggle('collapsed');
+    toggle.textContent = collapsed ? 'Expand' : 'Collapse';
+}
+
+function formatPasteTime(timestamp) {
+    if (!timestamp || timestamp <= 0) return 'never';
+    var dt = new Date(timestamp * 1000);
+    var y = dt.getFullYear();
+    var m = String(dt.getMonth() + 1).padStart(2, '0');
+    var d = String(dt.getDate()).padStart(2, '0');
+    var h = String(dt.getHours()).padStart(2, '0');
+    var min = String(dt.getMinutes()).padStart(2, '0');
+    var s = String(dt.getSeconds()).padStart(2, '0');
+    return y + '/' + m + '/' + d + ' ' + h + ':' + min + ':' + s;
+}
+
+function updatePasteMeta(data) {
+    var updatedAt = document.getElementById('pasteUpdatedAt');
+    var updatedBy = document.getElementById('pasteUpdatedBy');
+    var pasteSize = document.getElementById('pasteSize');
+    if (updatedAt) updatedAt.textContent = formatPasteTime(data.updated_at);
+    if (updatedBy) updatedBy.textContent = data.updated_by || '-';
+    if (pasteSize) pasteSize.textContent = formatBytes(data.size || 0);
+}
+
+function applyPasteState(data, message) {
+    var text = document.getElementById('pasteText');
+    if (text) {
+        text.value = data.text || '';
+    }
+    updatePasteMeta(data);
+    if (message) {
+        updatePasteStatus(message, false);
+    }
+}
+
+function loadPaste(showStatus) {
+    fetch('/__pastebin', { cache: 'no-store' })
+        .then(function(response) {
+            if (!response.ok) throw new Error(response.statusText || response.status);
+            return response.json();
+        })
+        .then(function(data) {
+            applyPasteState(data, showStatus ? 'Refreshed' : '');
+        })
+        .catch(function(err) {
+            updatePasteStatus('Refresh failed: ' + err.message, true);
+        });
+}
+
+function savePaste() {
+    var text = document.getElementById('pasteText');
+    if (!text) return;
+    updatePasteStatus('Saving...', false);
+    fetch('/__pastebin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.value })
+    })
+        .then(function(response) {
+            if (!response.ok) throw new Error(response.statusText || response.status);
+            return response.json();
+        })
+        .then(function(data) {
+            applyPasteState(data, 'Saved');
+        })
+        .catch(function(err) {
+            updatePasteStatus('Save failed: ' + err.message, true);
+        });
+}
+
+function clearPaste() {
+    if (!confirm('Clear shared text?')) return;
+    fetch('/__pastebin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear' })
+    })
+        .then(function(response) {
+            if (!response.ok) throw new Error(response.statusText || response.status);
+            return response.json();
+        })
+        .then(function(data) {
+            applyPasteState(data, 'Cleared');
+        })
+        .catch(function(err) {
+            updatePasteStatus('Clear failed: ' + err.message, true);
+        });
+}
+
+function copyPaste() {
+    var text = document.getElementById('pasteText');
+    if (!text) return;
+    var finish = function() { updatePasteStatus('Copied', false); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text.value).then(finish).catch(function() {
+            fallbackCopy(text.value, finish);
+        });
+    } else {
+        fallbackCopy(text.value, finish);
+    }
 }
 
 var currentSortKey = 'name';
@@ -2695,6 +3209,7 @@ function updateThemeButton(theme) {
 
 initTheme();
 setupSorting();
+loadPaste(false);
 
 // Delete functionality
 let deleteTarget = '';
@@ -2762,6 +3277,34 @@ function initUploadCliExamples() {
     if (el3) el3.textContent = window.__hftpCmds.wgetPut;
 }
 
+function initPasteCliExamples() {
+    const base = window.location.origin.replace(/\\/+$/, '');
+    const endpoint = base + '/__pastebin';
+    const rawEndpoint = endpoint + '?raw=1';
+
+    window.__hftpPasteCmds = {
+        curlGet: `curl -sS '${rawEndpoint}'`,
+        curlPut: `curl -T paste.txt '${endpoint}'`,
+        curlPipe: `echo 'STH' | curl -sS -X PUT --data-binary @- '${endpoint}'`,
+        wgetGet: `wget -qO- '${rawEndpoint}'`,
+        wgetPut: `wget --method=PUT --body-file=paste.txt -O- '${endpoint}'`,
+        wgetPipe: `echo 'STH' | sh -c 'wget --method=PUT --body-data="$(cat)" -O- "$1"' sh '${endpoint}'`
+    };
+
+    const el1 = document.getElementById('cmdPasteCurlGet');
+    const el2 = document.getElementById('cmdPasteCurlPut');
+    const el3 = document.getElementById('cmdPasteCurlPipe');
+    const el4 = document.getElementById('cmdPasteWgetGet');
+    const el5 = document.getElementById('cmdPasteWgetPut');
+    const el6 = document.getElementById('cmdPasteWgetPipe');
+    if (el1) el1.textContent = window.__hftpPasteCmds.curlGet;
+    if (el2) el2.textContent = window.__hftpPasteCmds.curlPut;
+    if (el3) el3.textContent = window.__hftpPasteCmds.curlPipe;
+    if (el4) el4.textContent = window.__hftpPasteCmds.wgetGet;
+    if (el5) el5.textContent = window.__hftpPasteCmds.wgetPut;
+    if (el6) el6.textContent = window.__hftpPasteCmds.wgetPipe;
+}
+
 function copyCmd(btn, text) {
     const finish = () => {
         const orig = btn.textContent;
@@ -2789,6 +3332,7 @@ function fallbackCopy(text, cb) {
 
 // Initialize dynamic upload CLI examples on load
 initUploadCliExamples();
+initPasteCliExamples();
 </script>
 </body>
 </html>"""
@@ -2829,6 +3373,12 @@ initUploadCliExamples();
             return f"{size / (1024 * 1024):.1f} MB"
         else:
             return f"{size / (1024 * 1024 * 1024):.2f} GB"
+
+    def _format_paste_time(self, timestamp: float) -> str:
+        """Format pastebin update time for the directory page."""
+        if timestamp <= 0:
+            return "never"
+        return time.strftime("%Y/%m/%d %H:%M:%S", time.localtime(timestamp))
 
     def _get_file_icon(self, name: str) -> Tuple[str, str]:
         """Get file icon and CSS class based on file extension"""
@@ -2937,6 +3487,11 @@ initUploadCliExamples();
           - application/x-www-form-urlencoded: wget --post-data="data=<base64>&filename=name"
           - raw body: curl --data-binary @path -H "Content-Type: application/octet-stream"
         """
+        parsed = urlparse(self.path)
+        if parsed.path == PASTEBIN_ENDPOINT:
+            self._handle_pastebin_post()
+            return
+
         content_type = self.headers.get("Content-Type", "")
         try:
             if "multipart/form-data" in content_type:
