@@ -98,16 +98,10 @@
       "WebSearch",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Read(//tmp/**)",
-      "Bash(git clone *)",
-      "Bash(python3 .trellis/scripts/task.py current)",
-      "Bash(docker --version)",
       "Bash(bun --version)",
       "Bash(git check-ignore *)",
       "Bash(git add *)",
-      "Bash(git --no-pager diff --cached --name-only)",
-      "Bash(git commit -q -m ' *)",
-      "Bash(git --no-pager log --oneline -1)",
-      "Bash(python3 ./.trellis/scripts/*)"
+      "Bash(git --no-pager diff --cached --name-only)"
     ],
     "additionalDirectories": [
       "/tmp",
