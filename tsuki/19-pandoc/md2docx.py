@@ -3,10 +3,10 @@
 # requires the `pandoc` binary in PATH
 
 """
-Convert markdown files to docx via pandoc, then apply custom table/caption
-styles through docx-table-style.py.
+Convert markdown files to docx via pandoc, then apply custom post-process
+styles through docx-post-process.py.
 
-Resource resolution order for both `docx-table-style.py` and
+Resource resolution order for both `docx-post-process.py` and
 `pandoc-template.docx`:
 
   1. same directory as this script
@@ -34,7 +34,7 @@ GENSHIN_PANDOC_DIR = HOME / ".genshin" / "pandoc"
 GITHUB_USERNAME = "sparkuru"
 GITHUB_URL_BASE = f"https://raw.githubusercontent.com/{GITHUB_USERNAME}/genshin/main"
 
-STYLE_SCRIPT_NAME = "docx-table-style.py"
+STYLE_SCRIPT_NAME = "docx-post-process.py"
 TEMPLATE_NAME = "pandoc-template.docx"
 
 CHAR_THRESHOLD = 60
@@ -102,9 +102,7 @@ class ColoredArgumentParser(argparse.ArgumentParser):
             formatter.add_text(
                 CLIStyle.color(self.description, CLIStyle.COLORS["TITLE"])
             )
-        formatter.add_usage(
-            self.usage, self._actions, self._mutually_exclusive_groups
-        )
+        formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
         formatter.add_text(
             CLIStyle.color("\nOptional Arguments:", CLIStyle.COLORS["TITLE"])
         )
@@ -176,8 +174,8 @@ def resolve_resource(name: str, script_dir: Path, downloadable: bool) -> Path | 
 
 
 def load_style_module(style_script: Path) -> ModuleType:
-    """Import docx-table-style.py as a module despite its hyphenated name."""
-    spec = importlib.util.spec_from_file_location("docx_table_style", style_script)
+    """Import the hyphenated post-process script as a module."""
+    spec = importlib.util.spec_from_file_location("docx_post_process", style_script)
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load module from {style_script}")
     module = importlib.util.module_from_spec(spec)
@@ -185,14 +183,14 @@ def load_style_module(style_script: Path) -> ModuleType:
     return module
 
 
-def apply_table_style(
+def apply_post_process(
     docx_path: Path,
     style_module: ModuleType,
     threshold: int,
     max_merge_cols: int,
     format_table: bool,
 ) -> None:
-    """Apply custom table/caption styles in place using the style module."""
+    """Apply custom docx post-processing in place using the style module."""
     style_module.CHAR_THRESHOLD = threshold
     style_module.MAX_MERGE_COLS = max(0, max_merge_cols)
     style_module.FORMAT_TABLE_ENABLED = format_table
@@ -241,7 +239,7 @@ def convert_one(
         return False
 
     if style_module is not None:
-        apply_table_style(
+        apply_post_process(
             dst_docx, style_module, threshold, max_merge_cols, format_table
         )
     return True
@@ -308,14 +306,15 @@ def main() -> int:
         action="store_true",
         help="disable hierarchical column merging.",
     )
-    parser.add_argument(
-        "--log", action="store_true", help="enable debug logging."
-    )
+    parser.add_argument("--log", action="store_true", help="enable debug logging.")
     args = parser.parse_args()
     DEBUG_MODE = args.log
 
     if shutil.which("pandoc") is None:
-        log("pandoc not found in PATH; install: sudo apt install pandoc", CLIStyle.COLORS["ERROR"])
+        log(
+            "pandoc not found in PATH; install: sudo apt install pandoc",
+            CLIStyle.COLORS["ERROR"],
+        )
         return 1
 
     work_dir = Path.cwd()
@@ -328,12 +327,17 @@ def main() -> int:
     md_files = [f for f in md_files if f.stat().st_size > 0]
     if not md_files:
         log(f"no markdown files found in: {markdown_dir}", CLIStyle.COLORS["WARNING"])
-        log("tip: run beside *.md files or pass a directory", CLIStyle.COLORS["WARNING"])
+        log(
+            "tip: run beside *.md files or pass a directory", CLIStyle.COLORS["WARNING"]
+        )
         return 0
 
     template = resolve_resource(TEMPLATE_NAME, work_dir, downloadable=True)
     if template is None:
-        log("pandoc-template.docx not found; using pandoc default", CLIStyle.COLORS["WARNING"])
+        log(
+            "pandoc-template.docx not found; using pandoc default",
+            CLIStyle.COLORS["WARNING"],
+        )
 
     style_script = resolve_resource(STYLE_SCRIPT_NAME, work_dir, downloadable=True)
     style_module: ModuleType | None = None
@@ -344,12 +348,22 @@ def main() -> int:
             log(str(e), CLIStyle.COLORS["ERROR"])
             return 1
         except ModuleNotFoundError:
-            log("python-docx not found; install: pip install python-docx", CLIStyle.COLORS["ERROR"])
+            log(
+                "python-docx not found; install: pip install python-docx",
+                CLIStyle.COLORS["ERROR"],
+            )
             return 1
     else:
-        log("docx-table-style.py not found; skipping style post-process", CLIStyle.COLORS["WARNING"])
+        log(
+            "docx-post-process.py not found; skipping style post-process",
+            CLIStyle.COLORS["WARNING"],
+        )
 
-    output_dir = markdown_dir if (args.same_dir and len(md_files) == 1) else markdown_dir / "docx"
+    output_dir = (
+        markdown_dir
+        if (args.same_dir and len(md_files) == 1)
+        else markdown_dir / "docx"
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
 
     converted = 0
@@ -377,7 +391,10 @@ def main() -> int:
                 traceback.print_exc()
             log(f"failed on {src_md.name}: {e}", CLIStyle.COLORS["ERROR"])
 
-    log(f"done, {converted}/{len(md_files)} converted -> {output_dir}", CLIStyle.COLORS["CONTENT"])
+    log(
+        f"done, {converted}/{len(md_files)} converted -> {output_dir}",
+        CLIStyle.COLORS["CONTENT"],
+    )
     return 0
 
 

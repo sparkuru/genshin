@@ -11,7 +11,7 @@ link_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
 script_path="$(readlink -f -- "${BASH_SOURCE[0]:-$0}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]:-$0}")"
 repo_dir="$(cd -- "$(dirname -- "$script_path")" && pwd -P)"
 
-# docx-table-style args
+# docx post-process args
 char_threshold=60
 max_merge_cols=3
 format_table=true
@@ -76,9 +76,9 @@ if [ -z "$markdown_dir" ]; then
 	fi
 fi
 
-python_style_script="$tool_dir/docx-table-style.py"
+python_style_script="$tool_dir/docx-post-process.py"
 if [ ! -f "$python_style_script" ]; then
-	python_style_script="$repo_dir/docx-table-style.py"
+	python_style_script="$repo_dir/docx-post-process.py"
 fi
 
 pandoc_template_file="$tool_dir/pandoc-template.docx"

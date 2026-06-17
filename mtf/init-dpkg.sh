@@ -70,7 +70,7 @@ to_install_list=(
 	python3-pip python3-venv python-is-python3
 	gnupg2 patchelf binwalk wireshark tcpdump
 	strace android-sdk-platform-tools
-	winetricks k3b gimp digikam krdc cups ffmpeg npm
+	winetricks k3b gimp digikam krdc cups ffmpeg npm kdenlive tmux
 	genisoimage device-tree-compiler
 	antlr3 antlr4 swig
 	debsums msmtp xxd ftp shfmt rlwrap pdfgrep

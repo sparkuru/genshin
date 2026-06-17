@@ -23,7 +23,7 @@ Recommended workspace layout:
 <workspace>/
   md2docx.sh                     # symlink to pandoc-md2docx.sh (optional name)
   pandoc-template.docx           # optional override (preferred if exists)
-  docx-table-style.py            # optional override (preferred if exists)
+  docx-post-process.py           # optional override (preferred if exists)
   markdown/                      # markdown sources (*.md)
   docx/                          # outputs (auto-created when needed)
 ```
@@ -43,7 +43,7 @@ What it does:
 - Skips files whose prefix index is in `dont_cover_file_index` (e.g. `01-xxx.md`).
 - Template/script resolution:
   - If `<workspace>/pandoc-template.docx` exists, use it; otherwise fallback to the repo copy (next to `pandoc-md2docx.sh`).
-  - If `<workspace>/docx-table-style.py` exists, use it; otherwise fallback to the repo copy.
+  - If `<workspace>/docx-post-process.py` exists, use it; otherwise fallback to the repo copy.
 
 ## wps view option
 

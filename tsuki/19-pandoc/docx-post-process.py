@@ -2,15 +2,28 @@
 # pip install python-docx
 
 """
-Expects reference.docx to define: 表格整体样式, 表格表头样式, 表格单元格正文样式 A, 表格单元格正文样式 B, 表题.
+Pandoc docx post-process filter.
+
+This filter currently:
+- formats markdown tables and table captions with custom docx styles;
+- converts markdown fenced code blocks to the text-block style;
+- removes manually typed numeric prefixes from auto-numbered headings.
+
+Extension rule:
+- Keep `_process_reserved_extension_slot` as the final registered processor.
+- When adding a new processor, add it before `_process_reserved_extension_slot`.
+- After finishing that extension, leave or add another reserved extension slot.
 """
 
 import argparse
 import re
 import sys
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Callable
 
 from docx import Document
+from docx.document import Document as DocxDocument
 from docx.enum.table import WD_ALIGN_VERTICAL
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
@@ -27,13 +40,22 @@ STYLE_HEADER = "表格表头样式"
 STYLE_CELL_SHORT = "表格单元格正文样式 A"
 STYLE_CELL_LONG = "表格单元格正文样式 B"
 STYLE_CAPTION = "表题"
+STYLE_TEXT_BLOCK = "文本块"
+STYLE_TEXT_BLOCK_FALLBACK = "Block Text"
+PANDOC_CODE_BLOCK_STYLES = {"Source Code", "Code Block"}
 CAPTION_PATTERN = re.compile(r"^表(?:\s+|[:：]\s*)?(.*)$")
+HEADING_STYLE_PATTERN = re.compile(r"^Heading [1-9]$")
+MANUAL_HEADING_NUMBER_PATTERN = re.compile(
+    r"^\s*\d+(?:[./．。]\d+|[./．。])*(?:[)）、])?\s+"
+)
 CHAR_THRESHOLD = 60
 MAX_MERGE_COLS = 3
 FORMAT_TABLE_ENABLED = False
 
+BlockProcessor = Callable[[object, int, list[object], DocxDocument], None]
 
-def _iter_block_items(parent):
+
+def _iter_block_items(parent: DocxDocument | _Cell) -> Iterator[Paragraph | Table]:
     """Yield paragraphs and tables under parent in document order."""
     if hasattr(parent, "element") and hasattr(parent.element, "body"):
         parent_elm = parent.element.body
@@ -68,7 +90,7 @@ def _set_cell_border(cell: _Cell) -> None:
             el.set(qn(f"w:{key}"), val)
 
 
-def _iter_physical_cells(table: Table):
+def _iter_physical_cells(table: Table) -> Iterator[_Cell]:
     """Yield every physical w:tc in the table (including vMerge continuation cells)."""
     for row in table.rows:
         for tc in row._tr.iterchildren():
@@ -90,7 +112,7 @@ def _set_table_width_100(table: Table) -> None:
     tblW.set(qn("w:w"), "5000")
 
 
-def _cell_char_count(cell) -> int:
+def _cell_char_count(cell: _Cell) -> int:
     n = 0
     for p in cell.paragraphs:
         n += len(p.text)
@@ -177,9 +199,9 @@ def _format_table_content(table: Table, max_merge_cols: int | None = None) -> No
 
 
 def _set_paragraph_style(
-    paragraph,
+    paragraph: Paragraph,
     style_name: str,
-    doc,
+    doc: DocxDocument,
     alignment: WD_ALIGN_PARAGRAPH | None = None,
 ) -> bool:
     try:
@@ -194,7 +216,21 @@ def _set_paragraph_style(
     return True
 
 
-def _apply_caption_style(paragraph, caption_text: str, doc) -> None:
+def _set_paragraph_style_any(
+    paragraph: Paragraph,
+    style_names: tuple[str, ...],
+    doc: DocxDocument,
+    alignment: WD_ALIGN_PARAGRAPH | None = None,
+) -> bool:
+    for style_name in style_names:
+        if _set_paragraph_style(paragraph, style_name, doc, alignment):
+            return True
+    return False
+
+
+def _apply_caption_style(
+    paragraph: Paragraph, caption_text: str, doc: DocxDocument
+) -> None:
     if not _set_paragraph_style(
         paragraph, STYLE_CAPTION, doc, alignment=WD_ALIGN_PARAGRAPH.CENTER
     ):
@@ -218,7 +254,51 @@ def _extract_caption_text(text: str) -> str | None:
     return caption_text
 
 
-def _apply_table_styles(table, doc) -> None:
+def _style_name(block: Paragraph) -> str:
+    try:
+        return block.style.name
+    except (AttributeError, ValueError):
+        return ""
+
+
+def _is_pandoc_code_block(block: Paragraph) -> bool:
+    return _style_name(block) in PANDOC_CODE_BLOCK_STYLES
+
+
+def _is_heading(block: Paragraph) -> bool:
+    return HEADING_STYLE_PATTERN.match(_style_name(block)) is not None
+
+
+def _manual_heading_number_prefix_length(text: str) -> int:
+    match = MANUAL_HEADING_NUMBER_PATTERN.match(text)
+    if match is None:
+        return 0
+    return match.end()
+
+
+def _delete_paragraph_prefix(paragraph: Paragraph, prefix_length: int) -> None:
+    remaining = prefix_length
+    for run in paragraph.runs:
+        if remaining <= 0:
+            return
+        run_text = run.text
+        if len(run_text) <= remaining:
+            run.text = ""
+            remaining -= len(run_text)
+            continue
+        run.text = run_text[remaining:]
+        return
+
+
+def _apply_text_block_style(paragraph: Paragraph, doc: DocxDocument) -> None:
+    _set_paragraph_style_any(
+        paragraph,
+        (STYLE_TEXT_BLOCK, STYLE_TEXT_BLOCK_FALLBACK),
+        doc,
+    )
+
+
+def _apply_table_styles(table: Table, doc: DocxDocument) -> None:
     rows = table.rows
     if not rows:
         return
@@ -249,29 +329,105 @@ def _apply_table_styles(table, doc) -> None:
                 _set_paragraph_style(p, style, doc, alignment=alignment)
 
 
-def process_document(doc: Document) -> None:
-    blocks = list(_iter_block_items(doc))
-    i = 0
-    while i < len(blocks):
-        block = blocks[i]
-        if isinstance(block, Paragraph) and i + 1 < len(blocks):
-            next_block = blocks[i + 1]
-            if isinstance(next_block, Table):
-                text = (block.text or "").strip()
-                caption_text = _extract_caption_text(text)
-                if caption_text is not None:
-                    _apply_caption_style(block, caption_text, doc)
+def _process_table_and_caption(
+    block: object,
+    index: int,
+    blocks: list[object],
+    doc: DocxDocument,
+) -> None:
+    if isinstance(block, Paragraph) and index + 1 < len(blocks):
+        next_block = blocks[index + 1]
+        if isinstance(next_block, Table):
+            text = (block.text or "").strip()
+            caption_text = _extract_caption_text(text)
+            if caption_text is not None:
+                _apply_caption_style(block, caption_text, doc)
+    if isinstance(block, Table):
+        if FORMAT_TABLE_ENABLED:
+            _format_table_content(block, MAX_MERGE_COLS)
+        _apply_table_styles(block, doc)
+
+
+def _process_text_block(
+    block: object,
+    index: int,
+    blocks: list[object],
+    doc: DocxDocument,
+) -> None:
+    del index, blocks
+    if isinstance(block, Paragraph) and _is_pandoc_code_block(block):
+        _apply_text_block_style(block, doc)
+
+
+def _process_heading_manual_number(
+    block: object,
+    index: int,
+    blocks: list[object],
+    doc: DocxDocument,
+) -> None:
+    del index, blocks, doc
+    if not isinstance(block, Paragraph) or not _is_heading(block):
+        return
+    prefix_length = _manual_heading_number_prefix_length(block.text)
+    if prefix_length > 0:
+        _delete_paragraph_prefix(block, prefix_length)
+
+
+def _process_reserved_extension_slot(
+    block: object,
+    index: int,
+    blocks: list[object],
+    doc: DocxDocument,
+) -> None:
+    """
+    Reserved extension slot.
+
+    Do not remove this placeholder when no new extension is needed. If a future
+    extension is implemented, register the new processor before this function
+    and keep a reserved slot at the end of `_document_processors`.
+    """
+    del block, index, blocks, doc
+
+
+def _document_processors() -> tuple[BlockProcessor, ...]:
+    """
+    Register document processors in execution order.
+
+    Future extension point:
+    - Add a new `_process_*` function with the BlockProcessor signature.
+    - Register it before `_process_reserved_extension_slot`.
+    - Keep `_process_reserved_extension_slot` as the final tuple item.
+    """
+    return (
+        _process_table_and_caption,
+        _process_text_block,
+        _process_heading_manual_number,
+        _process_reserved_extension_slot,
+    )
+
+
+def _process_blocks(
+    parent: DocxDocument | _Cell,
+    doc: DocxDocument,
+    processors: tuple[BlockProcessor, ...],
+) -> None:
+    blocks = list(_iter_block_items(parent))
+    for index, block in enumerate(blocks):
+        for processor in processors:
+            processor(block, index, blocks, doc)
         if isinstance(block, Table):
-            if FORMAT_TABLE_ENABLED:
-                _format_table_content(block, MAX_MERGE_COLS)
-            _apply_table_styles(block, doc)
-        i += 1
+            for cell in _iter_physical_cells(block):
+                _process_blocks(cell, doc, processors)
+
+
+def process_document(doc: DocxDocument) -> None:
+    _process_blocks(doc, doc, _document_processors())
 
 
 def main() -> int:
     global CHAR_THRESHOLD, DEBUG_MODE, FORMAT_TABLE_ENABLED, MAX_MERGE_COLS
     parser = argparse.ArgumentParser(
-        description="Apply custom table/caption styles to a pandoc-generated docx.",
+        description="Apply custom post-process styles to a pandoc-generated docx.",
     )
     parser.add_argument(
         "input_docx",
