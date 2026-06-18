@@ -3,65 +3,65 @@
 ## Prerequisites
 
 ```bash
-# Load WireGuard kernel module
 sudo modprobe wireguard
-
-# Verify module loaded
 lsmod | grep wireguard
 ```
 
 ## Configuration
 
-Edit `wireguard-server.yml`:
+Create `.env` from the template:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `SERVERURL` | Public domain or IP | `vpn.example.com` |
+| `SERVERURL` | Public domain/IP, or `auto` | `iida.ro` |
 | `SERVERPORT` | UDP port | `51820` |
-| `PEERS` | Number of clients (or comma-separated names) | `3` or `phone,laptop,desktop` |
+| `PEERS` | Number of clients or comma-separated names | `3` or `phone,laptop,desktop` |
 | `INTERNAL_SUBNET` | VPN subnet | `10.13.13.0` |
-| `ALLOWEDIPS` | Client allowed IPs | `0.0.0.0/0` (all traffic) |
+| `ALLOWEDIPS` | Client routed IPs | `10.13.13.0/24` or `0.0.0.0/0` |
 
 ## Deploy
 
 ```bash
-# Initialize
 ./init-wireguard-server.sh
-
-# Start
-docker-compose -f wireguard-server.yml up -d
+./wireguard-server.sh up
 ```
 
 ## Client Setup
 
 ```bash
-# List all peers
 ./wireguard-server.sh list
-
-# Show QR code (for mobile)
-./wireguard-server.sh qr peer1
-
-# Show config file
-./wireguard-server.sh conf peer1
+./wireguard-server.sh qr localtest
+./wireguard-server.sh conf localtest
 ```
 
-Config files location: `./config/peer_<name>/peer_<name>.conf`
+Named peer config path: `./config/peer_<name>/peer_<name>.conf`
+
+Numeric peer config path: `./config/peer<index>/peer<index>.conf`
 
 ## Management
 
 ```bash
-# View logs
+./wireguard-server.sh status
 ./wireguard-server.sh logs
-
-# Restart after config change
 ./wireguard-server.sh restart
-
-# Add more peers: modify PEERS in yml, then restart
+./wireguard-server.sh down
 ```
 
 ## Firewall
 
 ```bash
-# Open UDP port
-sudo ufw allow 51820/udp
+sudo ufw allow "$SERVERPORT/udp"
+```
+
+When `PEERS`, `SERVERURL`, `SERVERPORT`, `INTERNAL_SUBNET`, or `ALLOWEDIPS` changes, recreate the container:
+
+```bash
+./wireguard-server.sh down
+./wireguard-server.sh up
 ```

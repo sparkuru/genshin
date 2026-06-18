@@ -1,33 +1,28 @@
 services:
   wireguard:
-    image: linuxserver/wireguard:latest
-    container_name: wireguard
+    image: ${WIREGUARD_IMAGE:-lscr.io/linuxserver/wireguard:latest}
+    container_name: ${CONTAINER_NAME:-wireguard}
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Asia/Shanghai
-      - SERVERURL=vpn.example.com
-      - SERVERPORT=7890
-      - PEERS=3
-      - PEERDNS=auto
-      - INTERNAL_SUBNET=10.168.9.0/24
-      - ALLOWEDIPS=0.0.0.0/0
-      # - PERSISTENTKEEPALIVE_PEERS=
-      - LOG_CONFS=true
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+      - SERVERURL=${SERVERURL:-auto}
+      - SERVERPORT=${SERVERPORT:-7890}
+      - PEERS=${PEERS:-localtest}
+      - PEERDNS=${PEERDNS:-auto}
+      - INTERNAL_SUBNET=${INTERNAL_SUBNET:-10.168.9.0}
+      - ALLOWEDIPS=${ALLOWEDIPS:-10.168.9.0/24}
+      - PERSISTENTKEEPALIVE_PEERS=${PERSISTENTKEEPALIVE_PEERS:-all}
+      - LOG_CONFS=${LOG_CONFS:-false}
     volumes:
       - ./config:/config
       - /lib/modules:/lib/modules:ro
     ports:
-      - 7890:51820/udp
+      - "${SERVERPORT:-7890}:51820/udp"
     sysctls:
-      - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
-      - net.ipv6.conf.all.disable_ipv6=1
-      - net.ipv6.conf.all.forwarding=0
-      - net.ipv6.conf.default.forwarding=0
+      - net.ipv4.ip_forward=1
     restart: unless-stopped
-
-# docker-compose -f $PWD/wireguard-server.yml up -d

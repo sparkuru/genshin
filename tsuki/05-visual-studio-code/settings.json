@@ -17,7 +17,7 @@
 	"remote.SSH.localServerDownload": "always",
 	"python.REPL.enableREPLSmartSend": false,
 	"update.showReleaseNotes": false,
-	"extensions.autoUpdate": false,
+	"extensions.autoUpdate": "off",
 	"extensions.autoCheckUpdates": false,
 	"editor.stickyScroll.enabled": false,
 	"window.confirmSaveUntitledWorkspace": false,

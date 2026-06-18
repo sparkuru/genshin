@@ -1,20 +1,18 @@
 #!/usr/bin/env bash
+set -Eeuo pipefail
 
-index=20
-app_name=wireguard-server
-url=https://raw.githubusercontent.com/sparkuru/genshin/main/app/$index-$app_name/$app_name.yml
+readonly SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+readonly ENV_FILE="$SCRIPT_DIR/.env"
+readonly ENV_EXAMPLE_FILE="$SCRIPT_DIR/.env.example"
+readonly CONFIG_DIR="$SCRIPT_DIR/config"
 
-create_dir() {
-    if [ ! -d $1 ]; then
-        mkdir -p $1
+main() {
+    mkdir -p -- "$CONFIG_DIR"
+    chmod 700 "$CONFIG_DIR"
+
+    if [[ ! -f "$ENV_FILE" && -f "$ENV_EXAMPLE_FILE" ]]; then
+        cp -- "$ENV_EXAMPLE_FILE" "$ENV_FILE"
     fi
 }
 
-work_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
-file_path=$work_dir/$app_name.yml
-
-if [ ! -f $file_path ]; then
-    curl -fLo $file_path $url
-fi
-
-create_dir $work_dir/config
+main "$@"
