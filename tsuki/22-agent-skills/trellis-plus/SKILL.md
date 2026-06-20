@@ -35,14 +35,24 @@ The job is to inspect the project, infer how mature validation should work, then
    - Read manifest and CI files such as `package.json`, `pnpm-lock.yaml`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Makefile`, `.github/workflows/*`, `justfile`, and existing docs.
    - Identify lint, format, type-check, unit, integration, e2e, build, smoke, visual, device, or manual validation commands.
    - Distinguish commands the agent can run from checks that require the user's environment, credentials, GUI inspection, hardware, production-like data, or paid/external services.
-4. Select enhancement references from the registry below and read only the files needed for the requested enhancement.
-5. Patch durable Trellis files and summarize:
+4. Infer commit attribution style:
+   - Read `git log --format=%B -n 20` or equivalent recent history.
+   - Check for existing `Co-authored-by` / `Co-Authored-By` trailers for Claude, Codex, ChatGPT, OpenAI, or project-specific AI authors.
+   - Preserve an existing project-specific Codex/OpenAI trailer if one is already established.
+5. Select enhancement references:
+   - If the user invokes `$trellis-plus` without narrowing the scope, read every file in the Default Enhancement Set below and apply all of them.
+   - If the user asks for a specific enhancement, read only that enhancement's reference file.
+   - If a reference file named in the registry is missing, report that exact missing path before patching.
+6. Patch durable Trellis files and summarize:
    - files changed
-   - rule injected
+   - rules injected
    - inferred validation profile
+   - inferred commit attribution trailer
    - any manual follow-up the next Trellis task should request
 
 ## Enhancement Registry
+
+Default Enhancement Set:
 
 - **Submit-ready human review gate**: read `references/submit-ready-human-review.md` when adding rules for the moment a Trellis task is implemented, checked, and ready to commit.
 - **ChatGPT/Codex commit co-author trailer**: read `references/chatgpt-codex-commit-trailer.md` when adding attribution rules for commits made during Trellis Phase 3.4.
@@ -63,4 +73,8 @@ Do not create a parallel Trellis framework. Extend the installed one.
 
 ## Expected Result
 
-After applying this skill, a future Trellis run should automatically pause or explicitly continue at submit-ready time with a concrete human feedback request, based on project-specific validation evidence.
+After applying this skill with the default enhancement set, a future Trellis run should:
+
+- automatically pause or explicitly continue at submit-ready time with a concrete human feedback request, based on project-specific validation evidence
+- show the ChatGPT/Codex co-author trailer in the Phase 3.4 commit plan
+- add that trailer to confirmed work commits that contain files edited by ChatGPT/Codex
