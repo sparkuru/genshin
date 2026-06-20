@@ -1,6 +1,6 @@
 ---
 name: trellis-plus
-description: Enhances an existing or newly initialized Trellis workflow with local project conventions. Use when the user asks to apply `trellis-plus`, improve Trellis templates, inject personalized Trellis workflow rules, add submit-ready human review gates, or make a Trellis project infer its testing and feedback process from the repository.
+description: Enhances an existing or newly initialized Trellis workflow with local project conventions. Use when the user asks to apply `trellis-plus`, improve Trellis templates, inject personalized Trellis workflow rules, add submit-ready human review gates, add ChatGPT/Codex co-author commit trailers, or make a Trellis project infer its testing and feedback process from the repository.
 ---
 
 # Trellis Plus
@@ -45,6 +45,7 @@ The job is to inspect the project, infer how mature validation should work, then
 ## Enhancement Registry
 
 - **Submit-ready human review gate**: read `references/submit-ready-human-review.md` when adding rules for the moment a Trellis task is implemented, checked, and ready to commit.
+- **ChatGPT/Codex commit co-author trailer**: read `references/chatgpt-codex-commit-trailer.md` when adding attribution rules for commits made during Trellis Phase 3.4.
 
 Future enhancements should be added as separate files under `references/` and listed in this registry with a one-line loading rule.
 
@@ -55,6 +56,7 @@ Use the narrowest durable target that exists in the project:
 - Add state-machine behavior to `.trellis/workflow.md` when the rule must apply every time the workflow reaches a phase.
 - Add review or validation expectations to an existing `.trellis/spec/**/index.md` when the rule is a reusable project convention.
 - Add agent-specific wording to `.claude/skills/trellis-check/SKILL.md`, `.claude/skills/trellis-update-spec/SKILL.md`, or similar files only when Trellis delegates that exact phase to those skills.
+- Add commit-command wording to the Phase 3.4 section of `.trellis/workflow.md` when the rule changes how work commits are drafted or executed.
 - Add a short pointer in `AGENTS.md` only if the project already uses it as the agent entry point.
 
 Do not create a parallel Trellis framework. Extend the installed one.
