@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "numpy",
+# ]
+# ///
 # Genshin Impact wish calculator.
 # Gacha modeling ported from https://github.com/OneBST/GGanalysis
 # Single file, numpy-only (scipy convolution/FFT replaced by numpy.convolve).

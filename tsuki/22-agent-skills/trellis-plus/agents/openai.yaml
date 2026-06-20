@@ -1,0 +1,4 @@
+interface:
+  display_name: "Trellis Plus"
+  short_description: "Inject project-specific Trellis review gates"
+  default_prompt: "Use $trellis-plus to inspect this Trellis project and inject the appropriate project-level workflow enhancements."

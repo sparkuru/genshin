@@ -6,4 +6,4 @@
 
 ## usage
 
-打開這隻 [文檔](./genshin-wish-calculator.py)，參照 help 或修改其中的默認變量信息，然後 `python wish-calculator.py` 即可計算出結果，需要安装 `numpy`
+打開這隻 [文檔](./wish-calculator.py)，參照 help 或修改其中的默認變量信息，然後 `python wish-calculator.py` 即可計算出結果，需要安装 `numpy`
