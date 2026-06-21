@@ -94,6 +94,7 @@
       "Bash(docker compose exec*)",
       "Bash(docker compose run*)",
       "Bash(docker compose pull*)",
+      "Bash(./hako *)",
       "WebFetch(domain:github.com)",
       "WebSearch",
       "WebFetch(domain:raw.githubusercontent.com)",

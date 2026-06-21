@@ -1,4 +1,4 @@
 interface:
   display_name: "Trellis Plus"
-  short_description: "Inject Trellis review and commit rules"
+  short_description: "Inject Trellis review, dev, and commit rules"
   default_prompt: "Use $trellis-plus to inspect this Trellis project and inject the appropriate project-level workflow enhancements."
