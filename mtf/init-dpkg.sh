@@ -166,19 +166,22 @@ user = true
 trusted-host = https://mirrors.ustc.edu.cn
 EOF
 
+pip_to_install_list=(
+	datetime argparse colorama cryptography getpass4 rich bs4 readchar mmh3 toml
+	ipython
+	ifaddr
+	ropgadget pwntools frida-tools
+	scapy shodan
+	ollama
+	watchdog psutil
+	legacy-cgi
+	pyinstaller staticx
+	faker python-docx openpyxl
+)
+
 for user in "${VALID_USER_LIST[@]}"; do
-	sudo -u $user pip install \
-		datetime argparse colorama cryptography getpass4 rich bs4 readchar mmh3 toml \
-		ipython \
-		ifaddr \
-		ropgadget pwntools frida-tools \
-		scapy shodan \
-		ollama \
-		watchdog psutil \
-		legacy-cgi \
-		pyinstaller staticx \
-		faker python-docx \
-		toml
+	sudo -u $user pip install ${pip_to_install_list[@]}
+
 done
 
 # git
