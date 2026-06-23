@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 REM ANSI colors (Windows 10+)
-for /f %%a in ('echo prompt $E^| cmd /q /c') do set "ESC=%%a"
+for /F %%a in ('powershell -NoProfile -Command "[char]27"') do set "ESC=%%a"
 set "green=%ESC%[0;32m"
 set "yellow=%ESC%[33m"
 set "red=%ESC%[31m"
@@ -38,10 +38,12 @@ set "encrypt_script_path=!genshin_dir_path!\code\python\02-ez-encrypt.py"
 set "salt_path=!genshin_dir_path!\paimon"
 
 REM Detect mihomo-party location
-if exist "D:\software\mihomo-party" (
-    set "src_file_path=D:\software\mihomo-party\data\profiles\192281f8f10.yaml"
+set "mihomo_profiles_dir=%APPDATA%\mihomo-party\profiles"
+if exist "!mihomo_profiles_dir!" (
+    set "src_file_path=!mihomo_profiles_dir!\19aa172209f.yaml"
 ) else (
     echo !red!mihomo-party not found!nc!
+    echo checked: !mihomo_profiles_dir!
     exit /b 1
 )
 
@@ -102,7 +104,7 @@ echo target_file_path:    !green!!target_file_path!!nc!
 echo src_file_dir:        !green!!src_file_dir!!nc!
 echo target_file_dir:     !green!!target_file_dir!!nc!
 if "!encrypt_key!"=="" (
-    echo encrypt_key:         !yellow!(not specified)!nc!
+    echo encrypt_key:         !yellow!^(not specified^)!nc!
 ) else (
     echo encrypt_key:         !green!!encrypt_key!!nc!
 )

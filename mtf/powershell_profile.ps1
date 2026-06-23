@@ -1,5 +1,9 @@
-$OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding    # english use utf-8
-$OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(936)   # chinese change to utf-8 handly
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding = $utf8NoBom
+[Console]::OutputEncoding = $utf8NoBom
+$OutputEncoding = $utf8NoBom
+$env:LANG = "C.UTF-8"
+$env:LC_ALL = "C.UTF-8"
 
 $home_path = "d:/home"
 $lang_base_path = "d:/lang"
@@ -14,7 +18,8 @@ $GRADLEPATH = "$lang_base_path/java/gradle-8.7/bin"
 $MINGW64PATH = "$lang_base_path/mingw64/bin"
 $NODEJSPATH = "$lang_base_path/node"
 
-$env:PATH += "$GRADLEPATH;" + `
+$env:PATH += ";" + `
+"$GRADLEPATH;" + `
 "$MINGW64PATH;" + `
 "$NODEJSPATH;"
 
@@ -33,7 +38,8 @@ $SCRCPYPATH = "$bin_base_path/scrcpy"
 $TREEPATH = "$bin_base_path/tree/bin"
 $VIMPATH = "$bin_base_path/vim/vim90"
 
-$env:PATH += "$BTOPPATH;" + `
+$env:PATH += ";" + `
+"$BTOPPATH;" + `
 "$CURSOR_AGENT_PATH;" + `
 "$FDPATH;" + `
 "$FFMPEGPATH;" + `
@@ -59,7 +65,8 @@ $TYPORAPATH = "$software_base_path/typora"
 $WINDTERMPATH = "$software_base_path/WindTerm"
 $XNVIEWPATH = "$software_base_path/xnview"
 
-$env:PATH += "$NOTEPAD4PATH;" + `
+$env:PATH += ";" + `
+"$NOTEPAD4PATH;" + `
 "$POTPLAYERPATH;" + `
 "$SUMATRAPATH;" + `
 "$TYPORAPATH;" + `
@@ -80,7 +87,8 @@ $JADXPATH = "$sec_base_path/jadx"
 $WINHEXPATH = "$sec_base_path/winhex"
 $WIRESHARKPATH = "$sec_base_path/wireshark"
 
-$env:PATH += "$ADBPATH;" + `
+$env:PATH += ";" + `
+"$ADBPATH;" + `
 "$BURPSUITEPATH;" + `
 "$FRIDAPATH;" + `
 "$IDAPATH;" + `
