@@ -6,7 +6,61 @@ workdir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
 base_repo_path="$(cd "$workdir/../../../../" && pwd)"
 geass_path="$base_repo_path/21-geass"
 base_skill_path="$geass_path/skills"
-target_dir="$workdir/base"
+
+platform_name() {
+	case "$(uname -s)" in
+	Darwin)
+		printf 'darwin'
+		;;
+	Linux)
+		printf 'linux'
+		;;
+	*)
+		uname -s | tr '[:upper:]' '[:lower:]'
+		;;
+	esac
+}
+
+relative_path() {
+	local from_dir="${1%/}"
+	local target="${2%/}"
+	local -a from_parts=()
+	local -a target_parts=()
+	local -a rel_parts=()
+	local old_ifs="$IFS"
+	local i common rel_path
+
+	IFS=/
+	read -r -a from_parts <<<"$from_dir"
+	read -r -a target_parts <<<"$target"
+	IFS="$old_ifs"
+
+	common=0
+	while [[ $common -lt ${#from_parts[@]} && $common -lt ${#target_parts[@]} && "${from_parts[$common]}" == "${target_parts[$common]}" ]]; do
+		((common += 1))
+	done
+
+	for ((i = common; i < ${#from_parts[@]}; i += 1)); do
+		[ -n "${from_parts[$i]}" ] && rel_parts+=("..")
+	done
+	for ((i = common; i < ${#target_parts[@]}; i += 1)); do
+		[ -n "${target_parts[$i]}" ] && rel_parts+=("${target_parts[$i]}")
+	done
+
+	rel_path=""
+	for i in "${!rel_parts[@]}"; do
+		if [[ $i -eq 0 ]]; then
+			rel_path="${rel_parts[$i]}"
+		else
+			rel_path="$rel_path/${rel_parts[$i]}"
+		fi
+	done
+
+	printf '%s' "${rel_path:-.}"
+}
+
+platform="$(platform_name)"
+target_dir="$workdir/base/$platform"
 
 contains_name() {
 	local wanted_name="$1"
@@ -53,5 +107,5 @@ clean_stale_links "$target_dir" "${skill_names[@]}"
 
 for d in "$base_skill_path"/*/; do
 	[ -d "$d" ] || continue
-	ln -sfn "${d%/}" "$target_dir/$(basename "$d")"
+	ln -sfn "$(relative_path "$target_dir" "${d%/}")" "$target_dir/$(basename "$d")"
 done

@@ -14,15 +14,42 @@ nc='\033[0m'
 
 workdir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
+platform_name() {
+    case "$(uname -s)" in
+    Darwin)
+        printf 'darwin'
+        ;;
+    Linux)
+        printf 'linux'
+        ;;
+    *)
+        uname -s | tr '[:upper:]' '[:lower:]'
+        ;;
+    esac
+}
+
 src_dir="$workdir"
+platform="$(platform_name)"
+base_skill_dir="$src_dir/base/$platform"
 target_dirs=(
     "$HOME/.claude/skills"
     "$HOME/.codex/skills"
     "$HOME/.config/opencode/skills"
 )
 
+refresh_base_links() {
+    if [ -r "$src_dir/sync-from-base.sh" ]; then
+        bash "$src_dir/sync-from-base.sh" >/dev/null
+    fi
+}
+
 collect_skills() {
-    find -L "$src_dir" -type f -iname 'SKILL.md' -exec dirname {} \; | sort -u
+    {
+        find "$src_dir" -path "$src_dir/base" -prune -o -type f -iname 'SKILL.md' -exec dirname {} \;
+        if [ -d "$base_skill_dir" ]; then
+            find -L "$base_skill_dir" -type f -iname 'SKILL.md' -exec dirname {} \;
+        fi
+    } | sort -u
 }
 
 display_path() {
@@ -162,6 +189,8 @@ do_show() {
 }
 
 echo -e "workdir: ${green}$(display_path "$workdir")${nc}"
+echo -e "platform: ${green}$platform${nc}"
+refresh_base_links
 
 while [[ $# -gt 0 ]]; do
     case $1 in
