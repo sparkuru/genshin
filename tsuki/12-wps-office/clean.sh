@@ -5,7 +5,7 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-user_name="wkyuu"
+user_name="$(whoami)"
 
 wpspath="/opt/kingsoft/wps-office/office6"
 wcsbin="$wpspath/wpscloudsrv"

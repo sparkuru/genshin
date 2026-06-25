@@ -75,7 +75,7 @@ function main()
 {
 	parse_arg "$@"
 	run "$@"
-	sudo -u root /home/wkyuu/.local/share/Kingsoft/clean.sh
+	sudo -u root /opt/kingsoft/wps-office/clean.sh
 	exit 0
 }
 

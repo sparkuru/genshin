@@ -4,8 +4,8 @@ width=486
 height=1056
 
 opts=(
-  "keyboard=uhid"
-  "turn-screen-off"
+  "keyboard=disabled"
+  # "turn-screen-off"
   "stay-awake"
   "no-audio"
   "no-audio-playback"
