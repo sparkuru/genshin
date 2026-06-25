@@ -99,7 +99,6 @@ readonly ROGUE_ADDONS=(
 	kdocerresource
 	kdocfinalizedlist
 	kdocfinalizedmgr
-	konlinefileconfig
 	konlinefonts
 	kwebdashboard
 	officespace
@@ -474,6 +473,21 @@ fix_component_mode() {
 	fi
 }
 
+fix_window_geometry() {
+	local office_conf=$1
+	local app
+
+	[[ -f "$office_conf" ]] || return 0
+
+	for app in wps et wpp pdf wpsoffice; do
+		sed_in_place "$office_conf" "s#^${app}\\\\Application%20Settings\\\\WindowPosX=.*#${app}\\\\Application%20Settings\\\\WindowPosX=0#"
+		sed_in_place "$office_conf" "s#^${app}\\\\Application%20Settings\\\\WindowPosY=.*#${app}\\\\Application%20Settings\\\\WindowPosY=0#"
+		sed_in_place "$office_conf" "s#^${app}\\\\Application%20Settings\\\\WindowWidth=-1#${app}\\\\Application%20Settings\\\\WindowWidth=1600#"
+		sed_in_place "$office_conf" "s#^${app}\\\\Application%20Settings\\\\WindowHeight=-1#${app}\\\\Application%20Settings\\\\WindowHeight=1000#"
+		sed_in_place "$office_conf" "s#^${app}\\\\Application%20Settings\\\\WindowIsMaximized=true#${app}\\\\Application%20Settings\\\\WindowIsMaximized=false#"
+	done
+}
+
 clean_office_conf() {
 	local config_dir=$1
 	local office_conf="${config_dir}/Office.conf"
@@ -485,6 +499,7 @@ clean_office_conf() {
 	expression=${expression%\\|}
 	sed_in_place "$office_conf" "/$expression/d"
 	fix_component_mode "$office_conf"
+	fix_window_geometry "$office_conf"
 }
 
 clean_cloud_conf() {
