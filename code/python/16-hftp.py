@@ -3533,8 +3533,26 @@ initPasteCliExamples();
         self.end_headers()
         self.wfile.write(f"OK {status} {fn} ({size_str})\n".encode("utf-8"))
 
+    def _get_multipart_file_items(
+        self, form: cgi.FieldStorage
+    ) -> List[cgi.FieldStorage]:
+        """Return valid uploaded file fields from a multipart form."""
+        if "file" not in form:
+            return []
+
+        fileitems = form["file"]
+        if not isinstance(fileitems, list):
+            fileitems = [fileitems]
+
+        return [
+            fileitem
+            for fileitem in fileitems
+            if getattr(fileitem, "filename", None)
+            and getattr(fileitem, "file", None) is not None
+        ]
+
     def _handle_multipart_upload(self) -> None:
-        """Handle multipart/form-data uploads (browser, curl -F)"""
+        """Handle multipart/form-data uploads (browser, curl -F)."""
         form = cgi.FieldStorage(
             fp=self.rfile,
             headers=self.headers,
@@ -3544,29 +3562,38 @@ initPasteCliExamples();
             },
         )
 
-        fileitem = form["file"]
-        if not fileitem.filename:
+        fileitems = self._get_multipart_file_items(form)
+        if not fileitems:
             access_log(self, "upload", "400")
             self.send_error(400, "No file uploaded")
             return
 
-        fn = os.path.basename(fileitem.filename)
-        save_path = self._resolve_upload_path(fn)
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        file_exists = os.path.exists(save_path)
+        uploaded_files = []
+        for fileitem in fileitems:
+            fn = os.path.basename(fileitem.filename)
+            save_path = self._resolve_upload_path(fn)
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            file_exists = os.path.exists(save_path)
 
-        with open(save_path, "wb") as f:
-            f.write(fileitem.file.read())
+            with open(save_path, "wb") as f:
+                shutil.copyfileobj(fileitem.file, f)
 
-        NEW_FILE_TRACKER.register(save_path)
-        action = "modify" if file_exists else "upload"
-        access_log(self, action, "200", save_path)
-        debug(
-            "File uploaded via multipart",
-            path=save_path,
-            size=os.path.getsize(save_path),
-        )
-        self._send_html_upload_response(fn, save_path, file_exists)
+            NEW_FILE_TRACKER.register(save_path)
+            action = "modify" if file_exists else "upload"
+            access_log(self, action, "200", save_path)
+            debug(
+                "File uploaded via multipart",
+                path=save_path,
+                size=os.path.getsize(save_path),
+            )
+            uploaded_files.append((fn, save_path, file_exists))
+
+        if len(uploaded_files) == 1:
+            fn, save_path, file_exists = uploaded_files[0]
+            self._send_html_upload_response(fn, save_path, file_exists)
+            return
+
+        self._send_multi_upload_response(uploaded_files)
 
     def _handle_urlencoded_upload(self) -> None:
         """Handle URL-encoded uploads with base64 data (wget --post-data)
@@ -3722,6 +3749,23 @@ document.documentElement.setAttribute('data-theme', theme);
 </body>
 </html>"""
         self.wfile.write(response_html.encode("utf-8"))
+
+    def _send_multi_upload_response(
+        self, uploaded_files: List[Tuple[str, str, bool]]
+    ) -> None:
+        """Send plain text response for multi-file multipart uploads."""
+        lines = [f"OK uploaded {len(uploaded_files)} files"]
+        for filename, filepath, file_exists in uploaded_files:
+            status = "replaced" if file_exists else "uploaded"
+            size_str = self._format_size(os.path.getsize(filepath))
+            lines.append(f"{status} {filename} ({size_str})")
+
+        payload = ("\n".join(lines) + "\n").encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
