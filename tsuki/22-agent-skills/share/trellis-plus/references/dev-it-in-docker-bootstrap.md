@@ -8,11 +8,7 @@ This is a Trellis Plus sub-enhancement. It wires the existing base skill into th
 
 ## Required Source Skill
 
-Before applying this enhancement, read:
-
-```text
-tsuki/22-agent-skills/base/dev-it-in-docker/SKILL.md
-```
+Before applying this enhancement, read skill `dev-it-in-docker`
 
 That path is a symlink to the maintained base skill. Follow its rules for toolchain detection, `hako` generation, `.devhome`, `.gitignore`, agent registration, and verification.
 

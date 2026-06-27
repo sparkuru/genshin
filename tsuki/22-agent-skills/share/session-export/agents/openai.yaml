@@ -1,0 +1,4 @@
+interface:
+  display_name: "Session Export"
+  short_description: "Export agent session transcripts to Markdown."
+  default_prompt: "Export the current or specified agent session transcript to Markdown."
