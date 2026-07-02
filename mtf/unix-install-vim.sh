@@ -411,7 +411,7 @@ install_portable_local_for_user() {
 
     download_file \
         "$vimrc" \
-        "https://raw.githubusercontent.com/sparkuru/vim/main/diy/unix-vimrc" \
+        "https://raw.githubusercontent.com/sparkuru/genshin/main/tsuki/02-vim/diy/unix-vimrc" \
         "$target_user" \
         "$target_group"
     download_file \
@@ -460,7 +460,7 @@ install_traditional_for_user() {
 
     download_file \
         "$vimrc" \
-        "https://raw.githubusercontent.com/sparkuru/vim/main/diy/unix-vimrc" \
+        "https://raw.githubusercontent.com/sparkuru/genshin/main/tsuki/02-vim/diy/unix-vimrc" \
         "$target_user" \
         "$target_group"
 

@@ -82,6 +82,7 @@ to_install_list=(
 	davfs2
 	webp libxdo-dev webkitgtk-webdriver
 	rclone shellcheck
+	v4l-utils v4l2loopback-dkms v4l2loopback-utils
 )
 
 apt update
