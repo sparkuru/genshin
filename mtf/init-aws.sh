@@ -1,20 +1,17 @@
 #!/bin/bash
 
+# It’s been hard to tolerate the policies and service quality of Chinese cloud providers ever since I started using AWS.
+
 if [ "$(id -u)" -ne 0 ]; then
 	echo "\033[0;31m please rerun "$0" with root user permission \033[0m"
 	exit 1
 fi
 
-PROXY_POINT="http://198.18.0.1:1080"
 GITHUB_URL_BASE="https://raw.githubusercontent.com/sparkuru/genshin/main"
-export all_proxy="$PROXY_POINT"
-
-VALID_USER_LIST=("root")
-while read -r line; do
-	if [[ -d "/home/$line" ]]; then
-		VALID_USER_LIST+=("$line")
-	fi
-done < <(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 {print $1}')
+VALID_USER_LIST=(
+	"root"
+	"wkyuu"
+)
 
 _curl() {
 	curl -fLo $1 $2
@@ -23,6 +20,43 @@ _curl() {
 _cp() {
 	cp -rf $1 $2
 }
+
+fix_resolvconf_dns() {
+	local dns_server="172.26.0.2"
+	local conf_dir="/etc/resolvconf/resolv.conf.d"
+	local head_file="$conf_dir/head"
+	local backup_file="$conf_dir/head.backup.$(date +%Y%m%d-%H%M%S)"
+	local tmp_file="/tmp/resolvconf-head.$$"
+
+	if ! command -v resolvconf >/dev/null 2>&1; then
+		return 0
+	fi
+
+	mkdir -p "$conf_dir"
+	if [ -e "$head_file" ]; then
+		cp -a "$head_file" "$backup_file"
+	else
+		: >"$backup_file"
+	fi
+
+	if [ -e "$head_file" ]; then
+		sed '/^# BEGIN mtf-aws-dns-fix$/,/^# END mtf-aws-dns-fix$/d' "$head_file" >"$tmp_file"
+	else
+		: >"$tmp_file"
+	fi
+
+	cat >>"$tmp_file" <<EOF
+# BEGIN mtf-aws-dns-fix
+nameserver $dns_server
+options timeout:2 attempts:3
+# END mtf-aws-dns-fix
+EOF
+	install -m 0644 -o root -g root "$tmp_file" "$head_file"
+	rm -f "$tmp_file"
+	resolvconf -u
+}
+
+fix_resolvconf_dns
 
 # init zsh
 tmp_zshrc_path="/tmp/zshrc"
@@ -49,12 +83,6 @@ rm -f $tmp_ssh_authorized_keys_path
 _curl /etc/ssh/sshd_config $GITHUB_URL_BASE/mtf/etc/sshd_config
 systemctl start ssh && systemctl enable ssh
 
-# software
-# cat <<EOF >/etc/apt/sources.list
-# deb https://mirrors.ustc.edu.cn/kali kali-rolling main non-free non-free-firmware contrib
-# deb-src https://mirrors.ustc.edu.cn/kali kali-rolling main non-free non-free-firmware contrib
-# EOF
-
 to_install_list=(
 	autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
 	g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
@@ -63,27 +91,23 @@ to_install_list=(
 	ack fd-find fzf ripgrep
 	glances iftop inotify-tools aria2 sshpass telnet network-manager-openvpn arch-install-scripts
 	docker.io docker-compose virt-manager qemu-system qemu-user bridge-utils
-	fonts-noto-cjk fonts-noto-color-emoji fonts-wqy-microhei
-	fcitx5 fcitx5-table fcitx5-chinese-addons fcitx5-rime fcitx5-anthy fcitx5-frontend-all fcitx5-frontend-gtk* fcitx5-frontend-qt* kde-config-fcitx5
 	filezilla okteta putty picocom glow mtools epub-utils
 	upx p7zip p7zip-full
 	python3-pip python3-venv python-is-python3
 	gnupg2 patchelf binwalk wireshark tcpdump
-	strace android-sdk-platform-tools
-	winetricks k3b gimp digikam krdc cups ffmpeg npm kdenlive tmux
+	strace
+	ffmpeg npm tmux
 	genisoimage device-tree-compiler
 	antlr3 antlr4 swig
 	debsums msmtp xxd ftp shfmt rlwrap pdfgrep
 	wireguard resolvconf mariadb-client-compat
-	unrar snmp snmp-mibs-downloader sqlmap sqlitebrowser
+	sqlmap
 	enca dos2unix
-	kile kile-l10n
-	obs-studio simplescreenrecorder
 	davfs2
 	webp libxdo-dev webkitgtk-webdriver
 	rclone shellcheck
 	v4l-utils v4l2loopback-dkms v4l2loopback-utils
-	rsync nginx net-tools
+	rsync nginx php-fpm php-mysql php-curl php-mbstring net-tools
 )
 
 apt update
@@ -111,38 +135,8 @@ apt autoclean -y
 
 update-alternatives --install /usr/bin/fd fd /usr/bin/fdfind 1
 
-# fonts
-tmp_fonts_conf_path="/tmp/fonts.conf"
-_curl $tmp_fonts_conf_path $GITHUB_URL_BASE/mtf/fonts.conf
-for user in "${VALID_USER_LIST[@]}"; do
-	mkdir -p /home/$user/.config/fontconfig
-	_cp $tmp_fonts_conf_path /home/$user/.config/fontconfig/fonts.conf
-done
-fc-cache -f
-rm -f $tmp_fonts_conf_path
-
-# rime
-tmp_oh_my_rime_path="/tmp/oh_my_rime"
-git clone https://github.com/Mintimate/oh-my-rime.git $tmp_oh_my_rime_path
-for user in "${VALID_USER_LIST[@]}"; do
-	if [ $user = "root" ]; then
-		user_rime_path="/root/.config/fcitx5/rime"
-	else
-		user_rime_path="/home/$user/.config/fcitx5/rime"
-	fi
-	sudo -u $user mkdir -p $user_rime_path
-	sudo -u $user cp -f $tmp_oh_my_rime_path $user_rime_path
-done
-rm -f $tmp_oh_my_rime_path
-
 # docker
 mkdir -p /etc/systemd/system/docker.service.d
-cat <<EOF >/etc/systemd/system/docker.service.d/proxy.conf
-[Service]
-Environment="HTTP_PROXY=http://198.18.0.1:1080"
-Environment="HTTPS_PROXY=http://198.18.0.1:1080"
-Environment="NO_PROXY=localhost,198.18.0.1"
-EOF
 mkdir -p /etc/docker/
 cat <<EOF >/etc/docker/daemon.json
 {
@@ -160,15 +154,6 @@ cat <<EOF >/etc/docker/daemon.json
 EOF
 
 # python
-cat <<EOF >/etc/pip.conf
-[global]
-index-url = https://mirrors.ustc.edu.cn/pypi/simple
-break-system-packages = true
-user = true
-[install]
-trusted-host = https://mirrors.ustc.edu.cn
-EOF
-
 pip_to_install_list=(
 	datetime argparse colorama cryptography getpass4 rich bs4 readchar mmh3 toml
 	ipython
@@ -222,7 +207,7 @@ locale
 # timezone
 timedatectl set-timezone Asia/Singapore
 
-groups="adm,sudo,docker,netdev,libvirt,dialout,plugdev,wireshark"
+groups="adm,sudo,docker,netdev,dialout,plugdev,cdrom,floppy,tcpdump"
 for user in "${VALID_USER_LIST[@]}"; do
 	usermod -aG $groups $user
 done
@@ -230,6 +215,3 @@ done
 for user in "${VALID_USER_LIST[@]}"; do
 	chown -R $user:$user /home/$user
 done
-
-# 其他需要安装的软件
-# siyuan-note、百度网盘、wps（12.1.0.17881）、wechat、linuxqq、wemeet、vmware-workstation、virtualbox、mihomua

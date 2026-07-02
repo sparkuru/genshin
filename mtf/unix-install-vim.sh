@@ -238,10 +238,10 @@ create_symlink() {
     ensure_dir "$(dirname "$link_path")" "$owner" "$group"
 
     if path_needs_sudo "$link_path" || [[ "$(id -u)" -eq 0 ]]; then
-        run_privileged ln -s "$target_path" "$link_path"
+        run_privileged ln -sfn "$target_path" "$link_path"
         run_privileged chown -h "$owner:$group" "$link_path" 2>/dev/null || true
     else
-        ln -s "$target_path" "$link_path"
+        ln -sfn "$target_path" "$link_path"
     fi
 }
 
