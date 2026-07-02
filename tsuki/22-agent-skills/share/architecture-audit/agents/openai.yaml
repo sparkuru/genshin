@@ -1,0 +1,4 @@
+interface:
+  display_name: "Architecture Audit"
+  short_description: "Audit project architecture and evolution risks"
+  default_prompt: "Use $architecture-audit to inspect this project architecture, evaluate engineering practice fit, and recommend concrete improvements."
