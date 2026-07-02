@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import re
 import shlex
 import sys
 import traceback
@@ -128,6 +129,8 @@ class RenderOptions:
 
     input_path: Path
     session_name: str
+    document_title: str
+    title_source: str
     include_system: bool
     include_usage: bool
     include_unknown: bool
@@ -360,6 +363,7 @@ def render_session_meta(record: dict[str, Any], options: RenderOptions) -> str:
         ("source file", options.input_path),
         ("session id", payload.get("id")),
         ("session name", options.session_name),
+        ("title source", options.title_source),
         ("timestamp", payload.get("timestamp") or record.get("timestamp")),
         ("cwd", payload.get("cwd")),
         ("source", payload.get("source")),
@@ -368,7 +372,7 @@ def render_session_meta(record: dict[str, Any], options: RenderOptions) -> str:
         ("model provider", payload.get("model_provider")),
     ]
     return "\n\n".join(
-        [render_heading(1, "Codex Session"), render_metadata_table(rows)]
+        [render_heading(1, options.document_title), render_metadata_table(rows)]
     )
 
 
@@ -628,9 +632,10 @@ def render_public_lifecycle(record: dict[str, Any], options: RenderOptions) -> s
             ("source file", options.input_path),
             ("thread id", record.get("thread_id")),
             ("session name", options.session_name),
+            ("title source", options.title_source),
         ]
         return "\n\n".join(
-            [render_heading(1, "Codex Session"), render_metadata_table(rows)]
+            [render_heading(1, options.document_title), render_metadata_table(rows)]
         )
     if event_type == "turn.started":
         return render_heading(3, "Turn started")
@@ -765,6 +770,7 @@ def readable_metadata_rows(
         ("source file", options.input_path),
         ("session id", payload.get("id") or find_session_id(records)),
         ("session name", options.session_name),
+        ("title source", options.title_source),
         ("cwd", payload.get("cwd")),
         ("model", payload.get("model")),
         ("approval policy", payload.get("approval_policy")),
@@ -1036,7 +1042,7 @@ def render_readable_markdown(
         render_readable_record(record, context, options, activity, turns)
     flush_activity_to_turn(turns[-1] if turns else None, activity)
     return session_template.render_readable_markdown(
-        "Codex Session",
+        options.document_title,
         readable_metadata_rows(records, options),
         turns,
         options.include_appendix,
@@ -1097,7 +1103,9 @@ def render_markdown(records: list[JsonLineRecord], options: RenderOptions) -> st
 
     if blocks:
         return "\n\n---\n\n".join(blocks) + "\n"
-    return render_heading(1, "Codex Session") + "\n\nNo renderable records found.\n"
+    return (
+        render_heading(1, options.document_title) + "\n\nNo renderable records found.\n"
+    )
 
 
 def write_output(output_path: Path | None, markdown: str) -> None:
@@ -1147,6 +1155,121 @@ def find_session_id(records: list[JsonLineRecord]) -> str:
     return ""
 
 
+def find_first_user_message(records: list[JsonLineRecord]) -> str:
+    """Find the first substantial visible user request."""
+    for record in records:
+        data = record.data
+        payload = get_object(data.get("payload"))
+        if data.get("type") != "event_msg" or payload.get("type") != "user_message":
+            continue
+        text = normalize_user_request(get_string(payload.get("message")))
+        if text:
+            return text
+
+    for record in records:
+        data = record.data
+        payload = get_object(data.get("payload"))
+        if data.get("type") == "response_item" and payload.get("role") == "user":
+            text = normalize_user_request(content_text(payload.get("content")))
+            if text:
+                return text
+        if get_string(data.get("type")).startswith("item."):
+            item = get_object(data.get("item"))
+            if item.get("type") == "user_message":
+                text = normalize_user_request(get_string(item.get("text")))
+                if text:
+                    return text
+    return ""
+
+
+def normalize_user_request(text: str) -> str:
+    """Return the request part of a user message, skipping setup wrappers."""
+    stripped = text.strip()
+    if not stripped:
+        return ""
+    if stripped.startswith("<environment_context>"):
+        return ""
+
+    marker = "## My request for Codex:"
+    if marker in stripped:
+        return stripped.split(marker, 1)[1].strip()
+    return stripped
+
+
+def strip_title_secrets(text: str) -> str:
+    """Remove path-like and secret-like values before title inference."""
+    cleaned = re.sub(r"`[^`]*`", " ", text)
+    cleaned = re.sub(r"\$[A-Za-z][A-Za-z0-9_-]*", " ", cleaned)
+    cleaned = re.sub(r"(?:~|/)[^\s，。！？；：、,!?;:]+", " ", cleaned)
+    cleaned = re.sub(
+        r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
+        r"[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b",
+        " ",
+        cleaned,
+    )
+    cleaned = re.sub(r"\b(?:[A-Za-z0-9_-]{24,}|sk-[A-Za-z0-9_-]+)\b", " ", cleaned)
+    cleaned = re.sub(r"\b\d{1,3}(?:\.\d{1,3}){3}\b", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned.strip()
+
+
+def infer_cjk_title(text: str) -> str:
+    """Infer a compact CJK-friendly title."""
+    sentence = re.split(r"[。！？?!\n\r]", text, maxsplit=1)[0].strip()
+    if not sentence:
+        return ""
+    prefix = re.split(r"[：:]", sentence, maxsplit=1)[0].strip()
+    if len(prefix) >= 6:
+        sentence = prefix
+    sentence = re.sub(r"[“”\"'<>#*_~|\\[\]{}]+", " ", sentence)
+    sentence = re.sub(r"\s+", " ", sentence).strip(" -_，,。.")
+    return sentence[:32].strip()
+
+
+def infer_english_title(text: str) -> str:
+    """Infer a compact English title."""
+    words = re.findall(r"[A-Za-z0-9]+", text.lower())
+    stop_words = {
+        "a",
+        "an",
+        "and",
+        "are",
+        "for",
+        "from",
+        "how",
+        "the",
+        "this",
+        "to",
+        "with",
+        "please",
+    }
+    visible_words = [word for word in words if word not in stop_words]
+    if not visible_words:
+        return ""
+    return " ".join(visible_words[:6])
+
+
+def infer_session_title(records: list[JsonLineRecord]) -> str:
+    """Infer a readable document title when Codex has no thread name."""
+    first_user_message = strip_title_secrets(find_first_user_message(records))
+    if not first_user_message:
+        return ""
+    if re.search(r"[\u3400-\u9fff]", first_user_message):
+        return infer_cjk_title(first_user_message)
+    return infer_english_title(first_user_message)
+
+
+def build_document_title(records: list[JsonLineRecord]) -> tuple[str, str, str]:
+    """Return session name, document title, and title source label."""
+    session_name = find_session_name(records)
+    if session_name:
+        return session_name, session_name, "agent metadata"
+    inferred_title = infer_session_title(records)
+    if inferred_title:
+        return "", inferred_title, "inferred from first user request"
+    return "", "Codex Session", "fallback"
+
+
 def sanitize_filename(value: str) -> str:
     """Convert a session name into a filesystem-friendly filename stem."""
     allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._- ")
@@ -1171,6 +1294,9 @@ def get_output_stem(records: list[JsonLineRecord], input_path: Path) -> str:
     session_name = find_session_name(records)
     if session_name:
         return sanitize_filename(session_name)
+    inferred_title = infer_session_title(records)
+    if inferred_title:
+        return sanitize_filename(inferred_title)
     session_id = find_session_id(records)
     if session_id:
         return sanitize_filename(session_id)
@@ -1181,6 +1307,8 @@ def build_render_options(
     args: argparse.Namespace,
     input_path: Path,
     session_name: str,
+    document_title: str,
+    title_source: str,
     include_system: bool,
     include_usage: bool,
 ) -> RenderOptions:
@@ -1188,6 +1316,8 @@ def build_render_options(
     return RenderOptions(
         input_path=input_path,
         session_name=session_name,
+        document_title=document_title,
+        title_source=title_source,
         include_system=include_system,
         include_usage=include_usage,
         include_unknown=not args.no_unknown,
@@ -1224,7 +1354,7 @@ def write_default_variant_outputs(
 ) -> None:
     """Write default include-mode files into a generated output directory."""
     output_stem = get_output_stem(records, input_path)
-    session_name = find_session_name(records)
+    session_name, document_title, title_source = build_document_title(records)
     output_dir = Path.cwd() / f"session-{output_stem}"
     for variant in build_requested_variants(args):
         output_path = output_dir / f"{output_stem}{variant.suffix}.md"
@@ -1232,6 +1362,8 @@ def write_default_variant_outputs(
             args,
             input_path,
             session_name,
+            document_title,
+            title_source,
             variant.include_system,
             variant.include_usage,
         )
@@ -1364,7 +1496,7 @@ def run(args: argparse.Namespace) -> int:
 
     records = read_jsonl(input_path)
     debug("records", count=len(records))
-    session_name = find_session_name(records)
+    session_name, document_title, title_source = build_document_title(records)
     if output_path is None and include_mode_enabled(args):
         write_default_variant_outputs(records, args, input_path)
         return 0
@@ -1373,6 +1505,8 @@ def run(args: argparse.Namespace) -> int:
         args,
         input_path,
         session_name,
+        document_title,
+        title_source,
         args.include_system or args.include_all,
         args.include_usage or args.include_all,
     )

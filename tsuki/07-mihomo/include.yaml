@@ -157,6 +157,7 @@ proxy-groups:
   - name: outside
     type: select
     proxies:
+      - DIRECT
       - test
   - name: inside
     type: select
@@ -187,6 +188,12 @@ proxy-groups:
       - DIRECT
       - outside
       - inside
+  - name: llm
+    type: select
+    proxies:
+      - DIRECT
+      - outside
+      - test
   - name: reject
     type: select
     proxies:
@@ -195,7 +202,32 @@ proxy-groups:
       - REJECT
 rules:
 - DOMAIN-SUFFIX,docker.io,outside
-- DOMAIN-SUFFIX,chatgpt.com,outside
+- DOMAIN-SUFFIX,chatgpt.com,llm
+- DOMAIN-SUFFIX,chat.com,llm
+- DOMAIN-SUFFIX,openai.com,llm
+- DOMAIN-SUFFIX,oaistatic.com,llm
+- DOMAIN-SUFFIX,oaiusercontent.com,llm
+- DOMAIN-SUFFIX,openaiusercontent.com,llm
+- DOMAIN-SUFFIX,anthropic.com,llm
+- DOMAIN-SUFFIX,claude.ai,llm
+- DOMAIN-SUFFIX,claude.com,llm
+- DOMAIN-SUFFIX,claudeusercontent.com,llm
+- DOMAIN-SUFFIX,openrouter.ai,llm
+- DOMAIN-SUFFIX,opencode.ai,llm
+- DOMAIN-SUFFIX,githubcopilot.com,llm
+- DOMAIN,copilot-proxy.githubusercontent.com,llm
+- DOMAIN,origin-tracker.githubusercontent.com,llm
+- DOMAIN,copilot-telemetry.githubusercontent.com,llm
+- DOMAIN,default.exp-tas.com,llm
+- DOMAIN,copilot.microsoft.com,llm
+- DOMAIN,gemini.google.com,llm
+- DOMAIN,aistudio.google.com,llm
+- DOMAIN,makersuite.google.com,llm
+- DOMAIN,bard.google.com,llm
+- DOMAIN,generativelanguage.googleapis.com,llm
+- DOMAIN-SUFFIX,ai.google.dev,llm
+- DOMAIN-SUFFIX,grok.com,llm
+- DOMAIN-SUFFIX,x.ai,llm
 - DOMAIN,juicyads.com,reject
 - DOMAIN,iida.ro,DIRECT
 - DOMAIN,4.ipw.cn,DIRECT
@@ -24365,7 +24397,7 @@ rules:
 - DOMAIN-SUFFIX,x.adnet.qq.com,reject
 - DOMAIN-SUFFIX,ip-api.com,ip
 - DOMAIN-SUFFIX,ad-channel.diwodiwo.xyz,reject
-- IP-CIDR,43.100.18.3/32,DIRECT,no-resolve
+- IP-CIDR,57.180.62.59/32,DIRECT,no-resolve
 - IP-CIDR,112.53.42.220/32,reject,no-resolve
 - IP-CIDR,120.232.51.154/32,reject,no-resolve
 - IP-CIDR,43.155.124.238/32,reject,no-resolve
@@ -24395,10 +24427,8 @@ rules:
 - DOMAIN-SUFFIX,ip.rss.ink,ip
 - DOMAIN-SUFFIX,github.com,outside
 - DOMAIN-SUFFIX,githubusercontent.com,outside
-- DOMAIN-SUFFIX,githubcopilot.com,outside
 - DOMAIN-SUFFIX,githubapp.com,outside
 - DOMAIN-SUFFIX,githubassets.com,outside
-- DOMAIN-SUFFIX,exp-tas.com,outside
 - DOMAIN-SUFFIX,cpc-setting-cn.oppomobile.com,reject
 - DOMAIN-SUFFIX,mdp-appconf-cn.heytapdownload.com,reject
 - DOMAIN-SUFFIX,apisnd.heytapmobi.com,reject
@@ -24523,7 +24553,6 @@ rules:
 - DOMAIN-SUFFIX,dynadot.com,outside
 - DOMAIN-SUFFIX,spaceship.com,outside
 - DOMAIN-SUFFIX,quq.world,DIRECT
-- DOMAIN-SUFFIX,openai.com,outside
 - DOMAIN-SUFFIX,twrp.me,outside
 - DOMAIN-SUFFIX,paste.to,outside
 - DOMAIN-SUFFIX,microsoft.com,outside
@@ -26309,7 +26338,6 @@ rules:
 - DOMAIN-SUFFIX,jmapinode.biz,outside
 - DOMAIN-SUFFIX,jmapinode.org,outside
 - DOMAIN-SUFFIX,jmapinode.top,outside
-- DOMAIN-SUFFIX,oaistatic.com,outside
 - DOMAIN-SUFFIX,auth0.com,outside
 - DOMAIN-SUFFIX,music.163.com,inside
 - DOMAIN,nstool.netease.com,inside
@@ -26410,7 +26438,6 @@ rules:
 - DOMAIN-KEYWORD,apache,outside
 - DOMAIN-KEYWORD,spigotmc,outside
 - DOMAIN-KEYWORD,pixiv,outside
-- DOMAIN-KEYWORD,exp-tas,outside
 - DOMAIN-KEYWORD,coding,outside
 - DOMAIN-KEYWORD,snssdk,outside
 - DOMAIN-KEYWORD,comodoca,outside

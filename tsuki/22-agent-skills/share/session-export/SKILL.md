@@ -35,6 +35,8 @@ python3 scripts/codex-session-to-md.py /path/to/rollout.jsonl --include-all
 python3 scripts/codex-session-to-md.py /path/to/rollout.jsonl -o session.md
 ```
 
+Codex readable exports should use the agent thread name as the Markdown H1 when present. If Codex has no thread-name event, infer a short, sanitized title from the first substantial user request and record `title source` as `inferred from first user request` in the metadata. Use `Codex Session` only as a fallback when neither an agent title nor a usable request exists.
+
 For Claude Code:
 
 ```bash
@@ -89,7 +91,7 @@ Never state that a title came from the agent if the transcript has no title fiel
 - System: base plus hidden setup context such as developer messages, environment context, sandbox settings, and model settings.
 - All: usage plus system.
 
-Default to base for quick reading. Keep the main reading path as question and answer; avoid raw `Tool call`, `Tool output`, lifecycle, token, commentary, and per-search event spam in base mode. Render appendix bodies as real HTML children inside `<details>` instead of Markdown lists, because some Markdown viewers otherwise show folded content outside the collapsed block. Use all when the user asks to preserve a session completely or debug the exporter.
+Default to base for quick reading. Keep the main reading path as question and answer; avoid raw `Tool call`, `Tool output`, lifecycle, token, commentary, and per-search event spam in base mode. Render appendix bodies as real HTML children directly inside `<details>` with no blank Markdown paragraph between `<summary>` and the child nodes, because some Markdown viewers otherwise show folded content outside the collapsed block. Use all when the user asks to preserve a session completely or debug the exporter.
 
 Script flags:
 

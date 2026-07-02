@@ -60,6 +60,7 @@ proxy-groups:
   - name: outside
     type: select
     proxies:
+      - DIRECT
       - test
   - name: inside
     type: select
@@ -90,6 +91,12 @@ proxy-groups:
       - DIRECT
       - outside
       - inside
+  - name: llm
+    type: select
+    proxies:
+      - DIRECT
+      - outside
+      - test
   - name: reject
     type: select
     proxies:

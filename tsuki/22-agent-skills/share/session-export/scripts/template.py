@@ -334,12 +334,14 @@ def render_attachment(attachment: ReadableAttachment) -> str:
     body_parts = [
         part for part in [time_line, render_attachment_body(attachment)] if part
     ]
-    body = "\n\n".join(body_parts)
-    return (
-        "<details>\n"
-        f"<summary>{html.escape(attachment.title)}</summary>\n\n"
-        f"{body}\n\n"
-        "</details>"
+    body = "\n".join(body_parts)
+    return "\n".join(
+        [
+            "<details>",
+            f"<summary>{html.escape(attachment.title)}</summary>",
+            body,
+            "</details>",
+        ]
     )
 
 
