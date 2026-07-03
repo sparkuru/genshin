@@ -6,7 +6,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TextIO
 
 if sys.platform == "win32":
     from colorama import init as colorama_init
@@ -15,6 +15,7 @@ if sys.platform == "win32":
 
 VERSION = "1.2.0"
 CONFIG_VERSION = 2
+QUERY_MARKER = "?"
 COMMAND_NAMES = {
     "list",
     "ls",
@@ -127,9 +128,24 @@ def is_valid_alias(alias: str) -> bool:
     return (
         parse_path_number(alias) is None
         and os.path.sep not in alias
+        and QUERY_MARKER not in alias
         and alias not in COMMAND_NAMES
         and not alias.startswith("-")
     )
+
+
+def is_alias_query(target: str) -> bool:
+    """Return whether target requests alias substring matching."""
+    alias = normalize_alias(target)
+    return bool(alias and alias.endswith(QUERY_MARKER))
+
+
+def alias_query_text(target: str) -> str:
+    """Return the query text from a fuzzy alias target."""
+    alias = normalize_alias(target)
+    if alias is None:
+        return ""
+    return alias[: -len(QUERY_MARKER)]
 
 
 class PathManager:
@@ -217,6 +233,96 @@ class PathManager:
                 return index
         return None
 
+    def find_alias_query_indices(self, query: str) -> list[int]:
+        """Find entry indices whose aliases contain the query text."""
+        return [
+            index
+            for index, entry in enumerate(self.entries)
+            if entry.alias is not None and query in entry.alias
+        ]
+
+    @staticmethod
+    def highlight_match(name: str, query: str) -> str:
+        """Highlight matching substring in an alias."""
+        if not query:
+            return color(name, CLIStyle.COLORS["ALIAS"])
+
+        index = name.find(query)
+        if index == -1:
+            return color(name, CLIStyle.COLORS["ALIAS"])
+
+        before = color(name[:index], CLIStyle.COLORS["ALIAS"])
+        match = color(query, CLIStyle.COLORS["WARNING"])
+        after = color(name[index + len(query) :], CLIStyle.COLORS["ALIAS"])
+        return before + match + after
+
+    def print_resolve(self, query: str, resolved: str, output: TextIO) -> None:
+        """Print an alias auto-resolve notice."""
+        query_text = color(query, CLIStyle.COLORS["WARNING"])
+        resolved_text = self.highlight_match(resolved, query)
+        arrow = color("->", CLIStyle.COLORS["CONTENT"])
+        quote = color("'", CLIStyle.COLORS["CONTENT"])
+        print(f"{quote}{query_text}{quote} {arrow} {resolved_text}", file=output)
+
+    def print_matching_aliases(
+        self, query: str, indices: list[int], path_color: int, output: TextIO
+    ) -> None:
+        """Print alias query candidates."""
+        print(
+            f"{color('|', CLIStyle.COLORS['TITLE'])} Aliases matching [{color(query, CLIStyle.COLORS['WARNING'])}]:",
+            file=output,
+        )
+        for index in indices:
+            print(
+                self.format_entry(
+                    index + 1,
+                    self.entries[index],
+                    path_color,
+                    alias_query=query,
+                ),
+                file=output,
+            )
+
+    def print_alias_query_error(self, query: str, output: TextIO) -> None:
+        """Print an alias query resolution error."""
+        print(
+            f"{color('|', CLIStyle.COLORS['TITLE'])} No aliases matching [{color(query, CLIStyle.COLORS['WARNING'])}].",
+            file=output,
+        )
+
+    def resolve_alias_query_index(
+        self, target: str, path_color: int, output: TextIO
+    ) -> int | None:
+        """Resolve an alias query target to one entry index."""
+        query = alias_query_text(target)
+        indices = self.find_alias_query_indices(query)
+
+        if len(indices) == 1:
+            index = indices[0]
+            alias = self.entries[index].alias
+            if alias is not None:
+                self.print_resolve(query, alias, output)
+            return index
+
+        if indices:
+            self.print_matching_aliases(query, indices, path_color, output)
+            return None
+
+        self.print_alias_query_error(query, output)
+        return None
+
+    def resolve_named_target_index(
+        self, target: str, path_color: int, output: TextIO
+    ) -> int | None:
+        """Resolve a number, alias, or alias query target."""
+        if is_alias_query(target):
+            return self.resolve_alias_query_index(target, path_color, output)
+
+        index = self.resolve_target_index(target)
+        if index is None:
+            self.print_target_error(target, output)
+        return index
+
     def resolve_target_index(self, target: str) -> int | None:
         """Resolve a number or alias target to an entry index."""
         path_number = parse_path_number(target)
@@ -237,17 +343,17 @@ class PathManager:
                 return index
         return None
 
-    def print_target_error(self, target: str) -> None:
+    def print_target_error(self, target: str, output: TextIO = sys.stderr) -> None:
         """Print a target resolution error."""
         if parse_path_number(target) is not None:
             print(
                 f"{color('|', CLIStyle.COLORS['TITLE'])} Path number [{color(target, CLIStyle.COLORS['NUMBER'])}] out of range.",
-                file=sys.stderr,
+                file=output,
             )
         else:
             print(
                 f"{color('|', CLIStyle.COLORS['TITLE'])} Path alias [{color(target, CLIStyle.COLORS['ALIAS'])}] doesn't exist.",
-                file=sys.stderr,
+                file=output,
             )
 
     def add_path(self, path: str, alias: str | None, path_color: int) -> int:
@@ -258,7 +364,7 @@ class PathManager:
         if normalized_alias is not None:
             if not is_valid_alias(normalized_alias):
                 print(
-                    f"{color('|', CLIStyle.COLORS['TITLE'])} Alias [{color(normalized_alias, CLIStyle.COLORS['ALIAS'])}] cannot be a command, numeric, start with '-', or contain path separators.",
+                    f"{color('|', CLIStyle.COLORS['TITLE'])} Alias [{color(normalized_alias, CLIStyle.COLORS['ALIAS'])}] cannot be a command, numeric, start with '-', contain '?', or contain path separators.",
                     file=sys.stderr,
                 )
                 return 1
@@ -301,12 +407,16 @@ class PathManager:
 
     def remove_path(self, target: str, path_color: int) -> int:
         """Remove an entry by number, alias, or path."""
-        index = self.resolve_target_index(target)
-        if index is None and (os.path.sep in target or target.startswith(".")):
-            index = self.resolve_path_index(target)
+        if is_alias_query(target):
+            index = self.resolve_named_target_index(target, path_color, sys.stdout)
+        else:
+            index = self.resolve_target_index(target)
+            if index is None and (os.path.sep in target or target.startswith(".")):
+                index = self.resolve_path_index(target)
 
         if index is None:
-            self.print_target_error(target)
+            if not is_alias_query(target):
+                self.print_target_error(target)
             return 1
 
         entry = self.entries.pop(index)
@@ -363,17 +473,24 @@ class PathManager:
         )
         return 0
 
-    def format_entry(self, index: int, entry: PathEntry, path_color: int) -> str:
+    def format_entry(
+        self,
+        index: int,
+        entry: PathEntry,
+        path_color: int,
+        alias_query: str | None = None,
+    ) -> str:
         """Format an entry for list output."""
         exists = "✓" if os.path.exists(entry.path) else "✗"
         status_color = (
             CLIStyle.COLORS["CONTENT"] if os.path.exists(entry.path) else CLIStyle.COLORS["ERROR"]
         )
-        alias_text = (
-            f" {color(entry.alias, CLIStyle.COLORS['ALIAS'])}"
-            if entry.alias
-            else ""
+        alias = (
+            self.highlight_match(entry.alias, alias_query)
+            if entry.alias and alias_query is not None
+            else color(entry.alias, CLIStyle.COLORS["ALIAS"])
         )
+        alias_text = f" {alias}" if entry.alias else ""
         return (
             f"{color('|', CLIStyle.COLORS['TITLE'])} "
             f"[{color(index, CLIStyle.COLORS['NUMBER'])}] "
@@ -387,9 +504,8 @@ class PathManager:
             return 0
 
         if target is not None:
-            index = self.resolve_target_index(target)
+            index = self.resolve_named_target_index(target, path_color, sys.stdout)
             if index is None:
-                self.print_target_error(target)
                 return 1
 
             print(self.format_entry(index + 1, self.entries[index], path_color))
@@ -400,11 +516,10 @@ class PathManager:
             print(self.format_entry(index, entry, path_color))
         return 0
 
-    def output_path(self, target: str) -> int:
+    def output_path(self, target: str, path_color: int) -> int:
         """Output a raw path by number or alias for shell command substitution."""
-        index = self.resolve_target_index(target)
+        index = self.resolve_named_target_index(target, path_color, sys.stderr)
         if index is None:
-            self.print_target_error(target)
             return 1
 
         entry = self.entries[index]
@@ -476,9 +591,12 @@ def create_example_text(script_name: str) -> str:
         ("Add path with alias", "add /tmp/tmp -a workspace"),
         ("Remove path by number", "rm 2"),
         ("Remove path by alias", "remove workspace"),
+        ("Show all paths explicitly", "show"),
         ("Show raw path by number", "show 1"),
         ("Show raw path by alias", "s workspace"),
         ("Show raw path by alias shorthand", "workspace"),
+        ("Resolve a unique alias substring", "work?"),
+        ("List matching aliases", "list wo?"),
         ("Clean missing paths", "clean"),
         ("Move path number 4 to position 1", "move 4 1"),
         ("Show config file path", "config"),
@@ -487,9 +605,11 @@ def create_example_text(script_name: str) -> str:
 
     notes = [
         "If the first argument is not a command, it is treated as show TARGET.",
+        "show/s without TARGET lists all stored paths.",
         "show/s prints only the resolved path, suitable for command substitution.",
-        "Targets can be an existing path number or alias.",
-        "Alias names cannot be commands, numeric, start with '-', or contain path separators.",
+        "Targets can be an existing path number, alias, or alias substring ending with '?'.",
+        "Alias queries auto-resolve only when exactly one alias matches.",
+        "Alias names cannot be commands, numeric, start with '-', contain '?', or contain path separators.",
     ]
 
     text = f"\n{color('Examples:', CLIStyle.COLORS['SUB_TITLE'])}"
@@ -504,13 +624,20 @@ def create_example_text(script_name: str) -> str:
     return text
 
 
-def add_target_argument(parser: argparse.ArgumentParser) -> None:
+def add_target_argument(parser: argparse.ArgumentParser, required: bool = True) -> None:
     """Add common target argument."""
-    parser.add_argument(
-        "target",
-        metavar=color("TARGET", CLIStyle.COLORS["WARNING"]),
-        help=color("Existing path number or alias", CLIStyle.COLORS["CONTENT"]),
-    )
+    argument_options: dict[str, Any] = {
+        "metavar": color("TARGET", CLIStyle.COLORS["WARNING"]),
+        "help": color(
+            "Existing path number, alias, or alias query ending with '?'",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    }
+    if not required:
+        argument_options["nargs"] = "?"
+        argument_options["default"] = None
+
+    parser.add_argument("target", **argument_options)
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -552,7 +679,10 @@ def create_parser() -> argparse.ArgumentParser:
         nargs="?",
         default=None,
         metavar=color("TARGET", CLIStyle.COLORS["WARNING"]),
-        help=color("Optional path number or alias", CLIStyle.COLORS["CONTENT"]),
+        help=color(
+            "Optional path number, alias, or alias query ending with '?'",
+            CLIStyle.COLORS["CONTENT"],
+        ),
     )
 
     add_parser = subparsers.add_parser(
@@ -588,7 +718,7 @@ def create_parser() -> argparse.ArgumentParser:
         help=color("Print a resolved path", CLIStyle.COLORS["CONTENT"]),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    add_target_argument(show_parser)
+    add_target_argument(show_parser, required=False)
 
     clean_parser = subparsers.add_parser(
         "clean",
@@ -656,7 +786,9 @@ def main() -> int:
     if args.command in ("rm", "remove"):
         return path_manager.remove_path(args.target, path_color)
     if args.command in ("show", "s"):
-        return path_manager.output_path(args.target)
+        if args.target is None:
+            return path_manager.list_paths(None, path_color)
+        return path_manager.output_path(args.target, path_color)
     if args.command == "clean":
         path_manager.clean_paths(path_color)
         return 0

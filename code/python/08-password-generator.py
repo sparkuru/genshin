@@ -12,6 +12,7 @@ from typing import Optional, Tuple, List
 
 if sys.platform == "win32":
     from colorama import init as colorama_init
+
     colorama_init(autoreset=True)
 
 # Global debug level

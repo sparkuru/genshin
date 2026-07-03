@@ -16,6 +16,18 @@ if sys.platform == "win32":
 DEBUG_MODE = False
 TLDR_EXTENSION = ".tldr"
 DEFAULT_CONFIG_DIR = os.path.expanduser("~/.config/tldr")
+COMMAND_NAMES = {
+    "help",
+    "list",
+    "ls",
+    "add",
+}
+GLOBAL_OPTIONS_WITH_VALUE = {
+    "--config-dir",
+}
+GLOBAL_OPTIONS_WITHOUT_VALUE = {
+    "--log",
+}
 
 
 class CLIStyle:
@@ -88,6 +100,45 @@ def debug(*args, file: Optional[str] = None, append: bool = True, **kwargs) -> N
 def resolve_config_dir(config_dir: Optional[str] = None) -> str:
     """Resolve the effective config directory, falling back to the default"""
     return config_dir or DEFAULT_CONFIG_DIR
+
+
+def normalize_args_for_target_fallback(args: List[str]) -> List[str]:
+    """Treat the first non-command positional argument as help COMMAND."""
+    if not args:
+        return args
+
+    normalized_args = []
+    index = 0
+    while index < len(args):
+        arg = args[index]
+
+        if arg == "--":
+            return args
+
+        if arg in GLOBAL_OPTIONS_WITH_VALUE:
+            normalized_args.append(arg)
+            if index + 1 >= len(args):
+                return args
+            normalized_args.append(args[index + 1])
+            index += 2
+            continue
+
+        if any(arg.startswith(f"{option}=") for option in GLOBAL_OPTIONS_WITH_VALUE):
+            normalized_args.append(arg)
+            index += 1
+            continue
+
+        if arg in GLOBAL_OPTIONS_WITHOUT_VALUE:
+            normalized_args.append(arg)
+            index += 1
+            continue
+
+        if arg.startswith("-") or arg in COMMAND_NAMES:
+            return args
+
+        return [*normalized_args, "help", *args[index:]]
+
+    return args
 
 
 class ColoredArgumentParser(argparse.ArgumentParser):
@@ -564,11 +615,13 @@ def main() -> int:
     script_name = os.path.basename(sys.argv[0])
 
     examples = [
+        ("List available configurations by default", ""),
+        ("Show help without explicit help subcommand", "7z"),
         ("Show help for ip command", "help ip"),
         ("Show help for git command", "help git"),
         ("Substring match: auto-resolve or list candidates", "help i"),
         ("Delete hit entry at index 3", "help uv --delete 3"),
-        ("List available configurations", "list/ls"),
+        ("List available configurations explicitly", "list/ls"),
         ("List commands matching pattern", "list i"),
         (
             "Add command example",
@@ -581,6 +634,8 @@ def main() -> int:
     notes = [
         "Configuration files should be named <command>.tldr and use TOML format",
         "Default config directory is ~/.config/tldr",
+        "Running without a command lists available configurations",
+        "If the first non-option argument is not a TLDR command, it is treated as help COMMAND",
         "Use --log to enable debug mode for troubleshooting",
     ]
 
@@ -702,7 +757,7 @@ def main() -> int:
         ),
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(normalize_args_for_target_fallback(sys.argv[1:]))
 
     global DEBUG_MODE
     DEBUG_MODE = args.log
@@ -717,14 +772,13 @@ def main() -> int:
             print(CLIStyle.color("  (not exists)", CLIStyle.COLORS["WARNING"]))
         return 0
 
-    if not args.command:
-        parser.print_help()
-        return 0
-
     try:
         tldr_tool = TLDRTool(args.config_dir)
 
-        if args.command == "help":
+        if not args.command:
+            tldr_tool.list_available()
+            return 0
+        elif args.command == "help":
             success = tldr_tool.show_help(args.target_command, args.delete)
             return 0 if success else 1
         elif args.command in ("list", "ls"):

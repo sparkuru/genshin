@@ -15,6 +15,7 @@ from getpass import getpass
 
 if sys.platform == "win32":
     from colorama import init as colorama_init
+
     colorama_init(autoreset=True)
 
 
@@ -223,9 +224,7 @@ def get_salt(key: str, salt_file="salt", is_use_salt=False) -> str:
 
 def get_banner():
     script_name = os.path.basename(sys.argv[0])
-    description = (
-        f"{color('Simple Encrypt/Decrypt Tool', 2)}"
-    )
+    description = f"{color('Simple Encrypt/Decrypt Tool', 2)}"
     epilog = f"""
 {color("Examples:", 3)}
   Encrypt a file:
