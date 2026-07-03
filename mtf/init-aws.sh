@@ -22,7 +22,7 @@ _cp() {
 }
 
 fix_resolvconf_dns() {
-	local dns_server="172.26.0.2"
+	local dns_server=$(ip n | awk -F' ' { print $1 })
 	local conf_dir="/etc/resolvconf/resolv.conf.d"
 	local head_file="$conf_dir/head"
 	local backup_file="$conf_dir/head.backup.$(date +%Y%m%d-%H%M%S)"
@@ -40,16 +40,16 @@ fix_resolvconf_dns() {
 	fi
 
 	if [ -e "$head_file" ]; then
-		sed '/^# BEGIN mtf-aws-dns-fix$/,/^# END mtf-aws-dns-fix$/d' "$head_file" >"$tmp_file"
+		sed '/^# BEGIN aws-dns-fix$/,/^# END aws-dns-fix$/d' "$head_file" >"$tmp_file"
 	else
 		: >"$tmp_file"
 	fi
 
 	cat >>"$tmp_file" <<EOF
-# BEGIN mtf-aws-dns-fix
+# BEGIN aws-dns-fix
 nameserver $dns_server
 options timeout:2 attempts:3
-# END mtf-aws-dns-fix
+# END aws-dns-fix
 EOF
 	install -m 0644 -o root -g root "$tmp_file" "$head_file"
 	rm -f "$tmp_file"
@@ -63,10 +63,12 @@ tmp_zshrc_path="/tmp/zshrc"
 _curl $tmp_zshrc_path $GITHUB_URL_BASE/mtf/.zshrc
 for user in "${VALID_USER_LIST[@]}"; do
 	if [ $user = "root" ]; then
-		_cp $tmp_zshrc_path /root/.zshrc
+		target_dir_path="/root/.zshrc"
 	else
-		_cp $tmp_zshrc_path /home/$user/.zshrc
+
+		target_dir_path=/home/$user/.zshrc
 	fi
+	_cp $tmp_zshrc_path $target_dir_path
 done
 rm -f $tmp_zshrc_path
 
@@ -74,9 +76,14 @@ rm -f $tmp_zshrc_path
 tmp_ssh_authorized_keys_path="/tmp/ssh_authorized_keys"
 _curl $tmp_ssh_authorized_keys_path $GITHUB_URL_BASE/mtf/authorized_keys
 for user in "${VALID_USER_LIST[@]}"; do
-	mkdir -p /home/$user/.ssh
-	_cp $tmp_ssh_authorized_keys_path /home/$user/.ssh/authorized_keys
-	chmod 700 -R /home/$user/.ssh
+	if [ $user = "root" ]; then
+		target_dir_path="/root/.ssh"
+	else
+		target_dir_path="/home/$user/.ssh"
+	fi
+	mkdir -p $target_dir_path
+	_cp $tmp_ssh_authorized_keys_path "${target_dir_path}/authorized_keys"
+	chmod 700 -R $target_dir_path
 done
 rm -f $tmp_ssh_authorized_keys_path
 

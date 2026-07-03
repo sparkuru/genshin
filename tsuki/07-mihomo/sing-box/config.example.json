@@ -1,0 +1,102 @@
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "inbounds": [
+    {
+      "type": "trojan",
+      "tag": "trojan-in",
+      "listen": "::",
+      "listen_port": 8081,
+      "users": [
+        {
+          "name": "full-access",
+          "password": "<full-access-password>"
+        },
+        {
+          "name": "guest",
+          "password": "<guest-password>"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "example.com",
+        "certificate_path": "./cert/fullchain.cer",
+        "key_path": "./cert/example.com.key"
+      },
+      "fallback": {
+        "server": "127.0.0.1",
+        "server_port": 8080
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "auth_user": [
+          "guest"
+        ],
+        "action": "sniff",
+        "timeout": "300ms"
+      },
+      {
+        "auth_user": [
+          "guest"
+        ],
+        "domain_suffix": [
+          "chatgpt.com",
+          "chat.com",
+          "openai.com",
+          "oaistatic.com",
+          "oaiusercontent.com",
+          "openaiusercontent.com",
+          "anthropic.com",
+          "claude.ai",
+          "claude.com",
+          "claudeusercontent.com",
+          "openrouter.ai",
+          "opencode.ai",
+          "githubcopilot.com",
+          "ai.google.dev",
+          "grok.com",
+          "x.ai"
+        ],
+        "action": "route",
+        "outbound": "direct"
+      },
+      {
+        "auth_user": [
+          "guest"
+        ],
+        "domain": [
+          "copilot-proxy.githubusercontent.com",
+          "origin-tracker.githubusercontent.com",
+          "copilot-telemetry.githubusercontent.com",
+          "default.exp-tas.com",
+          "copilot.microsoft.com",
+          "gemini.google.com",
+          "aistudio.google.com",
+          "makersuite.google.com",
+          "bard.google.com",
+          "generativelanguage.googleapis.com"
+        ],
+        "action": "route",
+        "outbound": "direct"
+      },
+      {
+        "auth_user": [
+          "guest"
+        ],
+        "action": "reject",
+        "method": "default"
+      }
+    ]
+  }
+}

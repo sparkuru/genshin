@@ -4,7 +4,7 @@ mode: rule
 log-level: info
 ipv6: false
 external-controller: 0.0.0.0:1081
-secret: "e5g66tEK6nIE6cs"
+secret: "IC0eKXGIjlcR-Npq"
 unified-delay: true
 sniffer:
   sniff:
@@ -26327,7 +26327,6 @@ rules:
 - DOMAIN-SUFFIX,n.troxsubscribe.top,DIRECT
 - DOMAIN-SUFFIX,tencent.com,DIRECT
 - DOMAIN-SUFFIX,crisp.chat,outside
-- DOMAIN-SUFFIX,user-ref.trojanx.top,DIRECT
 - DOMAIN-SUFFIX,eyny.com,outside
 - DOMAIN-SUFFIX,thm.market.intl.xiaomi.com,outside
 - DOMAIN-SUFFIX,global.market.xiaomi.com,outside
@@ -26402,7 +26401,6 @@ rules:
 - DOMAIN-SUFFIX,ati.com,outside
 - DOMAIN-KEYWORD,pubscholar.cn,outside
 - DOMAIN-KEYWORD,web.archive.org,outside
-- DOMAIN-KEYWORD,trojanx.pro,DIRECT
 - DOMAIN-KEYWORD,whatslink,outside
 - DOMAIN-KEYWORD,character,outside
 - DOMAIN-KEYWORD,soutubot,outside

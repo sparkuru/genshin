@@ -1,0 +1,11 @@
+services:
+  sing-box:
+    image: ghcr.io/sagernet/sing-box:latest
+    container_name: sing-box
+    network_mode: host
+    volumes:
+      - ./data:/etc/sing-box
+    command: ["run", "-c", "/etc/sing-box/config.json"]
+    restart: unless-stopped
+
+# sudo docker compose -f $PWD/sing-box.yml up -d

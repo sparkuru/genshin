@@ -27,6 +27,100 @@ Phase 2 Execute → 写代码 + 过质量检查（implement → check）
 Phase 3 Finish  → 沉淀经验 + 收尾（update-spec → commit → finish-work）
 ```
 
+主要流程详细表达如下
+
+```mermaid
+flowchart TD
+    A["开始：在仓库中使用 Trellis"] --> B{"Developer 是否初始化？"}
+
+    B -- "否" --> B1["初始化身份<br/>python3 ./.trellis/scripts/init_developer.py pm-alice"]
+    B1 --> B2["生成 .trellis/.developer<br/>生成个人 workspace"]
+    B2 --> C
+
+    B -- "是" --> C["Phase 1：Plan"]
+
+    subgraph P1["Phase 1 — Plan"]
+        C --> C1["1.0 创建任务<br/>task.py create"]
+        C1 --> C2["创建 task 目录<br/>status = planning<br/>注入 workflow-state:planning"]
+
+        C2 --> C3["1.1 需求探索<br/>trellis-brainstorm"]
+        C3 --> C4["持续写入 prd.md<br/>目标 / 范围 / 非目标 / 验收标准"]
+
+        C4 --> C5{"需要研究？"}
+        C5 -- "是" --> C6["1.2 研究<br/>派 trellis-research 子 agent"]
+        C6 --> C7["写入 research/*.md"]
+        C7 --> C8
+        C5 -- "否" --> C8["1.3 配置上下文"]
+
+        C8 --> C9["get_context.py --mode packages<br/>找相关 spec"]
+        C9 --> C10["写入 implement.jsonl / check.jsonl<br/>删除 _example 种子行"]
+
+        C10 --> C11["确认 PRD"]
+        C11 --> C12["1.4 激活任务<br/>task.py start"]
+        C12 --> C13["status: planning → in_progress<br/>注入 workflow-state:in_progress"]
+
+        C13 --> C14{"Plan 完成判据是否满足？"}
+        C14 -- "否" --> C3
+    end
+
+    C14 -- "是" --> D["Phase 2：Execute"]
+
+    subgraph P2["Phase 2 — Execute"]
+        D --> D1["2.1 实现<br/>主 agent 派 trellis-implement"]
+        D1 --> D2["hook 注入 implement.jsonl 指向的 spec + prd.md"]
+        D2 --> D3["子 agent 写代码<br/>运行 lint / type-check"]
+
+        D3 --> D4["2.2 质量检查<br/>主 agent 派 trellis-check"]
+        D4 --> D5["hook 注入 check.jsonl 指向的 spec"]
+        D5 --> D6["对照 diff 审查<br/>可修问题当场修复<br/>运行 lint / type-check / tests"]
+
+        D6 --> D7{"检查是否通过？"}
+        D7 -- "否，代码问题" --> D1
+        D7 -- "否，PRD 缺陷" --> C3
+    end
+
+    D7 -- "是" --> E["Phase 3：Finish"]
+
+    subgraph P3["Phase 3 — Finish"]
+        E --> E1["3.1 最终验证<br/>PM 本地查看 demo"]
+        E1 --> E2["trellis-check 收尾验证<br/>spec / lint / type / tests / 跨层一致性"]
+
+        E2 --> E3{"是否有反复 bug？"}
+        E3 -- "是" --> E4["3.2 调试复盘<br/>trellis-break-loop"]
+        E4 --> E5["分类根因<br/>解释前几次为何失败<br/>提出预防"]
+        E5 --> E6
+        E3 -- "否" --> E6["3.3 Spec 更新<br/>trellis-update-spec"]
+
+        E6 --> E7{"产生值得沉淀的新约定？"}
+        E7 -- "是" --> E8["写回 .trellis/spec/"]
+        E8 --> E9
+        E7 -- "否" --> E9["记录无需更新判断"]
+
+        E9 --> E10["3.4 提交<br/>git status + git log -5"]
+        E10 --> E11["生成提交计划<br/>用户确认"]
+        E11 --> E12["git add + git commit<br/>不 amend / 不 push"]
+
+        E12 --> E13["3.5 收尾<br/>/trellis:finish-work"]
+        E13 --> E14["清当前任务指针<br/>task 归档<br/>status → completed<br/>写 session journal"]
+    end
+
+    E14 --> F["结束：结构化产物可交接、可复现"]
+
+    subgraph OUT["最终产物"]
+        O1["prd.md"]
+        O2["research/*.md"]
+        O3["implement.jsonl / check.jsonl"]
+        O4["业务代码改动"]
+        O5["spec 增量更新"]
+        O6["git commit"]
+        O7["archive task + workspace journal"]
+    end
+
+    F -.-> OUT
+
+```
+
+
 关键设计哲学：
 
 - Plan before code：先有 PRD 再写代码。
@@ -92,14 +186,12 @@ $ tree -a -L3
     ├── workflow.md                        # 4 阶段循环：Plan → Implement → Verify → Finish
     └── workspace                          # 开发者日志/会话记忆
         ├── index.md                       # workspace 索引
-        └── unitree-g1-tests               # 本项目对应的工作区
+        └── prd-tests                      # 本项目对应的工作区
 
 26 directories, 21 files
 ```
 
 then start the workflow in your repo dir with `claude`, `codex` ...
-
----
 
 ## 使用场景举例：「PM 按项目指标构思 demo」
 
@@ -117,7 +209,7 @@ PM 的诉求：不写需求文档扔给工程师排期，而是自己用 AI 直�
 
 > 当前 SessionStart 显示 `DEVELOPER: Not initialized`，所以从第 0 步开始。
 
-### 第 0 步 · 初始化身份（一次性）
+### 初始化身份（一次性）
 
 |                  |                                                              |
 | ---------------- | ------------------------------------------------------------ |
@@ -235,7 +327,7 @@ PM 的诉求：不写需求文档扔给工程师排期，而是自己用 AI 直�
 | 工作流做什么 | 清当前任务指针、把 task 归档到 `archive/{年-月}/`（`status→completed`）、写 session journal |
 | 什么变了     | task 目录移到 `.trellis/tasks/archive/2026-05/`；`.trellis/workspace/pm-alice/journal-N.md` 追加本次记录；runtime 指针删除 |
 
-一句话总结全流程的「变更轨迹」
+总结全流程的「变更轨迹」
 
 ```
 开始：创建身份文件 

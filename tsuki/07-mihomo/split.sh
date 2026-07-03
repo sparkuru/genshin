@@ -3,8 +3,10 @@
 # and rewrite sensitive group names in the retained head and rules sections.
 set -Eeuo pipefail
 
-readonly SCRIPT_NAME=$(basename "$0")
-readonly SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+SCRIPT_NAME=$(basename "$0")
+readonly SCRIPT_NAME
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+readonly SCRIPT_DIR
 readonly SRC_PATH="$SCRIPT_DIR/himitsu/magic.yaml"
 readonly DST_PATH="$SCRIPT_DIR/include.yaml"
 
@@ -34,6 +36,7 @@ render_yaml() {
 
     python3 - "$src" "$dst" <<'PYEOF'
 import re
+import secrets
 import sys
 from pathlib import Path
 
@@ -124,6 +127,16 @@ head = "\n".join(lines[:idx_proxies])
 rules = "\n".join(lines[idx_rules:])
 
 
+def rewrite_secret(text: str) -> str:
+    random_secret = secrets.token_urlsafe(12)
+    return re.sub(
+        r'(?m)^secret:\s*(?:"[^"]*"|\'[^\']*\')\s*$',
+        f'secret: "{random_secret}"',
+        text,
+        count=1,
+    )
+
+
 def remap(text: str) -> str:
     for key in sorted(NAME_MAP, key=len, reverse=True):
         pattern = rf"(?<![A-Za-z0-9_-]){re.escape(key)}(?![A-Za-z0-9_-])"
@@ -131,7 +144,7 @@ def remap(text: str) -> str:
     return text
 
 
-out = remap(head) + "\n" + GENERIC_BLOCK + remap(rules) + "\n"
+out = remap(rewrite_secret(head)) + "\n" + GENERIC_BLOCK + remap(rules) + "\n"
 dst_path.write_text(out, encoding="utf-8")
 PYEOF
 }

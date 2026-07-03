@@ -29,10 +29,12 @@ tmp_zshrc_path="/tmp/zshrc"
 _curl $tmp_zshrc_path $GITHUB_URL_BASE/mtf/.zshrc
 for user in "${VALID_USER_LIST[@]}"; do
 	if [ $user = "root" ]; then
-		_cp $tmp_zshrc_path /root/.zshrc
+		target_dir_path="/root/.zshrc"
 	else
-		_cp $tmp_zshrc_path /home/$user/.zshrc
+
+		target_dir_path=/home/$user/.zshrc
 	fi
+	_cp $tmp_zshrc_path $target_dir_path
 done
 rm -f $tmp_zshrc_path
 
@@ -40,9 +42,14 @@ rm -f $tmp_zshrc_path
 tmp_ssh_authorized_keys_path="/tmp/ssh_authorized_keys"
 _curl $tmp_ssh_authorized_keys_path $GITHUB_URL_BASE/mtf/authorized_keys
 for user in "${VALID_USER_LIST[@]}"; do
-	mkdir -p /home/$user/.ssh
-	_cp $tmp_ssh_authorized_keys_path /home/$user/.ssh/authorized_keys
-	chmod 700 -R /home/$user/.ssh
+	if [ $user = "root" ]; then
+		target_dir_path="/root/.ssh"
+	else
+		target_dir_path="/home/$user/.ssh"
+	fi
+	mkdir -p $target_dir_path
+	_cp $tmp_ssh_authorized_keys_path "${target_dir_path}/authorized_keys"
+	chmod 700 -R $target_dir_path
 done
 rm -f $tmp_ssh_authorized_keys_path
 
