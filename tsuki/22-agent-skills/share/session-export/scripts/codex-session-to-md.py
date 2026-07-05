@@ -124,6 +124,29 @@ class JsonLineRecord:
 
 
 @dataclass(frozen=True)
+class ExportPlanTurn:
+    """One curated QA turn summary from an agent export plan."""
+
+    index: int
+    export: str
+    heading: str
+    question: str
+    answer: str
+    note: str
+
+
+@dataclass(frozen=True)
+class ExportPlan:
+    """Structured export plan authored by the agent before rendering."""
+
+    title: str
+    turn_table_title: str
+    include_turn_table: bool
+    include_turn_headings: bool
+    turns: tuple[ExportPlanTurn, ...]
+
+
+@dataclass(frozen=True)
 class RenderOptions:
     """Markdown rendering options."""
 
@@ -139,6 +162,9 @@ class RenderOptions:
     max_output_chars: int
     excluded_items: frozenset[str]
     excluded_turns: tuple[int, ...]
+    export_plan: ExportPlan | None
+    turn_table: str
+    qa_summary: str
 
 
 @dataclass(frozen=True)
@@ -358,6 +384,74 @@ def parse_excluded_turns(raw_values: list[str] | None) -> tuple[int, ...]:
             if selector not in selectors:
                 selectors.append(selector)
     return tuple(selectors)
+
+
+def read_optional_text_file(path_text: str, label: str) -> str:
+    """Read an optional UTF-8 text file argument."""
+    if not path_text:
+        return ""
+    path = Path(path_text).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"{label} file not found: {path}")
+    return path.read_text(encoding="utf-8").strip()
+
+
+def read_export_plan(path_text: str) -> ExportPlan | None:
+    """Read an optional structured export plan JSON file."""
+    if not path_text:
+        return None
+    path = Path(path_text).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"export plan file not found: {path}")
+    with open(path, "r", encoding="utf-8") as file_handle:
+        data = json.load(file_handle)
+    if not isinstance(data, dict):
+        raise ValueError("export plan must be a JSON object")
+    return parse_export_plan(data)
+
+
+def parse_export_plan(data: dict[str, Any]) -> ExportPlan:
+    """Parse a structured export plan JSON object."""
+    raw_turns = data.get("turns")
+    if not isinstance(raw_turns, list):
+        raise ValueError("export plan field 'turns' must be an array")
+    turns = tuple(
+        parse_export_plan_turn(item, index)
+        for index, item in enumerate(raw_turns, start=1)
+    )
+    return ExportPlan(
+        title=get_string(data.get("title")),
+        turn_table_title=get_string(data.get("turn_table_title")) or "Turn Index",
+        include_turn_table=get_bool(data.get("include_turn_table"), True),
+        include_turn_headings=get_bool(data.get("include_turn_headings"), True),
+        turns=turns,
+    )
+
+
+def parse_export_plan_turn(data: Any, fallback_index: int) -> ExportPlanTurn:
+    """Parse one turn entry from a structured export plan."""
+    if not isinstance(data, dict):
+        raise ValueError("export plan turn entries must be JSON objects")
+    raw_index = data.get("index", fallback_index)
+    if not isinstance(raw_index, int) or raw_index <= 0:
+        raise ValueError("export plan turn field 'index' must be a positive integer")
+    export = get_string(data.get("export")) or "keep"
+    heading = get_string(data.get("heading")) or get_string(data.get("q"))
+    return ExportPlanTurn(
+        index=raw_index,
+        export=export,
+        heading=heading,
+        question=get_string(data.get("q")) or get_string(data.get("question")),
+        answer=get_string(data.get("a")) or get_string(data.get("answer")),
+        note=get_string(data.get("note")),
+    )
+
+
+def get_bool(value: Any, default: bool) -> bool:
+    """Return value if it is a boolean, otherwise a default."""
+    if isinstance(value, bool):
+        return value
+    return default
 
 
 def resolve_excluded_turn_indexes(
@@ -995,6 +1089,17 @@ def create_readable_turn(user_text: str, timestamp: str) -> ReadableTurn:
     )
 
 
+def append_user_follow_up(turn: ReadableTurn, user_text: str) -> None:
+    """Append a user follow-up to an unfinished readable turn."""
+    text = user_text.strip()
+    if not text:
+        return
+    if turn.user_text.strip():
+        turn.user_text = f"{turn.user_text.strip()}\n\nFollow-up: {text}"
+        return
+    turn.user_text = text
+
+
 def flush_activity_to_turn(turn: ReadableTurn | None, activity: ActivityLog) -> None:
     """Render pending activity with the shared template and clear it."""
     session_template.flush_activity_to_turn(turn, activity)
@@ -1136,6 +1241,11 @@ def render_readable_record(
             turn = create_readable_turn("", "")
             turns.append(turn)
             return turn
+        if current_turn is not None and not current_turn.assistant_text.strip():
+            append_user_follow_up(current_turn, get_string(payload.get("message")))
+            if not current_turn.user_time:
+                current_turn.user_time = get_string(data.get("timestamp"))
+            return current_turn
         turn = create_readable_turn(
             get_string(payload.get("message")),
             get_string(data.get("timestamp")),
@@ -1266,6 +1376,57 @@ def render_readable_record(
     return current_turn
 
 
+def trim_incomplete_trailing_turns(
+    turns: list[ReadableTurn], options: RenderOptions
+) -> list[ReadableTurn]:
+    """Drop a final user-only turn from readable QA output."""
+    if not turns or is_excluded(options, "assistant"):
+        return turns
+    last_turn = turns[-1]
+    if last_turn.user_text.strip() and not last_turn.assistant_text.strip():
+        return turns[:-1]
+    return turns
+
+
+def render_export_plan_table(plan: ExportPlan | None) -> str:
+    """Render a structured export plan as a Markdown turn index table."""
+    if plan is None or not plan.include_turn_table or not plan.turns:
+        return ""
+    lines = [
+        session_template.render_heading(2, plan.turn_table_title),
+        "",
+        "| # | Export | Q | A | Note |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for turn in plan.turns:
+        lines.append(
+            " | ".join(
+                [
+                    f"| {turn.index}",
+                    session_template.markdown_escape(turn.export),
+                    session_template.markdown_escape(turn.question),
+                    session_template.markdown_escape(turn.answer),
+                    f"{session_template.markdown_escape(turn.note)} |",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
+def build_export_plan_heading_map(plan: ExportPlan | None) -> dict[int, str]:
+    """Build readable turn headings keyed by original turn index."""
+    if plan is None or not plan.include_turn_headings:
+        return {}
+    headings: dict[int, str] = {}
+    for turn in plan.turns:
+        if turn.export.lower() == "exclude":
+            continue
+        heading = turn.heading.strip()
+        if heading:
+            headings[turn.index] = f"{turn.index}. {heading}"
+    return headings
+
+
 def render_readable_markdown(
     records: list[JsonLineRecord], options: RenderOptions
 ) -> str:
@@ -1276,20 +1437,29 @@ def render_readable_markdown(
     for record in records:
         render_readable_record(record, context, options, activity, turns)
     flush_activity_to_turn(turns[-1] if turns else None, activity)
+    turns = trim_incomplete_trailing_turns(turns, options)
+    indexed_turns = list(enumerate(turns, start=1))
     if options.excluded_turns:
         excluded_indexes = resolve_excluded_turn_indexes(
             options.excluded_turns, len(turns)
         )
-        turns = [
-            turn
-            for index, turn in enumerate(turns, start=1)
+        indexed_turns = [
+            (index, turn)
+            for index, turn in indexed_turns
             if index not in excluded_indexes
         ]
+    turns = [turn for _, turn in indexed_turns]
+    heading_map = build_export_plan_heading_map(options.export_plan)
+    turn_headings = [heading_map.get(index, "") for index, _ in indexed_turns]
+    turn_table = options.turn_table or render_export_plan_table(options.export_plan)
     return session_template.render_readable_markdown(
-        options.document_title,
-        readable_metadata_rows(records, options),
-        turns,
-        include_appendix_enabled(options),
+        title=options.document_title,
+        metadata_rows=readable_metadata_rows(records, options),
+        turns=turns,
+        include_appendix=include_appendix_enabled(options),
+        turn_table=turn_table,
+        qa_summary=options.qa_summary,
+        turn_headings=turn_headings,
     )
 
 
@@ -1506,12 +1676,14 @@ def infer_session_title(records: list[JsonLineRecord]) -> str:
 
 
 def build_document_title(
-    records: list[JsonLineRecord], manual_title: str = ""
+    records: list[JsonLineRecord],
+    manual_title: str = "",
+    manual_title_source: str = "manual override",
 ) -> tuple[str, str, str]:
     """Return session name, document title, and title source label."""
     session_name = find_session_name(records)
     if manual_title:
-        return session_name, manual_title, "manual override"
+        return session_name, manual_title, manual_title_source
     if session_name:
         return session_name, session_name, "agent metadata"
     inferred_title = infer_session_title(records)
@@ -1581,6 +1753,9 @@ def build_render_options(
         max_output_chars=args.max_output_chars,
         excluded_items=args.excluded_items,
         excluded_turns=args.excluded_turns,
+        export_plan=args.export_plan_data,
+        turn_table=args.turn_table_text,
+        qa_summary=args.qa_summary_text,
     )
 
 
@@ -1655,6 +1830,18 @@ def build_parser() -> argparse.ArgumentParser:
                 "Drop the final unrelated QA turn",
                 "session.jsonl -o session.md --exclude-turn=-1",
             ),
+            (
+                "Use a structured export plan for the turn index and headings",
+                "session.jsonl -o session.md --export-plan /tmp/export-plan.json",
+            ),
+            (
+                "Insert a curated turn index table",
+                "session.jsonl -o session.md --turn-table /tmp/turn-table.md",
+            ),
+            (
+                "Insert a curated QA summary section",
+                "session.jsonl -o session.md --qa-summary /tmp/qa-summary.md",
+            ),
             ("Write default base and all-details files", "session.jsonl --include-all"),
             ("Include system and developer messages", "session.jsonl --include-system"),
         ],
@@ -1672,6 +1859,12 @@ def build_parser() -> argparse.ArgumentParser:
             + ".",
             "Use --exclude-turn for whole QA turns in readable output; "
             "positive numbers are 1-based and -1/last means the final turn.",
+            "Use --export-plan with an agent-written JSON file to render both "
+            "the turn index table and per-turn level-2 headings.",
+            "Use --turn-table with an agent-written Markdown table fragment; "
+            "the script inserts it after metadata as a table of contents.",
+            "Use --qa-summary with an agent-written Markdown fragment; "
+            "each QA item should use level-2 headings like ## 1. Summary.",
         ],
     )
     parser = ColoredArgumentParser(
@@ -1717,6 +1910,30 @@ def build_parser() -> argparse.ArgumentParser:
         help=CLIStyle.color(
             "Omit a whole QA turn from readable output. Use 1-based numbers, "
             "negative numbers from the end, or last.",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
+    parser.add_argument(
+        "--export-plan",
+        metavar="FILE",
+        help=CLIStyle.color(
+            "Read structured JSON for title, turn index, and turn headings.",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
+    parser.add_argument(
+        "--turn-table",
+        metavar="FILE",
+        help=CLIStyle.color(
+            "Insert a curated turn index Markdown table after metadata.",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
+    parser.add_argument(
+        "--qa-summary",
+        metavar="FILE",
+        help=CLIStyle.color(
+            "Insert a curated QA summary Markdown fragment before the transcript.",
             CLIStyle.COLORS["CONTENT"],
         ),
     )
@@ -1793,10 +2010,18 @@ def run(args: argparse.Namespace) -> int:
     """Run the conversion command."""
     input_path = Path(args.session_jsonl).expanduser().resolve()
     output_path = Path(args.output).expanduser().resolve() if args.output else None
+    args.export_plan_data = read_export_plan(args.export_plan or "")
     raw_title = args.title
+    args.title_source_label = "manual override"
+    if raw_title is None and args.export_plan_data is not None:
+        raw_title = args.export_plan_data.title or None
+        if raw_title is not None:
+            args.title_source_label = "export plan"
     args.title = (raw_title or "").strip()
     args.excluded_items = parse_excluded_items(args.exclude)
     args.excluded_turns = parse_excluded_turns(args.exclude_turn)
+    args.turn_table_text = read_optional_text_file(args.turn_table or "", "turn table")
+    args.qa_summary_text = read_optional_text_file(args.qa_summary or "", "QA summary")
     if not input_path.is_file():
         raise FileNotFoundError(f"input file not found: {input_path}")
     if raw_title is not None and not args.title:
@@ -1807,11 +2032,19 @@ def run(args: argparse.Namespace) -> int:
         raise ValueError(
             "exclude-turn applies only to default readable QA output"
         )
+    if args.export_plan_data and args.turn_table_text:
+        raise ValueError("export-plan cannot be combined with turn-table")
+    if args.export_plan_data and (include_mode_enabled(args) or args.raw_tool_output):
+        raise ValueError("export-plan applies only to default readable QA output")
+    if args.turn_table_text and (include_mode_enabled(args) or args.raw_tool_output):
+        raise ValueError("turn-table applies only to default readable QA output")
+    if args.qa_summary_text and (include_mode_enabled(args) or args.raw_tool_output):
+        raise ValueError("qa-summary applies only to default readable QA output")
 
     records = read_jsonl(input_path)
     debug("records", count=len(records))
     session_name, document_title, title_source = build_document_title(
-        records, args.title
+        records, args.title, args.title_source_label
     )
     if output_path is None and include_mode_enabled(args):
         write_default_variant_outputs(records, args, input_path)

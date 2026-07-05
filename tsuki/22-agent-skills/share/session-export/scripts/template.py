@@ -366,7 +366,7 @@ def render_readable_turn(turn: ReadableTurn, include_appendix: bool = True) -> s
         if turn.assistant_text.strip():
             blocks.append(turn.assistant_text.strip())
         if visible_attachments:
-            blocks.append("#### Appendix")
+            blocks.append("<h4>Appendix</h4>")
             blocks.extend(
                 render_attachment(attachment) for attachment in visible_attachments
             )
@@ -378,12 +378,24 @@ def render_readable_markdown(
     metadata_rows: Sequence[tuple[str, Any]],
     turns: Sequence[ReadableTurn],
     include_appendix: bool = True,
+    turn_table: str = "",
+    qa_summary: str = "",
+    turn_headings: Sequence[str] | None = None,
 ) -> str:
     blocks = [render_heading(1, title)]
     metadata = render_metadata_table(metadata_rows)
     if metadata:
         blocks.append(metadata)
-    blocks.extend(render_readable_turn(turn, include_appendix) for turn in turns)
+    if turn_table.strip():
+        blocks.append(turn_table.strip())
+    if qa_summary.strip():
+        blocks.append(qa_summary.strip())
+    for index, turn in enumerate(turns):
+        if turn_headings and index < len(turn_headings):
+            heading = turn_headings[index].strip()
+            if heading:
+                blocks.append(render_heading(2, heading))
+        blocks.append(render_readable_turn(turn, include_appendix))
     return "\n\n---\n\n".join(block for block in blocks if block) + "\n"
 
 
