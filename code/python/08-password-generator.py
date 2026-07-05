@@ -8,7 +8,7 @@ import base64
 import argparse
 import subprocess
 from time import time
-from typing import Optional, Tuple, List
+from typing import List, Optional, Tuple
 
 if sys.platform == "win32":
     from colorama import init as colorama_init
@@ -22,6 +22,26 @@ DEBUG_MODE = False
 DEFAULT_PASSWORD_LENGTH = 15
 DEFAULT_SALT_FILE = "salt"
 DEFAULT_CHAR_SET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-#."
+CHARSET_DIGITS = "0123456789"
+CHARSET_LOWERCASE = "abcdefghijklmnopqrstuvwxyz"
+CHARSET_UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+CHARSET_LETTERS = CHARSET_LOWERCASE + CHARSET_UPPERCASE
+CHARSET_ALNUM = CHARSET_DIGITS + CHARSET_LETTERS
+CHARSET_PRESET_ORDER = ["1", "2", "3", "4", "5"]
+CHARSET_PRESET_VALUES = {
+    "1": CHARSET_DIGITS,
+    "2": CHARSET_LETTERS,
+    "3": CHARSET_LOWERCASE,
+    "4": CHARSET_UPPERCASE,
+    "5": CHARSET_ALNUM,
+}
+CHARSET_PRESET_DESCRIPTIONS = {
+    "1": "digits",
+    "2": "lowercase and uppercase letters",
+    "3": "lowercase letters",
+    "4": "uppercase letters",
+    "5": "digits, lowercase, and uppercase letters",
+}
 
 
 class CLIStyle:
@@ -321,6 +341,63 @@ def generate_password(
             )
 
 
+def dedupe_chars(chars: str) -> str:
+    """
+    Remove duplicate characters while preserving order
+    ```python
+    chars = dedupe_chars("aabbcc")
+
+    return = "abc"
+    ```
+    """
+    return "".join(dict.fromkeys(chars))
+
+
+def format_charset_preset_help() -> str:
+    """
+    Format charset preset help text
+    ```python
+    help_text = format_charset_preset_help()
+
+    return = "1=digits; 2=lowercase and uppercase letters"
+    ```
+    """
+    return "; ".join(
+        f"{key}={CHARSET_PRESET_DESCRIPTIONS[key]}"
+        for key in CHARSET_PRESET_ORDER
+    )
+
+
+def parse_charset_presets(presets: Optional[List[str]]) -> Optional[str]:
+    """
+    Parse charset preset options into a character set
+    ```python
+    char_set = parse_charset_presets(["1,3"])
+
+    return = "0123456789abcdefghijklmnopqrstuvwxyz"
+    ```
+    """
+    if not presets:
+        return None
+
+    chars = ""
+    for preset_group in presets:
+        for preset in preset_group.split(","):
+            preset = preset.strip()
+            if not preset:
+                continue
+            if preset not in CHARSET_PRESET_VALUES:
+                raise ValueError(
+                    f"Invalid charset preset '{preset}'. Use {format_charset_preset_help()}"
+                )
+            chars += CHARSET_PRESET_VALUES[preset]
+
+    if not chars:
+        raise ValueError(f"No charset preset selected. Use {format_charset_preset_help()}")
+
+    return dedupe_chars(chars)
+
+
 def create_example_text(
     script_name: str, examples: List[Tuple[str, str]], notes: List[str] = None
 ) -> str:
@@ -366,6 +443,8 @@ def main() -> int:
         ("Generate password with custom length", "-k mykey -l 20"),
         ("Generate password with custom salt file", "-k mykey -s custom_salt.txt"),
         ("Generate password with custom character set", "-k mykey --char abc123"),
+        ("Generate password with digits only", "-k mykey --charset 1"),
+        ("Generate password with digits and lowercase", "-k mykey --charset 1,3"),
         (
             "Generate password with custom character set and append",
             "-k mykey --charset_append '!@#$%^&*'",
@@ -377,7 +456,8 @@ def main() -> int:
         "An example key combination can be: '<ip/domain[:port]/file>/<username/filename>', like '192.168.1.100:3306/root', 'file/a_7z_file.7z'",
         "Salt file will be created if it doesn't exist",
         "Use --log to enable debug mode for troubleshooting",
-        "Use --charset_append to add additional characters to the default character set",
+        f"Use --charset to select default character set presets: {format_charset_preset_help()}",
+        "Use --charset_append to add additional characters to the selected or default character set",
         "Use --must to ensure password contains specific characters",
     ]
 
@@ -425,12 +505,22 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--charset",
+        nargs="+",
+        default=None,
+        metavar=CLIStyle.color("PRESET", CLIStyle.COLORS["WARNING"]),
+        help=CLIStyle.color(
+            f"Use default character set preset(s): {format_charset_preset_help()}",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
+    parser.add_argument(
         "--charset_append",
         type=str,
         default=None,
         metavar=CLIStyle.color("APPEND_CHARS", CLIStyle.COLORS["WARNING"]),
         help=CLIStyle.color(
-            "Append additional characters to the default character set",
+            "Append additional characters to the selected or default character set",
             CLIStyle.COLORS["CONTENT"],
         ),
     )
@@ -461,14 +551,19 @@ def main() -> int:
         key_seed = args.key if args.key else str(time())
 
         # Handle character set
+        if args.char and args.charset:
+            parser.error("Use either --char or --charset, not both")
+
         char_set = args.char
+        if args.charset:
+            char_set = parse_charset_presets(args.charset)
+
         if args.charset_append:
             if char_set:
                 char_set = char_set + args.charset_append
             else:
                 char_set = DEFAULT_CHAR_SET + args.charset_append
-            # Remove duplicates while preserving order
-            char_set = "".join(dict.fromkeys(char_set))
+            char_set = dedupe_chars(char_set)
             if DEBUG_MODE:
                 debug(f"Final character set: {char_set}")
 

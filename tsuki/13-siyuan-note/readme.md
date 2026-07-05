@@ -1,8 +1,8 @@
-# siyuan-note
+# siyuan note
 
 一份笔记，希望在工作笔记本、mac、家里主机、手机上都能实时编辑、查看，又要保证绝对的私密性，最后打算尝试 [思源笔记](https://github.com/siyuan-note/siyuan.git)
 
-- 优势：
+* 优势：
 
   1. 跨平台：Linux、Windows、Android / iOS、MacOS
   2. 易部署：docker、application / dmg、apk
@@ -10,7 +10,7 @@
   4. 可玩性：丰富插件、社区
   5. 快速集成 ai，可以直接调用 openai、azure 的 api，也可以自己本地 ollama 使用
 
-- 劣势：
+* 劣势：
 
   1. 私有文件格式，但是可以导出成各种类型文件格式，包括 markdown
   2. 使用同步功能需要购买 [会员](https://b3log.org/siyuan/pricing.html)
@@ -87,7 +87,11 @@
 | 表格          | 在下方插入一行 | ctrl + enter             |
 |               | 删除行         | ctrl + shift + backspace |
 
-# 4、其他配置
+# 4、自定义界面配置
+
+参考 [sparkuru/siyuan-plugin](https://github.com/sparkuru/siyuan-plugin.git)
+
+# 5、其他配置
 
 1. 主题
 2. 其他好用的插件

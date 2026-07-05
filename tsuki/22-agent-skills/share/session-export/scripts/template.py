@@ -346,11 +346,15 @@ def render_attachment(attachment: ReadableAttachment) -> str:
 
 
 def render_readable_turn(turn: ReadableTurn, include_appendix: bool = True) -> str:
-    blocks: list[str] = [
-        render_role_heading("User"),
-        render_time_line(turn.user_time),
-        turn.user_text.strip(),
-    ]
+    blocks: list[str] = []
+    if turn.user_text.strip() or turn.user_time:
+        blocks.extend(
+            [
+                render_role_heading("User"),
+                render_time_line(turn.user_time),
+                turn.user_text.strip(),
+            ]
+        )
     visible_attachments = turn.attachments if include_appendix else []
     if turn.assistant_text.strip() or visible_attachments:
         blocks.extend(

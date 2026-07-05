@@ -35,8 +35,8 @@ fi
 encrypt_script_path="$genshin_dir_path/code/python/02-ez-encrypt.py"
 salt_path="$genshin_dir_path/paimon"
 
-src_file_path="$workdir/04-trojan.http.nginx"
-target_file_path="$workdir/04-trojan.http.nginx.enc"
+src_file_path="$workdir/04-singbox.http.nginx"
+target_file_path="$workdir/04-singbox.http.nginx.enc"
 # loop encrypt/decrypt if needed
 src_file_dir="/path/to/src/file/dir"
 target_file_dir="/path/to/target/file/dir"

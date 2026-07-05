@@ -1,62 +1,91 @@
-#!/bin/sh
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
-function color() {
-    echo -e "\e[33m$1\e[0m"
+readonly WORKDIR="/opt/acme"
+readonly HOME_ACME_DIR="/home/$USER/.acme.sh"
+readonly DOMAIN="domain.top"    # change domain
+readonly KEY_FILE_PATH="$WORKDIR/cert/$DOMAIN.key"
+readonly CERT_FILE_PATH="$WORKDIR/cert/$DOMAIN.cer"
+readonly FULLCHAIN_FILE_PATH="$WORKDIR/cert/fullchain.cer"
+
+SUB_DOMAIN_LIST=(
+	'*'
+)
+
+color() {
+	printf '\033[33m%s\033[0m\n' "$1"
 }
 
-workdir="/opt/acme"
-home_acme_dir="/home/$USER/.acme.sh"
-DOMAIN='domain.top'
-SUB_DOMAIN_LIST=(   # 泛域名
-    '\*'
-)
-KEY_FILE_PATH="$workdir/cert/$DOMAIN.key"
-CERT_FILE_PATH="$workdir/cert/$DOMAIN.cer"
-FULLCHAIN_FILE_PATH="$workdir/cert/fullchain.cer"
+die() {
+	printf 'Error: %s\n' "$*" >&2
+	exit 1
+}
 
-if [ ! -d "$home_acme_dir" ]; then
-    cmd="curl https://get.acme.sh | sh -s email=my@example.com"
-    color "no $home_acme_dir found, run $cmd first."
-    exit
-fi
+append_domains() {
+	local -n command_ref=$1
+	local sub_domain
 
-if [ ! -d $workdir ]; then
-    mkdir -p $workdir
-fi
+	command_ref+=(-d "$DOMAIN")
+	for sub_domain in "${SUB_DOMAIN_LIST[@]}"; do
+		command_ref+=(-d "$sub_domain.$DOMAIN")
+	done
+}
 
-cd $workdir
-. "$home_acme_dir/acme.sh.env"
+main() {
+	local action=${1:-}
+	local run_mode=${2:-}
+	local debug_mode=${3:-}
+	local reload_cmd
+	local command=()
 
-export Ali_Key="xxxxx"   # 参考这篇文章：https://blog.csdn.net/chen249191508/article/details/98088553
-export Ali_Secret="xxxxx"  # AccessKey ID 就是 Ali_Key，AccessKey Secret 就是 Ali_Secret
+	[[ -n "$action" ]] || die "usage: $0 <issue|install|info> [run] [debug]"
 
-if [[ $1 == 'issue' ]]; then
-    base_cmd="acme.sh --issue --dns dns_ali -d $DOMAIN --force"
-    for sub in "$SUB_DOMAIN_LIST[@]"; do
-        base_cmd+=" -d $sub.$DOMAIN"
-    done
-fi
+	if [[ ! -d "$HOME_ACME_DIR" ]]; then
+		color "no $HOME_ACME_DIR found, run curl https://get.acme.sh | sh -s email=my@example.com first."
+		exit 1
+	fi
 
-# $DOMAIN.cer 是证书文件, $DOMAIN.key 是密钥文件, fullchain.cer 是全链接文件
-if [[ $1 == 'install' ]]; then
-    reloadcmd="sudo systemctl restart nginx"
-    base_cmd="acme.sh --install-cert --key-file $KEY_FILE_PATH --cert-file $CERT_FILE_PATH --fullchain-file $FULLCHAIN_FILE_PATH --reloadcmd '$reloadcmd' -d $DOMAIN"
-    for sub in "${SUB_DOMAIN_LIST[@]}"; do
-        base_cmd+=" -d $sub.$DOMAIN"
-    done
-fi
+	mkdir -p -- "$WORKDIR"
+	cd "$WORKDIR"
+	# shellcheck source=/dev/null
+	. "$HOME_ACME_DIR/acme.sh.env"
 
-if [[ $1 == 'info' ]]; then
-    base_cmd="acme.sh --info -d $DOMAIN"
-    for sub in "${SUB_DOMAIN_LIST[@]}"; do
-        base_cmd+=" -d $sub.$DOMAIN"
-    done
-fi
+	# Cloudflare DNS API for acme.sh dns_cf.
+	export CF_Account_ID="32-length-string"
+	export CF_Token="53-length-api-token"
 
-color "执行: $base_cmd"
-if [[ $2 == 'run' ]]; then
-    if [[ $3 == 'debug' ]]; then
-        base_cmd+=" --debug"
-    fi
-    eval $base_cmd
-fi
+	case "$action" in
+	issue)
+		command=(acme.sh --issue --dns dns_cf --force)
+		append_domains command
+		;;
+	install)
+		reload_cmd="sudo systemctl restart nginx"
+		command=(
+			acme.sh --install-cert
+			--key-file "$KEY_FILE_PATH"
+			--cert-file "$CERT_FILE_PATH"
+			--fullchain-file "$FULLCHAIN_FILE_PATH"
+			--reloadcmd "$reload_cmd"
+		)
+		append_domains command
+		;;
+	info)
+		command=(acme.sh --info)
+		append_domains command
+		;;
+	*)
+		die "unknown action: $action"
+		;;
+	esac
+
+	color "Execute: ${command[*]}"
+	if [[ "$run_mode" == "run" ]]; then
+		if [[ "$debug_mode" == "debug" ]]; then
+			command+=(--debug)
+		fi
+		"${command[@]}"
+	fi
+}
+
+main "$@"

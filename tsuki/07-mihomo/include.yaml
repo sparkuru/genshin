@@ -4,7 +4,7 @@ mode: rule
 log-level: info
 ipv6: false
 external-controller: 0.0.0.0:1081
-secret: "IC0eKXGIjlcR-Npq"
+secret: "atT327MYW71KU4zm"
 unified-delay: true
 sniffer:
   sniff:

@@ -23,7 +23,7 @@ map $cookie_eva $landing_redirect {
 server {
     listen                443 ssl;
 
-    root                  /home/www/typecho;
+    root                  /opt/www/typecho;
     server_name           majo.im;
     server_name           www.majo.im;
 
@@ -32,12 +32,12 @@ server {
     }
 
     location /majo {
-        alias             /home/www/majo;
+        alias             /opt/www/majo;
         index             index.html;
     }
 
     location /ftp {
-        alias             /home/www/ftp;
+        alias             /opt/www/ftp;
         autoindex         on;
     }
 
@@ -47,12 +47,12 @@ server {
     }
 
     location = /landing.html {
-        alias             /home/www/kyoka-suigetsu/dist/landing.html;
+        alias             /opt/www/kyoka-suigetsu/dist/landing.html;
         add_header        Set-Cookie "eva=true; Path=/; Max-Age=7200; HttpOnly; SameSite=Strict";
     }
 
     location ^~ /_astro/ {
-        alias             /home/www/kyoka-suigetsu/dist/_astro/;
+        alias             /opt/www/kyoka-suigetsu/dist/_astro/;
         expires           2h;
         add_header        Cache-Control "public, immutable";
     }
@@ -71,7 +71,7 @@ server {
         }
 
         if ($landing_redirect = 1) {
-            return        302 /landing.html?from=$request_uri;
+            rewrite       ^ /landing.html last;
         }
 
         if (-f $request_filename/index.html) {

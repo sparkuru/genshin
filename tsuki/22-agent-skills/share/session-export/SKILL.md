@@ -7,9 +7,11 @@ description: "Export agent session transcripts to Markdown for long conversation
 
 ## Default Action
 
-When the user invokes `$session-export` without a file path, locate the current agent's local session transcript if available, then export it to Markdown. If the current transcript cannot be located from the active environment, ask for the session file path or the agent name and session id.
+When the user invokes `$session-export` without a file path, locate the current agent's local session transcript if available, inspect it, then present an export proposal for confirmation before writing Markdown. If the current transcript cannot be located from the active environment, ask for the session file path or the agent name and session id.
 
-When the user provides a transcript path, detect the agent from the file path and JSON shape, then run the matching script in `scripts/`.
+When the user provides a transcript path, detect the agent from the file path and JSON shape, inspect it, then present the same export proposal before running the matching script in `scripts/`.
+
+Skip the confirmation proposal only when the user explicitly asks for a direct export, unattended export, or exact command execution. Even then, still choose a safe title and remove clearly unrelated final export-request turns when the user has already authorized curation.
 
 ## Agent Scripts
 
@@ -24,18 +26,70 @@ Do not force one agent's parser onto another agent's transcript. Agents differ i
 
 1. Identify the agent: prefer explicit user input; otherwise infer from path and JSON shape.
 2. Locate the transcript: use the provided path first; otherwise search the current agent's known session directory.
-3. Run the matching script with the smallest useful detail mode.
-4. Save Markdown using the script's default naming rules unless the user provides an explicit output path.
-5. Report the generated path and mention whether the title came from agent metadata or was inferred.
+3. Inspect the readable QA turns and infer a concise export title.
+4. Present the export proposal in the format below and ask for confirmation or adjustments.
+5. After confirmation, run the matching script with the smallest useful detail mode and any selected title, turn exclusions, or content exclusions.
+6. Save Markdown using the script's default naming rules unless the user provides an explicit output path.
+7. Report the generated path and mention whether the title came from agent metadata, user confirmation, or inference.
+
+## Export Proposal Format
+
+Use this exact shape when asking the user to confirm a curated export plan. Match the transcript language for user-visible summaries when practical.
+
+```markdown
+**Session Export Plan**
+
+Title: <short proposed Markdown H1>
+Source: <agent and transcript path or current session>
+Output: <planned output path or default naming rule>
+Mode: <base | quiet | usage | system | all>
+
+Turns:
+| # | Export | Q | A | Note |
+| --- | --- | --- | --- | --- |
+| 1 | keep | <one-sentence user-request summary> | <one-sentence assistant-outcome summary> | <why keep / optional> |
+| 2 | exclude | <summary> | <summary> | unrelated export request |
+
+Options:
+- Title: `--title "<title>"`
+- Exclude turns: `<none | --exclude-turn ...>`
+- Exclude items: `<none | --exclude ...>`
+- Detail mode: `<base | -q | --include-usage | --include-system | --include-all>`
+- Sensitive redaction: `<ask | enable | disable>` - <why this is suggested or not>
+
+Please confirm this export plan, or tell me which turn numbers or details to keep/remove.
+```
+
+Turn rows must be concise summaries, not full transcript copies. The `Export` column should be `keep`, `exclude`, or `review`. Use `exclude` for turns that are clearly unrelated to the export theme, such as a final turn where the user only asked the agent to export the session and the assistant only reported the output path. Use `review` when relevance is ambiguous.
+
+Useful optional notes include `setup context`, `main task`, `debugging`, `implementation`, `verification`, `follow-up`, `export request only`, `possible sensitive content`, or `low-value operational chatter`.
+
+The `Options` section is the extension point for export-time choices that are not simply keep/remove decisions. Keep it short and add options only when they are relevant to the inspected transcript or user request. The first supported extension is sensitive redaction:
+
+- Sensitive redaction is not enabled by default.
+- If the transcript appears to contain credentials, tokens, private IPs, internal hostnames, account identifiers, or similar sensitive material, set `Sensitive redaction` to `ask` and explain briefly what category was detected without repeating the sensitive value.
+- Set it to `enable` only when the user explicitly requested redaction/sanitization or already gave standing permission to redact sensitive details.
+- Set it to `disable` when there is no apparent sensitive content or the user explicitly wants a faithful archival export.
+
+After the user confirms, translate the plan into script arguments. For Codex, use `--title` for the proposed title, `--exclude-turn` for whole QA turns, and `--exclude` only for item-category filtering such as commands, searches, reasoning, or appendix content.
 
 For Codex:
 
 ```bash
 python3 scripts/codex-session-to-md.py /path/to/rollout.jsonl --include-all
 python3 scripts/codex-session-to-md.py /path/to/rollout.jsonl -o session.md
+python3 scripts/codex-session-to-md.py /path/to/rollout.jsonl -o session.md --title "Release QA Session"
+python3 scripts/codex-session-to-md.py /path/to/rollout.jsonl -o session.md --exclude commands,searches
+python3 scripts/codex-session-to-md.py /path/to/rollout.jsonl -o session.md --exclude-turn=-1
 ```
 
 Codex readable exports should use the agent thread name as the Markdown H1 when present. If Codex has no thread-name event, infer a short, sanitized title from the first substantial user request and record `title source` as `inferred from first user request` in the metadata. Use `Codex Session` only as a fallback when neither an agent title nor a usable request exists.
+
+When the user gives a preferred document title, pass it with `--title` instead of editing the generated Markdown afterward. The script records `title source` as `manual override`, keeps the original session name in metadata when present, and uses the manual title for default title-based output names.
+
+When the user asks for a focused export, choose `--exclude` values before running the script so the generated Markdown is already curated. Repeat `--exclude` or pass comma-separated values. Supported Codex exclude items are `appendix`, `assistant`, `commands`, `edits`, `errors`, `file-changes`, `lifecycle`, `metadata`, `operations`, `plan-updates`, `reasoning`, `searches`, `system`, `tool-calls`, `tool-outputs`, `tools`, `unknown`, `usage`, and `user`. Use `--exclude operations` to drop the compact operation appendix categories together, or use narrower values such as `commands,searches` when the user wants to preserve edits and tool names.
+
+When the user wants a curated QA transcript and one or more complete turns are unrelated to the topic, use `--exclude-turn` instead of post-editing the Markdown. Turn numbers are 1-based, negative numbers count from the end, and `last` is accepted; for example, use `--exclude-turn=-1` or `--exclude-turn last` when the final QA only records the export request itself. This applies to the default readable QA output, not detail modes such as `--include-all`.
 
 For Claude Code:
 
@@ -95,7 +149,7 @@ Default to base for quick reading. Keep the main reading path as question and an
 
 Script flags:
 
-- Codex: `-q`/`--quiet`/`--release`, `--include-usage`, `--include-system`, `--include-all`, `--no-unknown`, `--raw-tool-output`, `--max-output-chars`.
+- Codex: `-q`/`--quiet`/`--release`, `--title`, `--exclude`, `--exclude-turn`/`--exclude-qa`, `--include-usage`, `--include-system`, `--include-all`, `--no-unknown`, `--raw-tool-output`, `--max-output-chars`.
 - Claude Code: `-q`/`--quiet`/`--release`, `--include-usage`, `--include-system`, `--include-all`, `--no-unknown`, `--max-output-chars`, `--default-output`.
 - OpenCode: `-q`/`--quiet`/`--release`, `--include-usage`, `--include-system`, `--include-all`, `--no-unknown`, `--max-output-chars`, `--default-output`, `--db`, `--session-id`.
 

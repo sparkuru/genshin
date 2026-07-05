@@ -137,6 +137,8 @@ class RenderOptions:
     include_appendix: bool
     raw_tool_output: bool
     max_output_chars: int
+    excluded_items: frozenset[str]
+    excluded_turns: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -254,6 +256,128 @@ def get_string(value: Any) -> str:
     return ""
 
 
+def is_excluded(options: RenderOptions, *items: str) -> bool:
+    """Return whether any item category is excluded."""
+    return any(item in options.excluded_items for item in items)
+
+
+def include_appendix_enabled(options: RenderOptions) -> bool:
+    """Return whether readable appendix blocks should be rendered."""
+    return options.include_appendix and not is_excluded(options, "appendix")
+
+
+def get_exclude_item_choices() -> frozenset[str]:
+    """Return supported item categories for content exclusion."""
+    return frozenset(
+        {
+            "appendix",
+            "assistant",
+            "commands",
+            "edits",
+            "errors",
+            "file-changes",
+            "lifecycle",
+            "metadata",
+            "operations",
+            "plan-updates",
+            "reasoning",
+            "searches",
+            "system",
+            "tool-calls",
+            "tool-outputs",
+            "tools",
+            "unknown",
+            "usage",
+            "user",
+        }
+    )
+
+
+def get_exclude_item_aliases() -> dict[str, str]:
+    """Return accepted aliases for exclude item categories."""
+    return {
+        "files": "file-changes",
+        "file-change": "file-changes",
+        "plans": "plan-updates",
+        "plan": "plan-updates",
+        "search": "searches",
+        "web-search": "searches",
+        "web-searches": "searches",
+        "tool-call": "tool-calls",
+        "tool-output": "tool-outputs",
+    }
+
+
+def parse_excluded_items(raw_values: list[str] | None) -> frozenset[str]:
+    """Parse repeated or comma-separated exclude item names."""
+    if not raw_values:
+        return frozenset()
+
+    choices = get_exclude_item_choices()
+    aliases = get_exclude_item_aliases()
+    parsed: set[str] = set()
+    for raw_value in raw_values:
+        for raw_item in raw_value.split(","):
+            item = raw_item.strip().lower().replace("_", "-")
+            if not item:
+                continue
+            item = aliases.get(item, item)
+            if item not in choices:
+                allowed = ", ".join(sorted(choices))
+                raise ValueError(
+                    f"unknown exclude item '{raw_item}'; allowed: {allowed}"
+                )
+            parsed.add(item)
+    if "operations" in parsed:
+        parsed.update({"commands", "edits", "searches", "tools"})
+    return frozenset(parsed)
+
+
+def parse_excluded_turns(raw_values: list[str] | None) -> tuple[int, ...]:
+    """Parse repeated or comma-separated QA turn selectors."""
+    if not raw_values:
+        return ()
+
+    selectors: list[int] = []
+    for raw_value in raw_values:
+        for raw_item in raw_value.split(","):
+            item = raw_item.strip().lower()
+            if not item:
+                continue
+            if item in ("last", "final"):
+                selector = -1
+            else:
+                try:
+                    selector = int(item)
+                except ValueError as exc:
+                    raise ValueError(
+                        f"invalid turn selector '{raw_item}'; use 1, 2, -1, or last"
+                    ) from exc
+            if selector == 0:
+                raise ValueError("turn selector must not be 0")
+            if selector not in selectors:
+                selectors.append(selector)
+    return tuple(selectors)
+
+
+def resolve_excluded_turn_indexes(
+    selectors: tuple[int, ...], turn_count: int
+) -> frozenset[int]:
+    """Resolve 1-based and negative QA turn selectors against a turn count."""
+    excluded: set[int] = set()
+    for selector in selectors:
+        if selector > 0:
+            turn_index = selector
+        else:
+            turn_index = turn_count + selector + 1
+        if turn_index < 1 or turn_index > turn_count:
+            raise ValueError(
+                f"turn selector {selector} is out of range for {turn_count} turns"
+            )
+        excluded.add(turn_index)
+    return frozenset(excluded)
+
+
 def truncate_text(text: str, limit: int) -> str:
     """Truncate text to a positive character limit."""
     if limit <= 0 or len(text) <= limit:
@@ -358,6 +482,9 @@ def render_message(role: str, text: str, phase: str = "") -> str:
 
 def render_session_meta(record: dict[str, Any], options: RenderOptions) -> str:
     """Render internal session metadata."""
+    if is_excluded(options, "metadata"):
+        return render_heading(1, options.document_title)
+
     payload = get_object(record.get("payload"))
     rows = [
         ("source file", options.input_path),
@@ -378,7 +505,7 @@ def render_session_meta(record: dict[str, Any], options: RenderOptions) -> str:
 
 def render_turn_context(record: dict[str, Any], options: RenderOptions) -> str:
     """Render turn context when requested."""
-    if not options.include_system:
+    if not options.include_system or is_excluded(options, "system"):
         return ""
 
     payload = get_object(record.get("payload"))
@@ -401,6 +528,12 @@ def render_internal_message(
     role = get_string(payload.get("role"))
     if role in ("system", "developer") and not options.include_system:
         return ""
+    if role in ("system", "developer") and is_excluded(options, "system"):
+        return ""
+    if role == "user" and is_excluded(options, "user"):
+        return ""
+    if role == "assistant" and is_excluded(options, "assistant"):
+        return ""
     if role in ("user", "assistant") and context.has_visible_event_messages:
         return ""
 
@@ -408,8 +541,11 @@ def render_internal_message(
     return render_message(role or "message", text, get_string(payload.get("phase")))
 
 
-def render_reasoning(payload: dict[str, Any]) -> str:
+def render_reasoning(payload: dict[str, Any], options: RenderOptions) -> str:
     """Render reasoning summaries when present."""
+    if is_excluded(options, "reasoning", "appendix"):
+        return ""
+
     summary = payload.get("summary")
     text = content_text(summary)
     if not text:
@@ -419,9 +555,18 @@ def render_reasoning(payload: dict[str, Any]) -> str:
     return "\n\n".join([render_heading(3, "Reasoning"), text.strip()])
 
 
-def render_function_call(payload: dict[str, Any]) -> str:
+def render_function_call(payload: dict[str, Any], options: RenderOptions) -> str:
     """Render a model tool call."""
     name = get_string(payload.get("name")) or "tool"
+    if name == "exec_command" and is_excluded(options, "commands", "appendix"):
+        return ""
+    if name in ("apply_patch", "apply_patch_tool") and is_excluded(
+        options, "edits", "file-changes", "appendix"
+    ):
+        return ""
+    if is_excluded(options, "tool-calls", "tools", "appendix"):
+        return ""
+
     call_id = get_string(payload.get("call_id"))
     arguments = parse_json_string(payload.get("arguments"))
     rows = [("call id", call_id)]
@@ -438,6 +583,9 @@ def render_function_output(
     payload: dict[str, Any], context: RenderContext, options: RenderOptions
 ) -> str:
     """Render raw function output when no richer event exists."""
+    if is_excluded(options, "tool-outputs", "tools", "appendix"):
+        return ""
+
     call_id = get_string(payload.get("call_id"))
     if call_id in context.event_by_call_id and not options.raw_tool_output:
         return ""
@@ -457,6 +605,9 @@ def render_function_output(
 
 def render_exec_result(payload: dict[str, Any], options: RenderOptions) -> str:
     """Render a shell or exec command result."""
+    if is_excluded(options, "commands", "appendix"):
+        return ""
+
     command = payload.get("command")
     if isinstance(command, list):
         command_text = shlex.join(str(part) for part in command)
@@ -497,7 +648,7 @@ def render_exec_result(payload: dict[str, Any], options: RenderOptions) -> str:
 
 def render_token_count(payload: dict[str, Any], options: RenderOptions) -> str:
     """Render token usage if requested."""
-    if not options.include_usage:
+    if not options.include_usage or is_excluded(options, "usage"):
         return ""
     info = get_object(payload.get("info"))
     usage = get_object(info.get("total_token_usage") or info.get("last_token_usage"))
@@ -507,8 +658,11 @@ def render_token_count(payload: dict[str, Any], options: RenderOptions) -> str:
     return "\n\n".join([render_heading(3, "Token usage"), render_metadata_table(rows)])
 
 
-def render_task_marker(payload: dict[str, Any]) -> str:
+def render_task_marker(payload: dict[str, Any], options: RenderOptions) -> str:
     """Render task lifecycle events."""
+    if is_excluded(options, "lifecycle", "appendix"):
+        return ""
+
     event_type = get_string(payload.get("type"))
     if event_type == "task_started":
         rows = [
@@ -538,8 +692,12 @@ def render_event_message(payload: dict[str, Any], options: RenderOptions) -> str
     """Render internal event_msg records."""
     event_type = get_string(payload.get("type"))
     if event_type == "user_message":
+        if is_excluded(options, "user"):
+            return ""
         return render_message("user", get_string(payload.get("message")))
     if event_type == "agent_message":
+        if is_excluded(options, "assistant"):
+            return ""
         return render_message(
             "assistant",
             get_string(payload.get("message")),
@@ -554,18 +712,25 @@ def render_event_message(payload: dict[str, Any], options: RenderOptions) -> str
     if event_type == "token_count":
         return render_token_count(payload, options)
     if event_type in ("task_started", "task_complete", "turn_aborted"):
-        return render_task_marker(payload)
+        return render_task_marker(payload, options)
     if event_type in ("thread_name_updated",):
         return ""
     if event_type == "error":
+        if is_excluded(options, "errors"):
+            return ""
         return render_error(payload)
     if options.include_unknown:
+        if is_excluded(options, "unknown", "appendix"):
+            return ""
         return details_block(f"event: {event_type or 'unknown'}", payload)
     return ""
 
 
 def render_patch_event(payload: dict[str, Any], options: RenderOptions) -> str:
     """Render apply patch events."""
+    if is_excluded(options, "edits", "file-changes", "appendix"):
+        return ""
+
     rows = [
         ("call id", payload.get("call_id")),
         ("status", payload.get("status")),
@@ -584,6 +749,9 @@ def render_patch_event(payload: dict[str, Any], options: RenderOptions) -> str:
 
 def render_web_search_event(payload: dict[str, Any], options: RenderOptions) -> str:
     """Render web search result events."""
+    if is_excluded(options, "searches", "appendix"):
+        return ""
+
     rows = [
         ("call id", payload.get("call_id")),
         ("query", payload.get("query")),
@@ -612,14 +780,18 @@ def render_response_item(
     if item_type == "message":
         return render_internal_message(payload, context, options)
     if item_type == "reasoning":
-        return render_reasoning(payload)
+        return render_reasoning(payload, options)
     if item_type in ("function_call", "custom_tool_call"):
-        return render_function_call(payload)
+        return render_function_call(payload, options)
     if item_type in ("function_call_output", "custom_tool_call_output"):
         return render_function_output(payload, context, options)
     if item_type in ("web_search", "web_search_call"):
+        if is_excluded(options, "searches", "appendix"):
+            return ""
         return render_public_web_search(payload)
     if options.include_unknown:
+        if is_excluded(options, "unknown", "appendix"):
+            return ""
         return details_block(f"response item: {item_type or 'unknown'}", payload)
     return ""
 
@@ -628,6 +800,9 @@ def render_public_lifecycle(record: dict[str, Any], options: RenderOptions) -> s
     """Render documented codex exec --json lifecycle events."""
     event_type = get_string(record.get("type"))
     if event_type == "thread.started":
+        if is_excluded(options, "metadata"):
+            return render_heading(1, options.document_title)
+
         rows = [
             ("source file", options.input_path),
             ("thread id", record.get("thread_id")),
@@ -638,8 +813,12 @@ def render_public_lifecycle(record: dict[str, Any], options: RenderOptions) -> s
             [render_heading(1, options.document_title), render_metadata_table(rows)]
         )
     if event_type == "turn.started":
+        if is_excluded(options, "lifecycle", "appendix"):
+            return ""
         return render_heading(3, "Turn started")
     if event_type == "turn.completed":
+        if is_excluded(options, "lifecycle", "appendix"):
+            return ""
         usage = get_object(record.get("usage"))
         rows = [(key.replace("_", " "), value) for key, value in usage.items()]
         body = [render_heading(3, "Turn completed")]
@@ -647,10 +826,14 @@ def render_public_lifecycle(record: dict[str, Any], options: RenderOptions) -> s
             body.append(render_metadata_table(rows))
         return "\n\n".join(body)
     if event_type == "turn.failed":
+        if is_excluded(options, "errors"):
+            return ""
         return "\n\n".join(
             [render_heading(3, "Turn failed"), details_block("details", record)]
         )
     if event_type == "error":
+        if is_excluded(options, "errors"):
+            return ""
         return render_error(record)
     return ""
 
@@ -659,26 +842,35 @@ def render_public_item(payload: dict[str, Any], options: RenderOptions) -> str:
     """Render documented codex exec --json item payloads."""
     item_type = get_string(payload.get("type"))
     if item_type == "agent_message":
+        if is_excluded(options, "assistant"):
+            return ""
         return render_message("assistant", get_string(payload.get("text")))
     if item_type == "reasoning":
-        return render_reasoning(payload)
+        return render_reasoning(payload, options)
     if item_type == "command_execution":
         return render_public_command(payload, options)
     if item_type == "file_change":
-        return render_public_file_change(payload)
+        return render_public_file_change(payload, options)
     if item_type in ("mcp_tool_call", "tool_call"):
-        return render_public_tool_call(payload)
+        return render_public_tool_call(payload, options)
     if item_type == "web_search":
+        if is_excluded(options, "searches", "appendix"):
+            return ""
         return render_public_web_search(payload)
     if item_type == "plan_update":
-        return render_public_plan_update(payload)
+        return render_public_plan_update(payload, options)
     if options.include_unknown:
+        if is_excluded(options, "unknown", "appendix"):
+            return ""
         return details_block(f"item: {item_type or 'unknown'}", payload)
     return ""
 
 
 def render_public_command(payload: dict[str, Any], options: RenderOptions) -> str:
     """Render public JSONL command execution items."""
+    if is_excluded(options, "commands", "appendix"):
+        return ""
+
     rows = [
         ("id", payload.get("id")),
         ("status", payload.get("status")),
@@ -694,8 +886,11 @@ def render_public_command(payload: dict[str, Any], options: RenderOptions) -> st
     return "\n\n".join(part for part in body if part)
 
 
-def render_public_file_change(payload: dict[str, Any]) -> str:
+def render_public_file_change(payload: dict[str, Any], options: RenderOptions) -> str:
     """Render public JSONL file change items."""
+    if is_excluded(options, "edits", "file-changes", "appendix"):
+        return ""
+
     rows = [
         ("id", payload.get("id")),
         ("status", payload.get("status")),
@@ -708,8 +903,11 @@ def render_public_file_change(payload: dict[str, Any]) -> str:
     return "\n\n".join(part for part in body if part)
 
 
-def render_public_tool_call(payload: dict[str, Any]) -> str:
+def render_public_tool_call(payload: dict[str, Any], options: RenderOptions) -> str:
     """Render public JSONL MCP or generic tool call items."""
+    if is_excluded(options, "tool-calls", "tools", "appendix"):
+        return ""
+
     name = get_string(payload.get("name")) or get_string(payload.get("tool")) or "tool"
     rows = [
         ("id", payload.get("id")),
@@ -736,8 +934,11 @@ def render_public_web_search(payload: dict[str, Any]) -> str:
     return "\n\n".join([render_heading(3, "Web search"), render_metadata_table(rows)])
 
 
-def render_public_plan_update(payload: dict[str, Any]) -> str:
+def render_public_plan_update(payload: dict[str, Any], options: RenderOptions) -> str:
     """Render public JSONL plan update items."""
+    if is_excluded(options, "plan-updates", "appendix"):
+        return ""
+
     plan = payload.get("plan")
     body = [render_heading(3, "Plan update")]
     if isinstance(plan, list):
@@ -763,6 +964,9 @@ def readable_metadata_rows(
     records: list[JsonLineRecord], options: RenderOptions
 ) -> list[tuple[str, Any]]:
     """Build concise metadata rows for the default readable export."""
+    if is_excluded(options, "metadata"):
+        return []
+
     record = find_session_meta_record(records)
     payload = get_object(record.get("payload"))
 
@@ -801,8 +1005,13 @@ def flush_activity_to_turn(turn: ReadableTurn | None, activity: ActivityLog) -> 
     activity.notes.clear()
 
 
-def collect_search_activity(payload: dict[str, Any], activity: ActivityLog) -> None:
+def collect_search_activity(
+    payload: dict[str, Any], activity: ActivityLog, options: RenderOptions
+) -> None:
     """Collect web search activity without rendering raw tool events."""
+    if is_excluded(options, "searches", "operations", "appendix"):
+        return
+
     query = get_string(payload.get("query"))
     action = get_object(payload.get("action"))
     if not query:
@@ -818,30 +1027,40 @@ def collect_search_activity(payload: dict[str, Any], activity: ActivityLog) -> N
 
 
 def collect_function_call_activity(
-    payload: dict[str, Any], activity: ActivityLog
+    payload: dict[str, Any], activity: ActivityLog, options: RenderOptions
 ) -> None:
     """Collect model tool-call activity for readable export."""
     name = get_string(payload.get("name")) or "tool"
     arguments = parse_json_string(payload.get("arguments"))
     argument_object = get_object(arguments)
     if name == "exec_command":
+        if is_excluded(options, "commands", "operations", "appendix"):
+            return
         command = get_string(argument_object.get("cmd"))
         if command:
             session_template.append_unique(activity.commands, command, limit=140)
             return
     if name in ("apply_patch", "apply_patch_tool"):
+        if is_excluded(options, "edits", "operations", "appendix"):
+            return
         session_template.append_unique(activity.edits, "Applied a patch", limit=140)
+        return
+    if is_excluded(options, "tools", "tool-calls", "operations", "appendix"):
         return
     session_template.append_unique(activity.tools, name, limit=120)
 
 
-def collect_event_activity(payload: dict[str, Any], activity: ActivityLog) -> None:
+def collect_event_activity(
+    payload: dict[str, Any], activity: ActivityLog, options: RenderOptions
+) -> None:
     """Collect event-message activity for readable export."""
     event_type = get_string(payload.get("type"))
     if event_type == "web_search_end":
-        collect_search_activity(payload, activity)
+        collect_search_activity(payload, activity, options)
         return
     if event_type == "exec_command_end":
+        if is_excluded(options, "commands", "operations", "appendix"):
+            return
         command = payload.get("command")
         if isinstance(command, list):
             command_text = shlex.join(str(part) for part in command)
@@ -851,6 +1070,8 @@ def collect_event_activity(payload: dict[str, Any], activity: ActivityLog) -> No
             session_template.append_unique(activity.commands, command_text, limit=140)
         return
     if event_type == "patch_apply_end":
+        if is_excluded(options, "edits", "file-changes", "operations", "appendix"):
+            return
         output = (
             get_string(payload.get("stdout"))
             or get_string(payload.get("stderr"))
@@ -862,16 +1083,20 @@ def collect_event_activity(payload: dict[str, Any], activity: ActivityLog) -> No
 
 
 def collect_public_item_activity(
-    payload: dict[str, Any], activity: ActivityLog
+    payload: dict[str, Any], activity: ActivityLog, options: RenderOptions
 ) -> None:
     """Collect documented codex exec --json item activity for readable export."""
     item_type = get_string(payload.get("type"))
     if item_type == "command_execution":
+        if is_excluded(options, "commands", "operations", "appendix"):
+            return
         command = get_string(payload.get("command"))
         if command:
             session_template.append_unique(activity.commands, command, limit=140)
         return
     if item_type == "file_change":
+        if is_excluded(options, "edits", "file-changes", "operations", "appendix"):
+            return
         path = get_string(payload.get("path")) or get_string(payload.get("file"))
         status = get_string(payload.get("status"))
         label = f"{status} {path}".strip()
@@ -880,13 +1105,15 @@ def collect_public_item_activity(
         )
         return
     if item_type in ("mcp_tool_call", "tool_call"):
+        if is_excluded(options, "tools", "tool-calls", "operations", "appendix"):
+            return
         name = (
             get_string(payload.get("name")) or get_string(payload.get("tool")) or "tool"
         )
         session_template.append_unique(activity.tools, name, limit=120)
         return
     if item_type == "web_search":
-        collect_search_activity(payload, activity)
+        collect_search_activity(payload, activity, options)
 
 
 def render_readable_record(
@@ -905,6 +1132,10 @@ def render_readable_record(
 
     if record_type == "event_msg" and payload_type == "user_message":
         flush_activity_to_turn(current_turn, activity)
+        if is_excluded(options, "user"):
+            turn = create_readable_turn("", "")
+            turns.append(turn)
+            return turn
         turn = create_readable_turn(
             get_string(payload.get("message")),
             get_string(data.get("timestamp")),
@@ -913,6 +1144,8 @@ def render_readable_record(
         return turn
     if record_type == "event_msg" and payload_type == "agent_message":
         flush_activity_to_turn(current_turn, activity)
+        if is_excluded(options, "assistant"):
+            return current_turn
         message = get_string(payload.get("message"))
         phase = get_string(payload.get("phase"))
         if current_turn is None:
@@ -957,7 +1190,7 @@ def render_readable_record(
                 )
         return current_turn
     if record_type == "response_item" and payload_type == "reasoning":
-        block = render_reasoning(payload)
+        block = render_reasoning(payload, options)
         if block:
             flush_activity_to_turn(current_turn, activity)
             if current_turn is None:
@@ -975,13 +1208,13 @@ def render_readable_record(
         "function_call",
         "custom_tool_call",
     ):
-        collect_function_call_activity(payload, activity)
+        collect_function_call_activity(payload, activity, options)
         return current_turn
     if record_type == "response_item" and payload_type in (
         "web_search",
         "web_search_call",
     ):
-        collect_search_activity(payload, activity)
+        collect_search_activity(payload, activity, options)
         return current_turn
     if record_type == "event_msg":
         if payload_type == "thread_rolled_back":
@@ -995,13 +1228,15 @@ def render_readable_record(
             activity.edits.clear()
             activity.notes.clear()
             return turns[-1] if turns else None
-        collect_event_activity(payload, activity)
+        collect_event_activity(payload, activity, options)
         return current_turn
     if record_type.startswith("item."):
         item = get_object(data.get("item"))
         item_type = get_string(item.get("type"))
         if item_type == "agent_message":
             flush_activity_to_turn(current_turn, activity)
+            if is_excluded(options, "assistant"):
+                return current_turn
             if current_turn is None:
                 current_turn = create_readable_turn("", "")
                 turns.append(current_turn)
@@ -1012,7 +1247,7 @@ def render_readable_record(
             current_turn.assistant_time = get_string(data.get("timestamp"))
             return current_turn
         if item_type == "reasoning":
-            block = render_reasoning(item)
+            block = render_reasoning(item, options)
             if block:
                 flush_activity_to_turn(current_turn, activity)
                 if current_turn is None:
@@ -1026,7 +1261,7 @@ def render_readable_record(
                     )
                 )
             return current_turn
-        collect_public_item_activity(item, activity)
+        collect_public_item_activity(item, activity, options)
         return current_turn
     return current_turn
 
@@ -1041,11 +1276,20 @@ def render_readable_markdown(
     for record in records:
         render_readable_record(record, context, options, activity, turns)
     flush_activity_to_turn(turns[-1] if turns else None, activity)
+    if options.excluded_turns:
+        excluded_indexes = resolve_excluded_turn_indexes(
+            options.excluded_turns, len(turns)
+        )
+        turns = [
+            turn
+            for index, turn in enumerate(turns, start=1)
+            if index not in excluded_indexes
+        ]
     return session_template.render_readable_markdown(
         options.document_title,
         readable_metadata_rows(records, options),
         turns,
-        options.include_appendix,
+        include_appendix_enabled(options),
     )
 
 
@@ -1085,6 +1329,8 @@ def render_record(
     if record_type.startswith("item."):
         return render_public_item(get_object(data.get("item")), options)
     if options.include_unknown:
+        if is_excluded(options, "unknown", "appendix"):
+            return ""
         return details_block(f"record line {record.line_number}: {record_type}", data)
     return ""
 
@@ -1259,9 +1505,13 @@ def infer_session_title(records: list[JsonLineRecord]) -> str:
     return infer_english_title(first_user_message)
 
 
-def build_document_title(records: list[JsonLineRecord]) -> tuple[str, str, str]:
+def build_document_title(
+    records: list[JsonLineRecord], manual_title: str = ""
+) -> tuple[str, str, str]:
     """Return session name, document title, and title source label."""
     session_name = find_session_name(records)
+    if manual_title:
+        return session_name, manual_title, "manual override"
     if session_name:
         return session_name, session_name, "agent metadata"
     inferred_title = infer_session_title(records)
@@ -1289,8 +1539,13 @@ def sanitize_filename(value: str) -> str:
     return cleaned or "codex-session"
 
 
-def get_output_stem(records: list[JsonLineRecord], input_path: Path) -> str:
+def get_output_stem(
+    records: list[JsonLineRecord], input_path: Path, manual_title: str = ""
+) -> str:
     """Return the default output filename stem."""
+    if manual_title:
+        return sanitize_filename(manual_title)
+
     session_name = find_session_name(records)
     if session_name:
         return sanitize_filename(session_name)
@@ -1324,6 +1579,8 @@ def build_render_options(
         include_appendix=not args.quiet,
         raw_tool_output=args.raw_tool_output,
         max_output_chars=args.max_output_chars,
+        excluded_items=args.excluded_items,
+        excluded_turns=args.excluded_turns,
     )
 
 
@@ -1353,8 +1610,10 @@ def write_default_variant_outputs(
     input_path: Path,
 ) -> None:
     """Write default include-mode files into a generated output directory."""
-    output_stem = get_output_stem(records, input_path)
-    session_name, document_title, title_source = build_document_title(records)
+    output_stem = get_output_stem(records, input_path, args.title)
+    session_name, document_title, title_source = build_document_title(
+        records, args.title
+    )
     output_dir = Path.cwd() / f"session-{output_stem}"
     for variant in build_requested_variants(args):
         output_path = output_dir / f"{output_stem}{variant.suffix}.md"
@@ -1384,6 +1643,18 @@ def build_parser() -> argparse.ArgumentParser:
                 "Convert codex exec --json output",
                 "/tmp/codex-exec.jsonl -o /tmp/codex-exec.md --include-usage",
             ),
+            (
+                "Set the Markdown H1 directly",
+                'session.jsonl -o session.md --title "Release QA Session"',
+            ),
+            (
+                "Drop low-value appendix items",
+                "session.jsonl -o session.md --exclude commands,searches",
+            ),
+            (
+                "Drop the final unrelated QA turn",
+                "session.jsonl -o session.md --exclude-turn=-1",
+            ),
             ("Write default base and all-details files", "session.jsonl --include-all"),
             ("Include system and developer messages", "session.jsonl --include-system"),
         ],
@@ -1396,6 +1667,11 @@ def build_parser() -> argparse.ArgumentParser:
             "All render combines usage and system details.",
             "Without --output, include modes write session-NAME/NAME.md plus NAME-usage.md, NAME-system.md, or NAME-all.md.",
             "Unknown records are kept as collapsible JSON by default.",
+            "Repeat --exclude or pass comma-separated values. Allowed values: "
+            + ", ".join(sorted(get_exclude_item_choices()))
+            + ".",
+            "Use --exclude-turn for whole QA turns in readable output; "
+            "positive numbers are 1-based and -1/last means the final turn.",
         ],
     )
     parser = ColoredArgumentParser(
@@ -1414,6 +1690,34 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         help=CLIStyle.color(
             "Output Markdown file. Defaults to stdout.", CLIStyle.COLORS["CONTENT"]
+        ),
+    )
+    parser.add_argument(
+        "--title",
+        help=CLIStyle.color(
+            "Override the Markdown H1 and default title-based output name.",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        metavar="ITEM",
+        help=CLIStyle.color(
+            "Omit a content item. Repeat or use commas, for example: "
+            "--exclude commands,searches.",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
+    parser.add_argument(
+        "--exclude-turn",
+        "--exclude-qa",
+        action="append",
+        metavar="TURN",
+        help=CLIStyle.color(
+            "Omit a whole QA turn from readable output. Use 1-based numbers, "
+            "negative numbers from the end, or last.",
+            CLIStyle.COLORS["CONTENT"],
         ),
     )
     parser.add_argument(
@@ -1489,14 +1793,26 @@ def run(args: argparse.Namespace) -> int:
     """Run the conversion command."""
     input_path = Path(args.session_jsonl).expanduser().resolve()
     output_path = Path(args.output).expanduser().resolve() if args.output else None
+    raw_title = args.title
+    args.title = (raw_title or "").strip()
+    args.excluded_items = parse_excluded_items(args.exclude)
+    args.excluded_turns = parse_excluded_turns(args.exclude_turn)
     if not input_path.is_file():
         raise FileNotFoundError(f"input file not found: {input_path}")
+    if raw_title is not None and not args.title:
+        raise ValueError("title must not be empty")
     if args.max_output_chars < 0:
         raise ValueError("max-output-chars must be >= 0")
+    if args.excluded_turns and (include_mode_enabled(args) or args.raw_tool_output):
+        raise ValueError(
+            "exclude-turn applies only to default readable QA output"
+        )
 
     records = read_jsonl(input_path)
     debug("records", count=len(records))
-    session_name, document_title, title_source = build_document_title(records)
+    session_name, document_title, title_source = build_document_title(
+        records, args.title
+    )
     if output_path is None and include_mode_enabled(args):
         write_default_variant_outputs(records, args, input_path)
         return 0
