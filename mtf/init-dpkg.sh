@@ -90,7 +90,7 @@ to_install_list=(
 	webp libxdo-dev webkitgtk-webdriver
 	rclone shellcheck
 	v4l-utils v4l2loopback-dkms v4l2loopback-utils
-	rsync nginx net-tools
+	rsync nginx net-tools dnsutils
 )
 
 apt update

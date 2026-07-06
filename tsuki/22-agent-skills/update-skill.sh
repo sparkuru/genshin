@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-white='\033[0m'
-green='\033[0;32m'
-blue='\033[0;34m'
-red='\033[31m'
-yellow='\033[33m'
-grey='\e[37m'
-pink='\033[38;5;218m'
-cyan='\033[96m'
-
-nc='\033[0m'
+readonly STYLE_RESET=$'\033[0m'
+readonly STYLE_SUCCESS=$'\033[0;32m'
+readonly STYLE_ERROR=$'\033[31m'
+readonly STYLE_WARNING=$'\033[33m'
+readonly STYLE_CONTENT=$'\033[38;5;218m'
+readonly STYLE_TITLE=$'\033[96m'
 
 workdir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
@@ -31,16 +27,62 @@ platform_name() {
 src_dir="$workdir"
 platform="$(platform_name)"
 base_skill_dir="$src_dir/base/$platform"
+base_repo_path="$(cd "$workdir/../../../../" && pwd)"
+geass_path="$base_repo_path/21-geass"
+base_skill_path="$geass_path/skills"
 target_dirs=(
     "$HOME/.claude/skills"
     "$HOME/.codex/skills"
     "$HOME/.config/opencode/skills"
 )
 
-refresh_base_links() {
-    if [ -r "$src_dir/sync-from-base.sh" ]; then
-        bash "$src_dir/sync-from-base.sh" >/dev/null
+change_count=0
+
+color_text() {
+    local style="$1"
+    local text="$2"
+
+    if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+        printf '%s' "$text"
+        return 0
     fi
+
+    printf '%s%s%s' "$style" "$text" "$STYLE_RESET"
+}
+
+die() {
+    printf '%s\n' "$(color_text "$STYLE_ERROR" "Error: $*")" >&2
+    exit 1
+}
+
+note_change() {
+    change_count=$((change_count + 1))
+}
+
+print_sync() {
+    local path="$1"
+
+    note_change
+    printf 'sync: %s\n' "$(color_text "$STYLE_SUCCESS" "$(display_path "$path")")"
+}
+
+print_remove() {
+    local path="$1"
+
+    note_change
+    printf 'remove: %s\n' "$(color_text "$STYLE_ERROR" "$(display_path "$path")")"
+}
+
+print_skip() {
+    local path="$1"
+
+    printf 'skip (not a symlink): %s\n' "$(color_text "$STYLE_WARNING" "$(display_path "$path")")"
+}
+
+list_dir() {
+    local path="$1"
+
+    ls -al "$path"
 }
 
 collect_skills() {
@@ -58,23 +100,16 @@ display_path() {
     if [[ "$path" == "$HOME" ]]; then
         printf '~'
     elif [[ "$path" == "$HOME/"* ]]; then
-        printf '~/%s' "${path#"$HOME"/}"
+        printf '%s/%s' '~' "${path#"$HOME"/}"
     else
         printf '%s' "$path"
     fi
 }
 
-relative_link_target() {
-    local from_dir="$1"
-    local target="$2"
+relative_path() {
+    local from_dir="${1%/}"
+    local target="${2%/}"
 
-    if [[ "$from_dir" != "$HOME/"* || "$target" != "$HOME/"* ]]; then
-        printf '%s' "$target"
-        return 0
-    fi
-
-    local from_rel="${from_dir#"$HOME"/}"
-    local target_rel="${target#"$HOME"/}"
     local -a from_parts=()
     local -a target_parts=()
     local -a rel_parts=()
@@ -82,8 +117,8 @@ relative_link_target() {
     local i common rel_path
 
     IFS=/
-    read -r -a from_parts <<<"$from_rel"
-    read -r -a target_parts <<<"$target_rel"
+    read -r -a from_parts <<<"$from_dir"
+    read -r -a target_parts <<<"$target"
     IFS="$old_ifs"
 
     common=0
@@ -92,10 +127,10 @@ relative_link_target() {
     done
 
     for ((i = common; i < ${#from_parts[@]}; i += 1)); do
-        rel_parts+=("..")
+        [ -n "${from_parts[$i]}" ] && rel_parts+=("..")
     done
     for ((i = common; i < ${#target_parts[@]}; i += 1)); do
-        rel_parts+=("${target_parts[$i]}")
+        [ -n "${target_parts[$i]}" ] && rel_parts+=("${target_parts[$i]}")
     done
 
     rel_path=""
@@ -121,11 +156,51 @@ contains_name() {
     return 1
 }
 
+sync_link() {
+    local link="$1"
+    local link_target="$2"
+
+    if [ -L "$link" ]; then
+        if [ "$(readlink "$link")" = "$link_target" ]; then
+            return 0
+        fi
+        rm -f -- "$link"
+    elif [ -e "$link" ]; then
+        print_skip "$link"
+        return 0
+    fi
+
+    ln -s "$link_target" "$link"
+    print_sync "$link"
+}
+
+sync_base_links() {
+    [ -d "$base_skill_path" ] || die "base skill directory not found: $base_skill_path"
+
+    mkdir -p -- "$base_skill_dir"
+
+    local skill_names=()
+    local dir link link_target
+    for dir in "$base_skill_path"/*/; do
+        [ -d "$dir" ] || continue
+        skill_names+=("$(basename "$dir")")
+    done
+
+    clean_stale_links "$base_skill_dir" "${skill_names[@]}"
+
+    for dir in "$base_skill_path"/*/; do
+        [ -d "$dir" ] || continue
+        link="$base_skill_dir/$(basename "$dir")"
+        link_target="$(relative_path "$base_skill_dir" "${dir%/}")"
+        sync_link "$link" "$link_target"
+    done
+}
+
 do_link_into() {
     local target_dir="$1"
     mkdir -p -- "$target_dir"
 
-    local entries=() wanted_names=() entry name link link_target
+    local entries=() wanted_names=() entry link link_target
     while IFS= read -r entry; do
         entries+=("$entry")
         wanted_names+=("$(basename "$entry")")
@@ -135,14 +210,8 @@ do_link_into() {
 
     for entry in "${entries[@]}"; do
         link="$target_dir/$(basename "$entry")"
-        link_target="$(relative_link_target "$target_dir" "$entry")"
-        if [ -L "$link" ]; then
-            rm -f -- "$link"
-        elif [ -e "$link" ]; then
-            echo -e "skip (not a symlink): ${yellow}$(display_path "$link")${nc}"
-            continue
-        fi
-        ln -s "$link_target" "$link"
+        link_target="$(relative_path "$target_dir" "$entry")"
+        sync_link "$link" "$link_target"
     done
 }
 
@@ -160,7 +229,7 @@ clean_stale_links() {
 
         name="$(basename "$link")"
         if ! contains_name "$name" "$@" || [ ! -e "$link" ]; then
-            echo -e "remove: ${red}$(display_path "$link")${nc}"
+            print_remove "$link"
             rm -f -- "$link"
         fi
     done
@@ -169,28 +238,35 @@ clean_stale_links() {
 }
 
 do_sync() {
+    printf '==> %s\n' "$(color_text "$STYLE_TITLE" "$(display_path "$base_skill_dir")")"
+    sync_base_links
+    list_dir "$base_skill_dir"
+
     for t in "${target_dirs[@]}"; do
-        echo -e "==> ${cyan}$(display_path "$t")${nc}"
+        printf '==> %s\n' "$(color_text "$STYLE_TITLE" "$(display_path "$t")")"
         do_link_into "$t"
-        ls -al "$t"
+        list_dir "$t"
     done
+
+    if [ "$change_count" -eq 0 ]; then
+        printf '%s\n' "$(color_text "$STYLE_SUCCESS" "No skill changes.")"
+    fi
 }
 
 do_show() {
-    echo -e "src_dir: ${green}$(display_path "$src_dir")${nc}"
-    echo -e "target_dirs:"
+    sync_base_links
+
+    printf 'src_dir: %s\n' "$(color_text "$STYLE_SUCCESS" "$(display_path "$src_dir")")"
+    printf 'base_skill_path: %s\n' "$(color_text "$STYLE_SUCCESS" "$(display_path "$base_skill_path")")"
+    printf 'target_dirs:\n'
     for t in "${target_dirs[@]}"; do
-        echo -e "  - ${green}$(display_path "$t")${nc}"
+        printf '  - %s\n' "$(color_text "$STYLE_SUCCESS" "$(display_path "$t")")"
     done
-    echo -e "skills:"
+    printf 'skills:\n'
     while IFS= read -r entry; do
-        echo -e "  - ${pink}$(display_path "$entry")${nc}"
+        printf '  - %s\n' "$(color_text "$STYLE_CONTENT" "$(display_path "$entry")")"
     done < <(collect_skills)
 }
-
-echo -e "workdir: ${green}$(display_path "$workdir")${nc}"
-echo -e "platform: ${green}$platform${nc}"
-refresh_base_links
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -199,14 +275,17 @@ while [[ $# -gt 0 ]]; do
         shift
         ;;
     *)
-        echo "Unknown option: $1"
-        echo "usage: $0 {sync|show}"
+        printf 'Unknown option: %s\n' "$1" >&2
+        printf 'usage: %s {sync|show}\n' "$0" >&2
         exit 1
         ;;
     esac
 done
 
 operation="${operation:-sync}"
+
+printf 'workdir: %s\n' "$(color_text "$STYLE_SUCCESS" "$(display_path "$workdir")")"
+printf 'platform: %s\n' "$(color_text "$STYLE_SUCCESS" "$platform")"
 
 case "$operation" in
 sync)

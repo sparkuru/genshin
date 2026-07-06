@@ -114,7 +114,7 @@ to_install_list=(
 	webp libxdo-dev webkitgtk-webdriver
 	rclone shellcheck
 	v4l-utils v4l2loopback-dkms v4l2loopback-utils
-	rsync nginx php-fpm php-mysql php-curl php-mbstring net-tools
+	rsync nginx php-fpm php-mysql php-curl php-mbstring net-tools dnsutils
 )
 
 apt update
