@@ -1,0 +1,4 @@
+interface:
+  display_name: "ChatGPT Share Export"
+  short_description: "导出 ChatGPT 共享链接为 Markdown"
+  default_prompt: "Use $chatgpt-share-export to export a ChatGPT shared conversation URL into a curated Markdown transcript."

@@ -19,6 +19,7 @@ from urllib.parse import urlencode
 
 if sys.platform == "win32":
     from colorama import init as colorama_init
+
     colorama_init(autoreset=True)
 
 import requests
@@ -42,6 +43,8 @@ PLAYER_API_URL = "https://api.bilibili.com/x/player/wbi/playurl"
 VIDEO_DETAIL_API_URL = "https://api.bilibili.com/x/web-interface/view"
 NAV_API_URL = "https://api.bilibili.com/x/web-interface/nav"
 ENV_SESSDATA_KEY = "BILIBILI_SESSDATA"
+CONFIG_FILE_NAME = ".bilibili-downloader.env"
+CONFIG_FILE_ENV_KEY = "BILIBILI_DOWNLOADER_ENV"
 DEFAULT_VIDEO_QUALITY = 64
 DEFAULT_REQUEST_TIMEOUT = 25
 CHUNK_SIZE = 1024 * 1024
@@ -225,21 +228,26 @@ def create_example_text(script_name: str) -> str:
     """
     examples = [
         (
-            "Download into current directory",
-            f"{script_name} --bvid BV1xx --sessdata YOUR_SESSDATA",
+            "Save SESSDATA for later downloads",
+            f"{script_name} init 'SESSDATA=YOUR_SESSDATA; bili_jct=...'",
+        ),
+        (
+            "Download by BV id",
+            f"{script_name} BV1xx",
+        ),
+        (
+            "Download by URL",
+            f"{script_name} https://www.bilibili.com/video/BV1xx",
         ),
         (
             "Download with custom path and quality",
-            f"{script_name} --bvid BV1xx --quality 80 --output /tmp",
-        ),
-        (
-            "Download by pasting browser URL",
-            f"{script_name} --url https://www.bilibili.com/video/BV1xx --sessdata YOUR_SESSDATA",
+            f"{script_name} BV1xx --quality 80 --output /tmp",
         ),
     ]
     notes = [
-        "SESSDATA is copied from the bilibili.com cookie named SESSDATA.",
-        "SESSDATA can be provided through the BILIBILI_SESSDATA environment variable.",
+        f"Saved credentials are stored in {CONFIG_FILE_NAME} under the current directory by default.",
+        f"Use --config or {CONFIG_FILE_ENV_KEY} to choose another credential file.",
+        f"SESSDATA can also be provided through --sessdata or {ENV_SESSDATA_KEY}.",
         "Quality levels: 16 (360p), 32 (480p), 64 (720p), 80 (1080p).",
     ]
 
@@ -590,28 +598,180 @@ def handle_existing_file(path: Path) -> Optional[Path]:
     return None
 
 
-def resolve_sessdata(cli_value: Optional[str]) -> str:
+def default_config_path() -> Path:
     """
-    Determine the SESSDATA token from CLI or environment.
+    Resolve the credential file path.
 
     ```python
-    resolve_sessdata("XX")
+    path = default_config_path()
+    ```
+    """
+    configured_path = os.getenv(CONFIG_FILE_ENV_KEY)
+    if configured_path:
+        return Path(configured_path).expanduser()
+    return Path.cwd() / CONFIG_FILE_NAME
+
+
+def parse_env_file(path: Path) -> Dict[str, str]:
+    """
+    Read simple KEY=VALUE lines from an env-style file.
+
+    ```python
+    values = parse_env_file(Path(".bilibili-downloader.env"))
+    ```
+    """
+    if not path.exists():
+        return {}
+
+    values: Dict[str, str] = {}
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, value = stripped.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+                if value[0] == '"':
+                    try:
+                        value = json.loads(value)
+                    except json.JSONDecodeError:
+                        value = value[1:-1]
+                else:
+                    value = value[1:-1]
+            if key:
+                values[key] = value
+    return values
+
+
+def escape_env_value(value: str) -> str:
+    """
+    Quote a value for storage in an env-style file.
+
+    ```python
+    escape_env_value("abc")
+    ```
+    """
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def write_env_file(path: Path, values: Dict[str, str]) -> None:
+    """
+    Persist credentials into an env-style file with restricted permissions.
+
+    ```python
+    write_env_file(Path(".bilibili-downloader.env"), {"BILIBILI_SESSDATA": "XX"})
+    ```
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# Created by 06-bilibili-downloader.py",
+        "# Keep this file private. It contains Bilibili authentication cookies.",
+    ]
+    for key in sorted(values):
+        lines.append(f"{key}={escape_env_value(values[key])}")
+
+    file_descriptor = os.open(
+        path,
+        os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+        0o600,
+    )
+    with os.fdopen(file_descriptor, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+    os.chmod(path, 0o600)
+
+
+def resolve_config_path(cli_value: Optional[str]) -> Path:
+    """
+    Determine the credential file path from CLI, environment, or default.
+
+    ```python
+    resolve_config_path(None)
     ```
     """
     if cli_value:
-        return cli_value
+        return Path(cli_value).expanduser()
+    return default_config_path()
+
+
+def extract_sessdata_from_cookie(raw_cookie: str) -> str:
+    """
+    Accept a full cookie header or a raw SESSDATA value.
+
+    ```python
+    extract_sessdata_from_cookie("SESSDATA=abc; bili_jct=def")
+    ```
+    """
+    stripped_cookie = raw_cookie.strip()
+    if not stripped_cookie:
+        raise ValueError("Cookie value cannot be empty.")
+
+    for item in stripped_cookie.split(";"):
+        if "=" not in item:
+            continue
+        key, value = item.split("=", 1)
+        if key.strip().upper() == "SESSDATA":
+            sessdata = value.strip()
+            if sessdata:
+                return sessdata
+            break
+
+    if "SESSDATA=" in stripped_cookie.upper():
+        raise ValueError("SESSDATA cookie is present but empty.")
+
+    return stripped_cookie
+
+
+def save_sessdata(cookie_value: str, config_path: Path) -> None:
+    """
+    Save SESSDATA to the configured env file.
+
+    ```python
+    save_sessdata("SESSDATA=abc", Path(".bilibili-downloader.env"))
+    ```
+    """
+    sessdata = extract_sessdata_from_cookie(cookie_value)
+    values = parse_env_file(config_path)
+    values[ENV_SESSDATA_KEY] = sessdata
+    write_env_file(config_path, values)
+
+
+def resolve_sessdata(
+    cli_value: Optional[str],
+    config_path: Optional[Path] = None,
+) -> str:
+    """
+    Determine the SESSDATA token from CLI, environment, or config file.
+
+    ```python
+    resolve_sessdata("XX", Path(".bilibili-downloader.env"))
+    ```
+    """
+    if cli_value:
+        return extract_sessdata_from_cookie(cli_value)
 
     env_value = os.getenv(ENV_SESSDATA_KEY)
     if env_value:
-        return env_value
+        return extract_sessdata_from_cookie(env_value)
+
+    credential_path = config_path or default_config_path()
+    config_value = parse_env_file(credential_path).get(ENV_SESSDATA_KEY)
+    if config_value:
+        return extract_sessdata_from_cookie(config_value)
 
     raise ValueError(
-        "SESSDATA is required. Copy the SESSDATA cookie from bilibili.com and pass it via "
-        "--sessdata or export BILIBILI_SESSDATA."
+        "SESSDATA is required. Run `python 06-bilibili-downloader.py init "
+        "'SESSDATA=...'` first, pass --sessdata, or export BILIBILI_SESSDATA."
     )
 
 
-def resolve_bvid(cli_value: Optional[str], url_value: Optional[str]) -> str:
+def resolve_bvid(
+    cli_value: Optional[str],
+    url_value: Optional[str],
+    target_value: Optional[str] = None,
+) -> str:
     """
     Determine the BV identifier from CLI input or URL.
 
@@ -620,8 +780,9 @@ def resolve_bvid(cli_value: Optional[str], url_value: Optional[str]) -> str:
     resolve_bvid(None, "https://www.bilibili.com/video/BV1xx/")
     ```
     """
-    if cli_value and url_value:
-        raise ValueError("Cannot use both --bvid and --url; choose one option.")
+    provided_values = [value for value in (cli_value, url_value, target_value) if value]
+    if len(provided_values) > 1:
+        raise ValueError("Provide only one video target.")
 
     if cli_value:
         return cli_value
@@ -632,7 +793,13 @@ def resolve_bvid(cli_value: Optional[str], url_value: Optional[str]) -> str:
             return extracted
         raise ValueError("Failed to parse BV id from provided --url.")
 
-    raise ValueError("Either --bvid or --url must be supplied.")
+    if target_value:
+        extracted = extract_bvid(target_value)
+        if extracted:
+            return extracted
+        raise ValueError("Target must be a BV id or a Bilibili video URL.")
+
+    raise ValueError("A BV id or Bilibili video URL must be supplied.")
 
 
 def extract_bvid(url: str) -> Optional[str]:
@@ -729,38 +896,62 @@ def build_progress_line(
     return " ".join(parts)
 
 
-def parse_arguments() -> argparse.Namespace:
+def normalize_argv(argv: List[str]) -> List[str]:
     """
-    Parse command line arguments.
+    Insert the default download command for shorthand invocations.
 
     ```python
-    args = parse_arguments()
+    normalize_argv(["BV1xx"])
     ```
     """
-    script_name = Path(sys.argv[0]).name
-    parser = ColoredArgumentParser(
-        description=CLIStyle.color(
-            "Download Bilibili videos using the authenticated WBI API.",
-            CLIStyle.COLORS["TITLE"],
+    if not argv:
+        return ["download"]
+    if argv[0] in {"download", "init", "-h", "--help"}:
+        return argv
+    return ["download", *argv]
+
+
+def add_download_arguments(parser: argparse.ArgumentParser) -> None:
+    """
+    Attach download options to a parser.
+
+    ```python
+    add_download_arguments(parser)
+    ```
+    """
+    parser.add_argument(
+        "target",
+        nargs="?",
+        help=CLIStyle.color(
+            "Bilibili video URL or BV id; detected automatically",
+            CLIStyle.COLORS["CONTENT"],
         ),
-        epilog=create_example_text(script_name),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--bvid",
-        help=CLIStyle.color("Bilibili video ID (BV...)", CLIStyle.COLORS["CONTENT"]),
+        help=CLIStyle.color(
+            "Bilibili video ID (BV...). Kept for compatibility.",
+            CLIStyle.COLORS["CONTENT"],
+        ),
     )
     parser.add_argument(
         "--url",
         help=CLIStyle.color(
-            "Video URL; BV id will be extracted automatically",
+            "Video URL. Kept for compatibility.",
             CLIStyle.COLORS["CONTENT"],
         ),
     )
     parser.add_argument(
         "--sessdata",
         help=CLIStyle.color(
-            "SESSDATA cookie value copied from bilibili.com; falls back to BILIBILI_SESSDATA env var",
+            "SESSDATA value or full Cookie header; overrides saved credentials",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
+    parser.add_argument(
+        "--config",
+        help=CLIStyle.color(
+            f"Credential env file path; default: ./{CONFIG_FILE_NAME}",
             CLIStyle.COLORS["CONTENT"],
         ),
     )
@@ -797,7 +988,70 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help=CLIStyle.color("Enable debug output", CLIStyle.COLORS["CONTENT"]),
     )
-    return parser.parse_args()
+
+
+def parse_arguments(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    """
+    Parse command line arguments.
+
+    ```python
+    args = parse_arguments(["BV1xx"])
+    ```
+    """
+    script_name = Path(sys.argv[0]).name
+    parser = ColoredArgumentParser(
+        description=CLIStyle.color(
+            "Download Bilibili videos using the authenticated WBI API.",
+            CLIStyle.COLORS["TITLE"],
+        ),
+        epilog=create_example_text(script_name),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    subparsers = parser.add_subparsers(
+        dest="command",
+        parser_class=ColoredArgumentParser,
+    )
+    init_parser = subparsers.add_parser(
+        "init",
+        help=CLIStyle.color(
+            "Save Bilibili Cookie/SESSDATA", CLIStyle.COLORS["CONTENT"]
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=create_example_text(script_name),
+    )
+    init_parser.add_argument(
+        "cookie",
+        help=CLIStyle.color(
+            "Full Cookie header or raw SESSDATA value",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
+    init_parser.add_argument(
+        "--config",
+        help=CLIStyle.color(
+            f"Credential env file path; default: ./{CONFIG_FILE_NAME}",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
+    init_parser.add_argument(
+        "--log",
+        action="store_true",
+        help=CLIStyle.color("Enable debug output", CLIStyle.COLORS["CONTENT"]),
+    )
+
+    download_parser = subparsers.add_parser(
+        "download",
+        help=CLIStyle.color(
+            "Download a video by URL or BV id", CLIStyle.COLORS["CONTENT"]
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=create_example_text(script_name),
+    )
+    add_download_arguments(download_parser)
+
+    argument_values = sys.argv[1:] if argv is None else argv
+    return parser.parse_args(normalize_argv(argument_values))
 
 
 def write_metadata(metadata: Dict[str, Any], target_path: Path) -> None:
@@ -828,8 +1082,19 @@ def main() -> int:
     global DEBUG_MODE
     DEBUG_MODE = args.log
 
-    bvid = resolve_bvid(args.bvid, args.url)
-    sessdata = resolve_sessdata(args.sessdata)
+    config_path = resolve_config_path(getattr(args, "config", None))
+    if args.command == "init":
+        save_sessdata(args.cookie, config_path)
+        print(
+            CLIStyle.color(
+                f"Credentials saved to {config_path}",
+                CLIStyle.COLORS["CONTENT"],
+            )
+        )
+        return 0
+
+    bvid = resolve_bvid(args.bvid, args.url, args.target)
+    sessdata = resolve_sessdata(args.sessdata, config_path)
     initial_path, explicit_filename = resolve_storage_path(args.output, bvid)
 
     client = BilibiliClient(sessdata=sessdata, timeout=args.timeout)
