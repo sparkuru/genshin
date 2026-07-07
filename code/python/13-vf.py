@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
 # pip install argparse
+"""
+VF stores frequently used directories and prints a selected path so a shell
+wrapper can change into it.
+
+The name vf comes from the keys next to cd on a QWERTY keyboard.
+"""
 
 import argparse
 import json
@@ -33,11 +39,11 @@ COMMAND_NAMES = {
 
 if os.environ.get("USERPROFILE") is not None:
     windows_user_home = os.environ.get("USERPROFILE", "").replace("\\", "/")
-    CONFIG_FILE = f"{windows_user_home}/.lcd-path"
+    CONFIG_FILE = f"{windows_user_home}/.vf-path"
 elif os.environ.get("HOME") is not None:
-    CONFIG_FILE = f"{os.environ.get('HOME')}/.lcd-path"
+    CONFIG_FILE = f"{os.environ.get('HOME')}/.vf-path"
 else:
-    CONFIG_FILE = f"{os.path.dirname(os.path.abspath(__file__))}/.lcd-path"
+    CONFIG_FILE = f"{os.path.dirname(os.path.abspath(__file__))}/.vf-path"
 
 
 class CLIStyle:
@@ -168,7 +174,10 @@ class PathManager:
                 data = json.load(file)
         except json.JSONDecodeError:
             print(
-                color(f"Config file corrupted: {self.config_file}", CLIStyle.COLORS["ERROR"]),
+                color(
+                    f"Config file corrupted: {self.config_file}",
+                    CLIStyle.COLORS["ERROR"],
+                ),
                 file=sys.stderr,
             )
             print(color("Creating new config file...", CLIStyle.COLORS["WARNING"]))
@@ -189,7 +198,10 @@ class PathManager:
 
         if not isinstance(data, dict):
             print(
-                color(f"Invalid config file format: {self.config_file}", CLIStyle.COLORS["ERROR"]),
+                color(
+                    f"Invalid config file format: {self.config_file}",
+                    CLIStyle.COLORS["ERROR"],
+                ),
                 file=sys.stderr,
             )
             return []
@@ -197,7 +209,10 @@ class PathManager:
         paths = data.get("paths", [])
         if not isinstance(paths, list):
             print(
-                color(f"Invalid paths section: {self.config_file}", CLIStyle.COLORS["ERROR"]),
+                color(
+                    f"Invalid paths section: {self.config_file}",
+                    CLIStyle.COLORS["ERROR"],
+                ),
                 file=sys.stderr,
             )
             return []
@@ -209,7 +224,9 @@ class PathManager:
             elif isinstance(item, dict):
                 path = item.get("path")
                 raw_alias = item.get("alias")
-                alias = normalize_alias(raw_alias) if isinstance(raw_alias, str) else None
+                alias = (
+                    normalize_alias(raw_alias) if isinstance(raw_alias, str) else None
+                )
                 if isinstance(path, str) and path.strip():
                     entries.append(PathEntry(path=clean_path(path), alias=alias))
         return entries
@@ -370,7 +387,10 @@ class PathManager:
                 return 1
 
             alias_index = self.find_alias_index(normalized_alias)
-            if alias_index is not None and self.entries[alias_index].path != normalized_path:
+            if (
+                alias_index is not None
+                and self.entries[alias_index].path != normalized_path
+            ):
                 print(
                     f"{color('|', CLIStyle.COLORS['TITLE'])} Alias [{color(normalized_alias, CLIStyle.COLORS['ALIAS'])}] already exists.",
                     file=sys.stderr,
@@ -428,7 +448,9 @@ class PathManager:
 
     def clean_paths(self, path_color: int) -> None:
         """Remove stored paths that no longer exist."""
-        missing_entries = [entry for entry in self.entries if not os.path.exists(entry.path)]
+        missing_entries = [
+            entry for entry in self.entries if not os.path.exists(entry.path)
+        ]
         if not missing_entries:
             print(f"{color('|', CLIStyle.COLORS['TITLE'])} No missing paths found.")
             return
@@ -439,7 +461,9 @@ class PathManager:
             f"{color('|', CLIStyle.COLORS['TITLE'])} Removed {color(len(missing_entries), CLIStyle.COLORS['NUMBER'])} missing path(s)."
         )
         for entry in missing_entries:
-            print(f"{color('|', CLIStyle.COLORS['TITLE'])} {color(entry.path, path_color)}")
+            print(
+                f"{color('|', CLIStyle.COLORS['TITLE'])} {color(entry.path, path_color)}"
+            )
 
     def move_path(self, from_num: int, to_num: int, path_color: int) -> int:
         """Move a stored path to another position."""
@@ -483,7 +507,9 @@ class PathManager:
         """Format an entry for list output."""
         exists = "✓" if os.path.exists(entry.path) else "✗"
         status_color = (
-            CLIStyle.COLORS["CONTENT"] if os.path.exists(entry.path) else CLIStyle.COLORS["ERROR"]
+            CLIStyle.COLORS["CONTENT"]
+            if os.path.exists(entry.path)
+            else CLIStyle.COLORS["ERROR"]
         )
         alias = (
             self.highlight_match(entry.alias, alias_query)
@@ -644,7 +670,7 @@ def create_parser() -> argparse.ArgumentParser:
     """Create command line parser."""
     script_name = os.path.basename(sys.argv[0])
     parser = ColoredArgumentParser(
-        description="LCD - Path Manager, store and quickly access common paths",
+        description="VF - Path Manager, store and quickly access common paths",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=create_example_text(script_name),
     )
@@ -695,7 +721,9 @@ def create_parser() -> argparse.ArgumentParser:
         nargs="?",
         default=os.getcwd(),
         metavar=color("PATH", CLIStyle.COLORS["WARNING"]),
-        help=color("Path to add, default is current directory", CLIStyle.COLORS["CONTENT"]),
+        help=color(
+            "Path to add, default is current directory", CLIStyle.COLORS["CONTENT"]
+        ),
     )
     add_parser.add_argument(
         "-a",

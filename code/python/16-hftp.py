@@ -4119,7 +4119,7 @@ def main() -> int:
     examples = [
         ("Basic usage (serve current directory)", ""),
         ("Custom port", "--port 8080"),
-        ("Serve a specific directory (e.g. project or docs)", "--root /path/to/dir"),
+        ("Serve a specific directory (e.g. project or docs)", "-d /path/to/dir"),
         ("Serve current dir with --root", "--root ."),
         ("Debug mode", "--debug"),
         ("Batch mode (auto-confirm)", "--batch"),
@@ -4129,7 +4129,7 @@ def main() -> int:
 
     notes = [
         "Files are served from the specified root directory (default: current directory)",
-        "Use --root to change the server root directory",
+        "Use -d/--directory/-r/--root to change the server root directory",
         "Uploads are allowed by default",
         "Use a browser to access the server and view/upload files",
         "Debug mode shows detailed logs for troubleshooting",
@@ -4154,12 +4154,15 @@ def main() -> int:
         help=f"Specify server port (default: {DEFAULT_PORT})",
     )
     parser.add_argument(
+        "-d",
+        "--directory",
         "-r",
         "--root",
+        dest="root",
         type=str,
         help="Specify root directory to serve (default: current directory)",
     )
-    parser.add_argument("-d", "--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument(
         "-b",
         "--batch",

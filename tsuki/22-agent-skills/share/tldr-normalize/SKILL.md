@@ -47,11 +47,11 @@ description = "可选补充说明"
 
 | 错误写法 | 正确写法 |
 |---------|---------|
-| `<wifi interface name>` | `<interface>` |
-| `<ap name>` | `<ssid>` |
-| `<"password">` | `<password>` |
-| `<hacker host>` | `<host>` |
-| `<con name>` | `<connection_name>` |
+| `<file path>` | `<path>` |
+| `<user name>` | `<username>` |
+| `<"value">` | `<value>` |
+| `<target host>` | `<host>` |
+| `<config name>` | `<config_name>` |
 
 规则：
 - 只用 `<snake_case>` 风格，无空格，无引号
@@ -77,7 +77,7 @@ description = "可选补充说明"
 1. 读取目标 `.tldr` 文件
 2. 解析 TOML 结构
 3. 按上述规则逐项修正
-4. 重新序列化为 TOML，字段顺序：`[meta]` → `[[hit]]` 条目
+4. 重新序列化为 TOML，字段顺序：`[meta]` → `examples = []` 或 `[[examples]]` → `[[hit]]`
 5. 覆盖写回原文件
 6. 输出修改摘要（改了哪些字段、改了几处占位符）
 
@@ -87,25 +87,25 @@ description = "可选补充说明"
 ```toml
 examples = []
 [[hit]]
-command = "nmcli dev wifi hotspot ifname <wifi interface name> ssid <ap name> password <\"password\">"
-description = "用 nmcli 起一个移动共享热点"
+command = "examplectl run --file <file path> --user <user name> --value <\"value\">"
+description = "用 examplectl 执行任务"
 
 [meta]
-name = "nmcli"
-description = "Quick reference for nmcli"
+name = "examplectl"
+description = "Quick reference for examplectl"
 url = ""
 ```
 
 修复后：
 ```toml
 [meta]
-name = "nmcli"
-description = "用于管理 NetworkManager 网络连接的命令行工具"
-url = "https://man7.org/linux/man-pages/man1/nmcli.1.html"
+name = "examplectl"
+description = "用于执行示例任务的命令行工具"
+url = ""
 
 examples = []
 
 [[hit]]
-command = "nmcli dev wifi hotspot ifname <interface> ssid <ssid> password <password>"
-description = "创建 Wi-Fi 热点"
+command = "examplectl run --file <path> --user <username> --value <value>"
+description = "执行示例任务"
 ```

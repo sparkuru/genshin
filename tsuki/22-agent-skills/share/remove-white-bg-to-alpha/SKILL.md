@@ -1,13 +1,13 @@
 ---
 name: remove-white-bg-to-alpha
-description: Extracts the main character from a single image with a solid or near-solid light background by converting only edge-connected background regions to transparent alpha. Use when the user provides one illustration, avatar, sticker, or character render and expects a transparent PNG saved under /tmp with the output directory reported back.
+description: Extracts the foreground subject from a single image with a solid or near-solid light background by converting only edge-connected background regions to transparent alpha. Use when the user provides one illustration, avatar, sticker, product cutout, or simple render and expects a transparent PNG saved under /tmp with the output directory reported back.
 ---
 
 # Remove White Background To Alpha
 
 ## Purpose
 
-Use this skill when the user gives one image with a pure or near-pure light background and wants the character extracted as a transparent PNG.
+Use this skill when the user gives one image with a pure or near-pure light background and wants the foreground subject extracted as a transparent PNG.
 
 The goal is practical delivery:
 
@@ -25,7 +25,7 @@ Output:
 
 - one transparent PNG, usually `result.png`
 - one optional checkerboard preview, usually `preview.png`
-- one output directory under `/tmp`, such as `/tmp/remove-white-bg-to-alpha-<timestamp>/`
+- one output directory under `/tmp`, such as `/tmp/remove-white-bg-to-alpha-TIMESTAMP/`
 
 Never write generated files into the workspace unless the user explicitly asks for that location.
 
@@ -36,13 +36,13 @@ Use this skill when all of the following are mostly true:
 - the background is solid or near-solid
 - the background is white, off-white, or light gray
 - the background touches the image border
-- the main requirement is "extract the character" rather than "do semantic segmentation"
+- the main requirement is "extract the subject" rather than "do semantic segmentation"
 
 Do not use this as the first choice for:
 
 - complex backgrounds
 - strong shadows or gradients across the whole background
-- cases where the subject contains large white areas merged into the outer background
+- cases where the subject contains large light areas merged into the outer background
 - images that clearly need a model-based matting workflow
 
 ## Execution Workflow
@@ -62,7 +62,7 @@ Only remove pixels that satisfy both conditions:
 - they are close to the estimated background color
 - they are connected to the outer border
 
-This protects bright details inside the subject, such as highlights, white clothing trim, or reflective accents.
+This protects bright details inside the subject, such as highlights, light trim, labels, or reflective accents.
 
 ## Recommended Method
 
@@ -97,7 +97,7 @@ Before finishing, verify:
 
 - the background is transparent
 - interior highlights are still preserved
-- no large white fringe remains around the character
+- no large white fringe remains around the subject
 - the output file is PNG
 
 ## Response Format
@@ -105,9 +105,9 @@ Before finishing, verify:
 After processing, report the result in a compact form:
 
 ```text
-输出目录: /tmp/remove-white-bg-to-alpha-1234567890
-主文件: /tmp/remove-white-bg-to-alpha-1234567890/result.png
-预览图: /tmp/remove-white-bg-to-alpha-1234567890/preview.png
+输出目录: /tmp/remove-white-bg-to-alpha-TIMESTAMP
+主文件: /tmp/remove-white-bg-to-alpha-TIMESTAMP/result.png
+预览图: /tmp/remove-white-bg-to-alpha-TIMESTAMP/preview.png
 ```
 
 If extraction quality is limited by the image itself, state the reason briefly and still report the directory.

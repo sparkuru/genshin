@@ -1011,28 +1011,28 @@ cx() {
     python3 $ip_status_path "$@"
 }
 
-lcd() {
-	DESCRIPTION="python script: list current directory"
-    this_script_path="code/python/13-lcd.py"
+vf() {
+	DESCRIPTION="python script: store and jump to common directories"
+    this_script_path="code/python/13-vf.py"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
-        lcd_path="$local_repo_path/$this_script_path"
+        vf_path="$local_repo_path/$this_script_path"
     else
-        lcd_path="$HOME/.genshin/lcd.py"
-        if [[ ! -f $lcd_path ]]; then
-            _curl $lcd_path $github_url_base/$this_script_path
+        vf_path="$HOME/.genshin/vf.py"
+        if [[ ! -f "$vf_path" ]]; then
+            _curl "$vf_path" "$github_url_base/$this_script_path"
         fi
     fi
-    if [[ "$1" == "cd" && ! -z "$2" ]]; then
-        target_dir=$(python $lcd_path -g "$2")
-        cd "$target_dir"
-    elif [[ "$1" == "l" ]]; then
-        python3 $lcd_path -l
-    elif [[ "$1" == "d" && ! -z "$2" ]]; then
-        python3 $lcd_path -d -n "$2"
-    elif [[ "$1" == "a" && ! -z "$2" ]]; then
-        python3 $lcd_path -a "$2"
+    if [[ "${1:-}" == "cd" && -n "${2:-}" ]]; then
+        target_dir=$(python3 "$vf_path" show "$2") || return
+        cd -- "$target_dir"
+    elif [[ "${1:-}" == "l" ]]; then
+        python3 "$vf_path" l "${@:2}"
+    elif [[ "${1:-}" == "d" && -n "${2:-}" ]]; then
+        python3 "$vf_path" rm "${@:2}"
+    elif [[ "${1:-}" == "a" && -n "${2:-}" ]]; then
+        python3 "$vf_path" add "${@:2}"
     else
-        python3 $lcd_path "$@"
+        python3 "$vf_path" "$@"
     fi
 }
 
