@@ -1,6 +1,6 @@
 ---
 name: trellis-plus
-description: Enhances an existing or newly initialized Trellis workflow with local project conventions. Use when the user asks to apply `trellis-plus`, improve Trellis templates, inject personalized Trellis workflow rules, add submit-ready human review gates, add ChatGPT/Codex commit completion summaries and co-author trailers, bootstrap Docker-based dev commands, or make a Trellis project infer its testing and feedback process from the repository.
+description: Enhances an existing or newly initialized Trellis workflow with project-specific conventions. Use when the user asks to apply `trellis-plus`, improve Trellis templates, inject durable Trellis workflow rules, add submit-ready human review gates, add ChatGPT/Codex commit completion summaries and co-author trailers, bootstrap Docker-based dev commands, or make a Trellis project infer its testing and feedback process from the repository.
 ---
 
 # Trellis Plus

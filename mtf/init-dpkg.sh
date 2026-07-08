@@ -90,7 +90,7 @@ to_install_list=(
 	webp libxdo-dev webkitgtk-webdriver
 	rclone shellcheck
 	v4l-utils v4l2loopback-dkms v4l2loopback-utils
-	rsync nginx net-tools dnsutils
+	rsync nginx net-tools dnsutils whois
 )
 
 apt update
@@ -187,6 +187,7 @@ pip_to_install_list=(
 	legacy-cgi
 	pyinstaller staticx
 	faker python-docx openpyxl
+	pillow markdown pygments playwright
 )
 
 for user in "${VALID_USER_LIST[@]}"; do

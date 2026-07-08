@@ -1,0 +1,32 @@
+{
+  "target": {
+    "method": "ssh",
+    "ip": "192.168.1.10",
+    "port": 22,
+    "username": "root",
+    "password": "password",
+    "identity_file": "",
+    "sudo": "auto",
+    "sudo_password": "password"
+  },
+  "forensics": {
+    "pid": [
+      1234
+    ],
+    "process_name": [
+      "boa"
+    ],
+    "dump_memory": true,
+    "copy_fd_files": true,
+    "max_file_mb": 100,
+    "max_memory_mb": 512,
+    "remote_base": "/tmp",
+    "output_dir": "./forensic-target",
+    "tool_dir": "./tool",
+    "tool_url": "http://192.168.1.2:18080",
+    "tool": [
+      "busybox"
+    ],
+    "keep_remote": false
+  }
+}

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Inject a durable Trellis rule so work commits created by ChatGPT/Codex during Trellis Phase 3.4 decide whether they deserve a detailed task completion summary and AI co-author trailer, mirroring Claude Code's selective commit behavior.
+Inject a durable Trellis rule so work commits created by ChatGPT/Codex during Trellis Phase 3.4 decide whether they deserve a detailed task completion summary and AI co-author trailer, following selective AI-attribution behavior.
 
 Default trailer:
 
@@ -10,17 +10,17 @@ Default trailer:
 Co-authored-by: OpenAI Codex <codex@openai.com>
 ```
 
-Use this exact default when attribution is warranted, unless the project already has a clear local convention for Codex/OpenAI attribution.
+Use this exact default when attribution is warranted, unless the project already has a clear project convention for Codex/OpenAI attribution.
 
 ## Background
 
-Trellis itself does not add the Claude footer. Trellis puts work commits in `.trellis/workflow.md` Phase 3.4: inspect dirty state, learn recent commit style, classify AI-edited vs unrecognized files, draft a batched commit plan, ask for one-shot confirmation, then run `git add` and `git commit`.
+Trellis itself does not add AI co-author footers. Trellis puts work commits in `.trellis/workflow.md` Phase 3.4: inspect dirty state, learn recent commit style, classify AI-edited vs unrecognized files, draft a batched commit plan, ask for one-shot confirmation, then run `git add` and `git commit`.
 
 `finish-work` is later bookkeeping. It refuses to replace Phase 3.4 when current-task code is still dirty, then archives tasks and records the journal with the work-commit hashes.
 
 Therefore, inject this rule into the Phase 3.4 commit step, before the `git commit` commands are executed.
 
-In observed Trellis history, Claude-style attribution is not applied to every work commit. It appears mainly on larger task commits with substantial bodies, non-trivial implementation reasoning, cross-layer changes, or explicit validation narratives. Small follow-up feature/fix commits, task archive commits, and journal commits often omit it. Match that selective pattern.
+Do not apply AI attribution to every work commit by default. Prefer it for larger task commits with substantial bodies, non-trivial implementation reasoning, cross-layer changes, or explicit validation narratives. Small follow-up feature/fix commits, task archive commits, and journal commits should usually omit it. Match the target project's recent attribution pattern when one is present.
 
 The long body matters as much as the trailer. Those commits read like a compact task-completion report: what broke or was requested, what changed, which architectural boundary was preserved, how it was validated, and what remains out of scope. The user can approve the commit after skimming that report instead of re-deriving the whole task from the diff.
 
@@ -68,7 +68,7 @@ Use `no` when the change is small or mostly mechanical, such as:
 - Trellis auto-commits created by `add_session.py`
 - commits the user says they will make manually
 
-Use `ask` only when recent project history has a clear but ambiguous local convention and the current commit sits near the threshold. Otherwise, prefer `no` over noisy over-attribution.
+Use `ask` only when recent project history has a clear but ambiguous attribution convention and the current commit sits near the threshold. Otherwise, prefer `no` over noisy over-attribution.
 
 Do not equate "ChatGPT/Codex touched a file" with "add the trailer". The threshold is material authorship, not file edit involvement.
 
@@ -85,7 +85,7 @@ Include the parts that apply:
 - tests, lint, type-check, build, manual/browser/device validation, and known skipped checks
 - explicit out-of-scope or known follow-up only when it affects future work
 
-Match local commit style:
+Match project commit style:
 
 - If recent large AI-assisted commits use Chinese bodies, write Chinese bodies.
 - If they use English bodies, write English bodies.
@@ -98,9 +98,9 @@ Do not pad small commits into fake summaries. If the body would only say "update
 
 Use the smallest body that preserves review value:
 
-- **Small/no attribution**: subject only, or one short body paragraph if local style requires it.
+- **Small/no attribution**: subject only, or one short body paragraph if project style requires it.
 - **Medium attribution**: 1-3 short paragraphs or 3-5 bullets covering change and validation.
-- **Large task attribution**: multi-paragraph body like the local Claude commits, covering problem/root cause, implementation, boundaries, and validation.
+- **Large task attribution**: multi-paragraph body like recent substantial AI-assisted commits, covering problem/root cause, implementation, boundaries, and validation.
 
 The body should explain why this commit is complete, not narrate every edit.
 
@@ -165,10 +165,10 @@ git commit -m "<subject>" -m "<body>" -m "Co-authored-by: OpenAI Codex <codex@op
 
 Do not append the trailer into the subject line.
 
-For a longer Claude-style summary, use a commit message file when quoting would be fragile:
+For a longer structured summary, use a commit message file when quoting would be fragile:
 
 ```bash
-git commit -F /tmp/trellis-commit-message.txt
+git commit -F TEMP-COMMIT-MESSAGE-PATH
 ```
 
 The file content should be:

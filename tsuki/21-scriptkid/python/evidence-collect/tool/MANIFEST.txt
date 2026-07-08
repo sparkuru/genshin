@@ -1,0 +1,9 @@
+busybox-armv7l
+  source: Debian bookworm armhf busybox-static package copied from test container
+  type: static ELF
+  verified: timeout and sha256sum applets work
+
+gdb-armv7l
+  source: Debian bookworm armhf gdb package copied from test container
+  type: dynamic ELF, requires compatible /lib/ld-linux-armhf.so.3 and libraries
+  limitation: gcore fails in qemu-user container with ptrace: Function not implemented
