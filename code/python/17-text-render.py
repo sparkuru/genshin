@@ -710,6 +710,9 @@ def get_theme_css(theme: str, options: RenderOptions) -> str:
     border = "#30363d"
     link = "#79c0ff"
     code_background = "#0d1117"
+    code_block_background = "#0f1720"
+    code_border = "#2f3b4a"
+    code_shadow = "0 10px 28px rgba(0, 0, 0, 0.24)"
 
     if theme == "light":
         foreground = "#24292f"
@@ -718,6 +721,9 @@ def get_theme_css(theme: str, options: RenderOptions) -> str:
         border = "#d0d7de"
         link = "#0969da"
         code_background = "#f6f8fa"
+        code_block_background = "#f6f8fa"
+        code_border = "#d8dee4"
+        code_shadow = "0 8px 22px rgba(140, 149, 159, 0.14)"
     elif theme == "print":
         foreground = "#111111"
         background = "#ffffff"
@@ -725,12 +731,16 @@ def get_theme_css(theme: str, options: RenderOptions) -> str:
         border = "#cccccc"
         link = "#111111"
         code_background = "#f7f7f7"
+        code_block_background = "#f7f7f7"
+        code_border = "#d6d6d6"
+        code_shadow = "none"
 
     white_space = "pre-wrap" if options.wrap else "pre"
     overflow_wrap = "break-word" if options.wrap else "normal"
     pygments_css = get_pygments_css(theme)
 
     return f"""
+        {pygments_css}
         :root {{
             color-scheme: {"dark" if theme == "terminal" else "light"};
         }}
@@ -765,7 +775,7 @@ def get_theme_css(theme: str, options: RenderOptions) -> str:
         h1:first-child, h2:first-child, h3:first-child {{
             margin-top: 0;
         }}
-        p, ul, ol, blockquote, table, pre {{
+        p, ul, ol, blockquote, table, pre, .codehilite {{
             margin: 0 0 1em;
         }}
         blockquote {{
@@ -784,15 +794,41 @@ def get_theme_css(theme: str, options: RenderOptions) -> str:
         pre, .codehilite {{
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
                 "Liberation Mono", "DejaVu Sans Mono", monospace;
-            background: {surface};
-            border: 1px solid {border};
+            background: {code_block_background};
+            border: 1px solid {code_border};
             border-radius: 8px;
+            box-shadow: {code_shadow};
+            color: {foreground};
+            font-size: 0.94em;
+            line-height: 1.58;
             overflow: auto;
-            padding: 1em;
+            tab-size: 2;
+        }}
+        pre {{
+            padding: 1em 1.1em;
+            white-space: {white_space};
+            overflow-wrap: {overflow_wrap};
+        }}
+        .codehilite {{
+            padding: 0;
+        }}
+        .codehilite pre {{
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+            margin: 0;
+            padding: 1em 1.1em;
+            white-space: {white_space};
+            overflow-wrap: {overflow_wrap};
         }}
         pre code, .codehilite code {{
             background: transparent;
+            border-radius: 0;
+            display: block;
+            line-height: inherit;
             padding: 0;
+            white-space: inherit;
         }}
         .text-output {{
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
@@ -821,7 +857,6 @@ def get_theme_css(theme: str, options: RenderOptions) -> str:
             margin: 0.7em 0 1.3em;
             max-width: 100%;
         }}
-        {pygments_css}
     """
 
 
@@ -1090,7 +1125,33 @@ def collect_markdown_fallback_blocks(text: str) -> list[dict[str, Any]]:
     ```
     """
     blocks: list[dict[str, Any]] = []
+    in_code_block = False
+    code_language = ""
+    code_lines: list[str] = []
+
     for raw_line in text.splitlines():
+        stripped_line = raw_line.strip()
+        if stripped_line.startswith("```"):
+            if in_code_block:
+                blocks.append(
+                    {
+                        "type": "code",
+                        "language": code_language,
+                        "text": "\n".join(code_lines),
+                    }
+                )
+                in_code_block = False
+                code_language = ""
+                code_lines = []
+            else:
+                in_code_block = True
+                code_language = stripped_line[3:].strip()
+            continue
+
+        if in_code_block:
+            code_lines.append(raw_line)
+            continue
+
         line = raw_line.strip()
         if not line:
             blocks.append({"type": "space"})
@@ -1114,7 +1175,105 @@ def collect_markdown_fallback_blocks(text: str) -> list[dict[str, Any]]:
 
         block_type = "strong" if line.startswith("**") and line.endswith("**") else "text"
         blocks.append({"type": block_type, "text": strip_inline_markdown(line)})
+    if in_code_block:
+        blocks.append(
+            {
+                "type": "code",
+                "language": code_language,
+                "text": "\n".join(code_lines),
+            }
+        )
     return blocks
+
+
+def get_rendered_code_lines(
+    draw: Any, text: str, font: Any, max_width: int, wrap: bool
+) -> list[str]:
+    """
+    Build code lines for Pillow fallback rendering.
+    ```python
+    get_rendered_code_lines(draw, "a", font, 100, True)
+
+    return = list[str]
+    ```
+    """
+    lines = text.split("\n") or [""]
+    if not wrap:
+        return lines
+
+    wrapped_lines = []
+    for line in lines:
+        wrapped_lines.extend(wrap_text_by_width(draw, line, font, max_width))
+    return wrapped_lines or [""]
+
+
+def measure_markdown_code_block(
+    draw: Any,
+    block: dict[str, Any],
+    fonts: dict[str, Any],
+    max_width: int,
+    wrap: bool,
+) -> int:
+    """
+    Measure one fenced code block for Pillow fallback rendering.
+    ```python
+    measure_markdown_code_block(draw, block, fonts, 800, True)
+
+    return = int
+    ```
+    """
+    font = fonts["code"]
+    inner_padding = 18
+    content_width = max(1, max_width - inner_padding * 2)
+    rendered_lines = get_rendered_code_lines(
+        draw, str(block.get("text", "")), font, content_width, wrap
+    )
+    text_bbox = draw.textbbox((0, 0), "Mg", font=font)
+    line_height = max(16, int((text_bbox[3] - text_bbox[1]) * 1.55))
+    block["rendered_lines"] = rendered_lines
+    block["line_height"] = line_height
+    return inner_padding * 2 + max(1, len(rendered_lines)) * line_height + 16
+
+
+def draw_markdown_code_block(
+    draw: Any,
+    block: dict[str, Any],
+    fonts: dict[str, Any],
+    x: int,
+    y: int,
+    max_width: int,
+    colors: tuple[str, str, str, str],
+) -> int:
+    """
+    Draw one fenced code block for Pillow fallback rendering.
+    ```python
+    draw_markdown_code_block(draw, block, fonts, 0, 0, 800, colors)
+
+    return = int
+    ```
+    """
+    _background, surface, border, foreground = colors
+    inner_padding = 18
+    block_height = int(block.get("height", inner_padding * 2 + 16))
+    draw.rounded_rectangle(
+        [x, y, x + max_width, y + block_height - 16],
+        radius=8,
+        fill=surface,
+        outline=border,
+        width=1,
+    )
+
+    line_height = int(block.get("line_height", 24))
+    text_y = y + inner_padding
+    for line in block.get("rendered_lines", [""]):
+        draw.text(
+            (x + inner_padding, text_y),
+            line,
+            font=fonts["code"],
+            fill=foreground,
+        )
+        text_y += line_height
+    return y + block_height
 
 
 def draw_markdown_text_block(
@@ -1181,6 +1340,12 @@ def measure_markdown_blocks(
             else:
                 block["missing"] = True
                 height += 32
+        elif block["type"] == "code":
+            block_height = measure_markdown_code_block(
+                draw, block, fonts, max_width, options.wrap
+            )
+            block["height"] = block_height
+            height += block_height
         else:
             before = height
             height = draw_markdown_text_block(
@@ -1205,6 +1370,7 @@ def render_markdown_with_pillow(text: str, options: RenderOptions) -> None:
         "heading": load_sans_font(image_font_module, 34, True),
         "strong": load_sans_font(image_font_module, 22, True),
         "text": load_sans_font(image_font_module, 20),
+        "code": load_pillow_font(image_font_module, 18),
     }
     blocks, image_height = measure_markdown_blocks(
         text, options, image_module, image_draw_module, fonts
@@ -1221,7 +1387,25 @@ def render_markdown_with_pillow(text: str, options: RenderOptions) -> None:
         elif block["type"] == "image":
             image_path = get_local_image_path(str(block["source"]), options.source_base_dir)
             y = render_markdown_pillow_image(
-                image, image_module, image_draw_module, image_path, block, x, y, max_width, border
+                image,
+                image_module,
+                image_draw_module,
+                image_path,
+                block,
+                x,
+                y,
+                max_width,
+                border,
+            )
+        elif block["type"] == "code":
+            y = draw_markdown_code_block(
+                draw,
+                block,
+                fonts,
+                x,
+                y,
+                max_width,
+                (background, surface, border, foreground),
             )
         else:
             y = draw_markdown_text_block(

@@ -1185,7 +1185,19 @@ md2docx() {
     python3 $md2docx_path "$@"
 }
 
-
+t2i() {
+	DESCRIPTION="python script: convert text file to image / pdf / html with markdown render"
+    this_script_path="code/python/17-text-render.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        text_render_path="$local_repo_path/$this_script_path"
+    else
+        text_render_path="$HOME/.genshin/pandoc/text-render.py"
+        if [[ ! -f $text_render_path ]]; then
+            _curl $text_render_path $github_url_base/$this_script_path
+        fi
+    fi
+    python3 $text_render_path "$@" 
+}
 
 ## end_custom_function
 
