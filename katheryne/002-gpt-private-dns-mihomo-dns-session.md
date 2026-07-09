@@ -1,17 +1,5 @@
 # Private DNS 与 Mihomo DNS 方案
 
----
-
-| Field | Value |
-| --- | --- |
-| source file | HOME-PATH/.codex/sessions/DATE/rollout-DATE-SESSION-ID.jsonl |
-| session id | SESSION-ID |
-| title source | export plan |
-| cwd | WORKSPACE-PATH |
-| timestamp | DATE (UTC+OFFSET) |
-
----
-
 ## Turn Index
 
 | # | Export | Q | A | Note |

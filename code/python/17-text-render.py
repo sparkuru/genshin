@@ -170,7 +170,7 @@ def create_example_text(
     """
     Build a colorized example block for argparse epilog.
     ```python
-    create_example_text("script.py", [("Render", "input.md -o out.png")])
+    create_example_text("render.py", [("Render", "document.md -o output.png")])
 
     return = str
     ```
@@ -461,7 +461,7 @@ def detect_input_format(source: str, requested_format: str) -> str:
     """
     Detect input format when auto mode is selected.
     ```python
-    detect_input_format("README.md", "auto")
+    detect_input_format("document.md", "auto")
 
     return = str
     ```
@@ -496,7 +496,7 @@ def default_output_path(source: str, output_format: str) -> Path:
     """
     Build a default output path for the selected format.
     ```python
-    default_output_path("README.md", "png")
+    default_output_path("document.md", "png")
 
     return = Path
     ```
@@ -508,11 +508,43 @@ def default_output_path(source: str, output_format: str) -> Path:
     return Path.cwd() / filename
 
 
+def is_output_directory(output_value: str, output_path: Path) -> bool:
+    """
+    Check whether an explicit output argument points to a directory.
+    ```python
+    is_output_directory("output/", Path("output"))
+
+    return = bool
+    ```
+    """
+    return output_path.is_dir() or output_value.endswith(("/", "\\"))
+
+
+def resolve_output_path(
+    source: str, output_value: str | None, output_format: str
+) -> Path:
+    """
+    Resolve the final output file path.
+    ```python
+    resolve_output_path("document.md", "output/", "png")
+
+    return = Path
+    ```
+    """
+    if not output_value:
+        return default_output_path(source, output_format)
+
+    output_path = Path(output_value)
+    if is_output_directory(output_value, output_path):
+        return output_path / default_output_path(source, output_format).name
+    return output_path
+
+
 def get_source_base_dir(source: str) -> Path:
     """
     Get the base directory used to resolve document-relative assets.
     ```python
-    get_source_base_dir("README.md")
+    get_source_base_dir("document.md")
 
     return = Path
     ```
@@ -1671,10 +1703,10 @@ def create_parser() -> argparse.ArgumentParser:
     """
     script_name = Path(sys.argv[0]).name
     examples = [
-        ("Render plain text to PNG", "help.txt -o help.png"),
-        ("Render Markdown to PDF", "README.md -o README.pdf"),
-        ("Render Markdown to styled HTML", "README.md -f html -o README.html"),
-        ("Render body-only HTML", "README.md -f raw-html -o body.html"),
+        ("Render plain text to PNG", "input.txt -o output.png"),
+        ("Render Markdown to PDF", "document.md -o document.pdf"),
+        ("Render Markdown to styled HTML", "document.md -f html -o document.html"),
+        ("Render body-only HTML", "document.md -f raw-html -o body.html"),
         ("Read command output from stdin", "@- --input-format ansi -o command.png"),
     ]
     notes = [
@@ -1704,7 +1736,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--output",
         metavar=CLIStyle.color("PATH", CLIStyle.COLORS["CONTENT"]),
         help=CLIStyle.color(
-            "Output path. Format is inferred from extension by default",
+            "Output file or directory. Format is inferred from file extension by default",
             CLIStyle.COLORS["CONTENT"],
         ),
     )
@@ -1790,7 +1822,7 @@ def parse_options(args: argparse.Namespace) -> RenderOptions:
     """
     explicit_output = Path(args.output) if args.output else None
     output_format = detect_output_format(explicit_output, args.format)
-    output = explicit_output or default_output_path(args.source, output_format)
+    output = resolve_output_path(args.source, args.output, output_format)
     input_format = detect_input_format(args.source, args.input_format)
     source_base_dir = get_source_base_dir(args.source)
     return RenderOptions(

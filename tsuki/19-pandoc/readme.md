@@ -7,21 +7,20 @@ pandoc: https://github.com/jgm/pandoc.git
 
 ## usage
 
-1. convert markdown to docx: `pandoc --from/-f markdown --to/-t docx --reference-doc </path/to/custom-reference.docx> </path/to/src/file.md> --output/-o </path/to/output.docx>`
+1. convert markdown to docx: `pandoc --from/-f markdown-yaml_metadata_block --to/-t docx --reference-doc </path/to/custom-reference.docx> </path/to/src/file.md> --output/-o </path/to/output.docx>`
 
 2. use pandoc convert markdown to docx, then pass through `python-docx` to apply custom table and caption styles: `uv add python-docx`
 
 ## script usage
 
-script: `./pandoc-md2docx.sh` does the above two steps. run `ln -s * /path/to/workspace` to handle the case where the script is not in the same directory as the markdown files.
-
-The script can be symlinked into any workspace and run there.
+Use `md2docx.py` directly, or call the shell function `md2docx` that resolves
+this repository copy first and falls back to `~/.genshin/pandoc/md2docx.py`.
 
 Recommended workspace layout:
 
 ```text
 <workspace>/
-  md2docx.sh                     # symlink to pandoc-md2docx.sh (optional name)
+  md2docx.py                     # optional local copy or symlink
   pandoc-template.docx           # optional override (preferred if exists)
   docx-post-process.py           # optional override (preferred if exists)
   markdown/                      # markdown sources (*.md)
@@ -30,23 +29,24 @@ Recommended workspace layout:
 
 Run:
 
-- Process current directory markdown files: `./md2docx.sh`
-- Process a specific markdown directory: `./md2docx.sh ./markdown`
-- Process a single markdown file: `./md2docx.sh ./markdown/07-test.md`
-- Write outputs to an explicit directory: `./md2docx.py ./markdown -o ./out`
-- Write a single markdown file to an explicit docx path: `./md2docx.py ./a.md -o ./a-final.docx`
-- Force overwrite existing `.docx`: `./md2docx.sh -f` (or `./md2docx.sh any`)
+- Process current directory markdown files: `md2docx`
+- Process a specific markdown directory: `md2docx ./markdown`
+- Process a single markdown file: `md2docx ./markdown/07-test.md`
+- Write outputs to an explicit directory: `md2docx ./markdown -o ./out`
+- Write a single markdown file to an explicit docx path: `md2docx ./a.md -o ./a-final.docx`
+- Force overwrite existing `.docx`: `md2docx -f`
+- Keep Pandoc YAML metadata parsing enabled when needed: `md2docx ./a.md --from-format markdown`
 
 What it does:
 
 - Reads `*.md` under the markdown directory.
 - Writes single-file input beside the source file by default.
-- Writes multi-file input into `docx/` by default.
+- Writes multi-file input into `<markdown-dir>/docx/` by default.
 - Uses `-o` / `--output` as the output directory, or as the exact `.docx` path for single-file input.
-- Skips overwrite by default; use `-f` / `any` to overwrite.
-- Skips files whose prefix index is in `dont_cover_file_index` (e.g. `01-xxx.md`).
+- Uses `markdown-yaml_metadata_block` by default so `---` section separators are not parsed as YAML metadata blocks.
+- Skips overwrite by default; use `-f` / `--force` to overwrite.
 - Template/script resolution:
-  - If `<workspace>/pandoc-template.docx` exists, use it; otherwise fallback to the repo copy (next to `pandoc-md2docx.sh`).
+  - If `<workspace>/pandoc-template.docx` exists, use it; otherwise fallback to the repo copy.
   - If `<workspace>/docx-post-process.py` exists, use it; otherwise fallback to the repo copy.
 
 ## wps view option

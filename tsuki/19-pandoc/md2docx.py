@@ -40,6 +40,7 @@ TEMPLATE_NAME = "pandoc-template.docx"
 CHAR_THRESHOLD = 60
 MAX_MERGE_COLS = 3
 FORMAT_TABLE = True
+DEFAULT_PANDOC_FROM = "markdown-yaml_metadata_block"
 
 
 class CLIStyle:
@@ -239,6 +240,7 @@ def resolve_output_paths(
 def convert_one(
     src_md: Path,
     dst_docx: Path,
+    pandoc_from: str,
     template: Path | None,
     style_module: ModuleType | None,
     threshold: int,
@@ -246,7 +248,7 @@ def convert_one(
     format_table: bool,
 ) -> bool:
     """Convert a single markdown file to docx and post-process it."""
-    cmd = ["pandoc", "--from", "markdown", "--to", "docx", "--output", str(dst_docx)]
+    cmd = ["pandoc", "--from", pandoc_from, "--to", "docx", "--output", str(dst_docx)]
     if template is not None:
         cmd += ["--reference-doc", str(template)]
     cmd.append(str(src_md))
@@ -281,10 +283,12 @@ def main() -> int:
             ("write a single file to an explicit docx path", "./a.md -o ./a-final.docx"),
             ("overwrite existing docx outputs", "-f"),
             ("output beside each source file", "./markdown --same-dir"),
+            ("use pandoc's full markdown reader", "./a.md --from-format markdown"),
         ],
         notes=[
             "single-file input writes beside the source by default",
             "multi-file input writes into <dir>/docx/ by default",
+            f"default pandoc reader is {DEFAULT_PANDOC_FROM} so --- separators do not become YAML metadata blocks",
             "needs the `pandoc` binary and the python-docx package",
             f"styles resolve from: script dir -> {LOCAL_REPO_PATH}/{REPO_PANDOC_SUBPATH} -> ~/.genshin/pandoc",
         ],
@@ -336,6 +340,11 @@ def main() -> int:
         "--no-format-table",
         action="store_true",
         help="disable hierarchical column merging.",
+    )
+    parser.add_argument(
+        "--from-format",
+        default=DEFAULT_PANDOC_FROM,
+        help=f"pandoc input format (default: {DEFAULT_PANDOC_FROM}).",
     )
     parser.add_argument("--log", action="store_true", help="enable debug logging.")
     args = parser.parse_args()
@@ -412,6 +421,7 @@ def main() -> int:
             if convert_one(
                 src_md,
                 dst_docx,
+                args.from_format,
                 template,
                 style_module,
                 args.threshold,
