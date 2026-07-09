@@ -25,3 +25,4 @@
 2. https://github.com/tiiuae/aarch64_bin_builder.git
 3. mips static binary 文件：https://github.com/darkerego/mips-binaries.git
 4. arm、ppc、x86，static binary 文件：https://github.com/ernw/static-toolbox.git
+5. 通用参考：https://git.sr.ht/~fincham/static-binary-zoo

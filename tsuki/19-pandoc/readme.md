@@ -33,12 +33,16 @@ Run:
 - Process current directory markdown files: `./md2docx.sh`
 - Process a specific markdown directory: `./md2docx.sh ./markdown`
 - Process a single markdown file: `./md2docx.sh ./markdown/07-test.md`
+- Write outputs to an explicit directory: `./md2docx.py ./markdown -o ./out`
+- Write a single markdown file to an explicit docx path: `./md2docx.py ./a.md -o ./a-final.docx`
 - Force overwrite existing `.docx`: `./md2docx.sh -f` (or `./md2docx.sh any`)
 
 What it does:
 
 - Reads `*.md` under the markdown directory.
-- Writes `<filename>.docx` into `docx/`.
+- Writes single-file input beside the source file by default.
+- Writes multi-file input into `docx/` by default.
+- Uses `-o` / `--output` as the output directory, or as the exact `.docx` path for single-file input.
 - Skips overwrite by default; use `-f` / `any` to overwrite.
 - Skips files whose prefix index is in `dont_cover_file_index` (e.g. `01-xxx.md`).
 - Template/script resolution:

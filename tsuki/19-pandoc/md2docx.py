@@ -215,6 +215,27 @@ def collect_markdown_files(
     raise FileNotFoundError(f"path not found: {target}")
 
 
+def resolve_output_paths(
+    md_files: list[Path],
+    markdown_dir: Path,
+    output: Path | None,
+    same_dir: bool,
+) -> dict[Path, Path]:
+    """Resolve docx output paths from input count and optional output target."""
+    if output is not None:
+        if len(md_files) == 1 and output.suffix.lower() == ".docx":
+            return {md_files[0]: output}
+        if len(md_files) > 1 and output.suffix.lower() == ".docx":
+            raise ValueError("--output must be a directory when converting multiple files")
+        return {src_md: output / f"{src_md.stem}.docx" for src_md in md_files}
+
+    if same_dir or len(md_files) == 1:
+        return {src_md: src_md.parent / f"{src_md.stem}.docx" for src_md in md_files}
+
+    output_dir = markdown_dir / "docx"
+    return {src_md: output_dir / f"{src_md.stem}.docx" for src_md in md_files}
+
+
 def convert_one(
     src_md: Path,
     dst_docx: Path,
@@ -256,11 +277,14 @@ def main() -> int:
             ("convert every *.md in the current directory", ""),
             ("convert markdown files under a directory", "./markdown"),
             ("convert a single markdown file", "./notes/07-test.md"),
+            ("write outputs to an explicit directory", "./markdown -o ./out"),
+            ("write a single file to an explicit docx path", "./a.md -o ./a-final.docx"),
             ("overwrite existing docx outputs", "-f"),
-            ("output beside the source instead of ./docx", "./a.md --same-dir"),
+            ("output beside each source file", "./markdown --same-dir"),
         ],
         notes=[
-            "outputs land in <dir>/docx/ by default",
+            "single-file input writes beside the source by default",
+            "multi-file input writes into <dir>/docx/ by default",
             "needs the `pandoc` binary and the python-docx package",
             f"styles resolve from: script dir -> {LOCAL_REPO_PATH}/{REPO_PANDOC_SUBPATH} -> ~/.genshin/pandoc",
         ],
@@ -285,9 +309,16 @@ def main() -> int:
         help="overwrite existing docx outputs.",
     )
     parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        help="output directory, or .docx path for a single markdown file.",
+    )
+    parser.add_argument(
         "--same-dir",
         action="store_true",
-        help="write output beside the source instead of ./docx.",
+        help="write output beside each source instead of ./docx.",
     )
     parser.add_argument(
         "--threshold",
@@ -359,20 +390,24 @@ def main() -> int:
             CLIStyle.COLORS["WARNING"],
         )
 
-    output_dir = (
-        markdown_dir
-        if (args.same_dir and len(md_files) == 1)
-        else markdown_dir / "docx"
-    )
-    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        output_paths = resolve_output_paths(
+            md_files, markdown_dir, args.output, args.same_dir
+        )
+    except ValueError as e:
+        log(str(e), CLIStyle.COLORS["ERROR"])
+        return 1
+
+    for dst_docx in output_paths.values():
+        dst_docx.parent.mkdir(parents=True, exist_ok=True)
 
     converted = 0
     for src_md in md_files:
-        dst_docx = output_dir / f"{src_md.stem}.docx"
+        dst_docx = output_paths[src_md]
         if dst_docx.exists() and not args.force:
             log(f"{dst_docx.name} already exists, skip...", CLIStyle.COLORS["ERROR"])
             continue
-        log(f"convert {src_md.name} --> {dst_docx.name}", CLIStyle.COLORS["CONTENT"])
+        log(f"convert {src_md.name} --> {dst_docx}", CLIStyle.COLORS["CONTENT"])
         try:
             if convert_one(
                 src_md,
@@ -392,7 +427,7 @@ def main() -> int:
             log(f"failed on {src_md.name}: {e}", CLIStyle.COLORS["ERROR"])
 
     log(
-        f"done, {converted}/{len(md_files)} converted -> {output_dir}",
+        f"done, {converted}/{len(md_files)} converted",
         CLIStyle.COLORS["CONTENT"],
     )
     return 0
