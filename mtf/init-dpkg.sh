@@ -91,6 +91,7 @@ to_install_list=(
 	rclone shellcheck
 	v4l-utils v4l2loopback-dkms v4l2loopback-utils
 	rsync nginx net-tools dnsutils whois
+	freecad
 )
 
 apt update
