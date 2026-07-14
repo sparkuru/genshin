@@ -1,0 +1,1 @@
+/home/wkyuu/cargo/data/seclist/Discovery/Web-Content/common.txt

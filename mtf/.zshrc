@@ -1319,6 +1319,7 @@ alias ipa="ip -br a"
 alias ima="date '+%Y-%m-%d-%H%M%S'"
 alias count="wc -l"
 alias nsp="netstat -plantuev"
+alias path="readlink -f"
 
 alias reg="grep -ir --color=always"
     # grep with pattern: `reg -e 'pattern'`, like `reg -e "test*"`
