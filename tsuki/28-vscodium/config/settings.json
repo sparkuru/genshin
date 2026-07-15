@@ -131,5 +131,8 @@
 	"chat.agent.enabled": false,
 	"chat.disableAIFeatures": true,
 	"workbench.colorTheme": "Quiet Light",
-	"redhat.telemetry.enabled": false
+	"redhat.telemetry.enabled": false,
+	"markdown.copyFiles.destination": {
+		"**/*": "${documentDirName}/assets/${unixTime}.${fileExtName}"
+	}
 }
