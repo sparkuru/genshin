@@ -1,13 +1,53 @@
 #!/bin/bash
 
+DEFAULT_PROXY_POINT="http://198.18.0.1:1080"
+PROXY_POINT="${PROXY_POINT:-$DEFAULT_PROXY_POINT}"
+
+usage() {
+	printf 'Usage: %s [--proxy URL]\n' "$0"
+	printf 'Default proxy: %s\n' "$DEFAULT_PROXY_POINT"
+}
+
+die() {
+	printf 'Error: %s\n' "$*" >&2
+	exit 1
+}
+
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+	--proxy)
+		[[ $# -ge 2 ]] || die "--proxy requires a URL"
+		PROXY_POINT="$2"
+		shift 2
+		;;
+	--help | -h)
+		usage
+		exit 0
+		;;
+	*)
+		die "unknown option: $1"
+		;;
+	esac
+done
+
+# change it if you don't proxy via http proxies like mihomo.
+[[ "$PROXY_POINT" =~ ^https?://[^[:space:]\"/]+(:[0-9]+)?/?$ ]] || die "proxy URL must be http://host:port or https://host:port"
+PROXY_HOST="${PROXY_POINT#*://}"
+PROXY_HOST="${PROXY_HOST%%:*}"
+export ALL_PROXY="$PROXY_POINT"
+export HTTP_PROXY="$PROXY_POINT"
+export HTTPS_PROXY="$PROXY_POINT"
+export all_proxy="$PROXY_POINT"
+export http_proxy="$PROXY_POINT"
+export https_proxy="$PROXY_POINT"
+
 if [ "$(id -u)" -ne 0 ]; then
 	echo "\033[0;31m please rerun "$0" with root user permission \033[0m"
 	exit 1
 fi
 
-PROXY_POINT="http://198.18.0.1:1080"
 GITHUB_URL_BASE="https://raw.githubusercontent.com/sparkuru/genshin/main"
-export all_proxy="$PROXY_POINT"
+DEFAULT_DNS_SERVER="223.5.5.5"
 
 VALID_USER_LIST=("root")
 while read -r line; do
@@ -17,11 +57,35 @@ while read -r line; do
 done < <(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 {print $1}')
 
 _curl() {
-	curl -fLo $1 $2
+	curl -fLo "$1" "$2"
 }
 
 _cp() {
-	cp -rf $1 $2
+	cp -rf "$1" "$2"
+}
+
+configure_resolvconf_dns() {
+	local config_dir="/etc/resolvconf/resolv.conf.d"
+	local head_file="$config_dir/head"
+	local tmp_file
+
+	command -v resolvconf >/dev/null 2>&1 || return 0
+	mkdir -p "$config_dir"
+	tmp_file=$(mktemp)
+
+	if [[ -f "$head_file" ]]; then
+		sed '/^# BEGIN default-dns$/,/^# END default-dns$/d' "$head_file" >"$tmp_file"
+	fi
+
+	cat >>"$tmp_file" <<EOF
+# BEGIN default-dns
+nameserver $DEFAULT_DNS_SERVER
+options timeout:2 attempts:3
+# END default-dns
+EOF
+	install -m 0644 -o root -g root "$tmp_file" "$head_file"
+	rm -f "$tmp_file"
+	resolvconf -u
 }
 
 # init zsh
@@ -95,7 +159,8 @@ to_install_list=(
 )
 
 apt update
-apt install -y ${to_install_list[@]}
+apt install -y "${to_install_list[@]}"
+configure_resolvconf_dns
 # apt install -y ibus ibus-gtk ibus-rime rime-data-emoji im-config
 
 python_version=$(python3 --version | awk '{print $2}' | awk -F. '{print "python"$1"."$2}')
@@ -121,7 +186,7 @@ update-alternatives --install /usr/bin/fd fd /usr/bin/fdfind 1
 
 # fonts
 tmp_fonts_conf_path="/tmp/fonts.conf"
-_curl $tmp_fonts_conf_path $GITHUB_URL_BASE/mtf/fonts.conf
+_curl $tmp_fonts_conf_path $GITHUB_URL_BASE/mtf/etc/fonts.conf
 for user in "${VALID_USER_LIST[@]}"; do
 	mkdir -p /home/$user/.config/fontconfig
 	_cp $tmp_fonts_conf_path /home/$user/.config/fontconfig/fonts.conf
@@ -131,6 +196,7 @@ rm -f $tmp_fonts_conf_path
 
 # rime
 tmp_oh_my_rime_path="/tmp/oh_my_rime"
+rm -rf "$tmp_oh_my_rime_path"
 git clone https://github.com/Mintimate/oh-my-rime.git $tmp_oh_my_rime_path
 for user in "${VALID_USER_LIST[@]}"; do
 	if [ $user = "root" ]; then
@@ -139,17 +205,17 @@ for user in "${VALID_USER_LIST[@]}"; do
 		user_rime_path="/home/$user/.config/fcitx5/rime"
 	fi
 	sudo -u $user mkdir -p $user_rime_path
-	sudo -u $user cp -f $tmp_oh_my_rime_path $user_rime_path
+	sudo -u "$user" cp -a "$tmp_oh_my_rime_path/." "$user_rime_path/"
 done
-rm -f $tmp_oh_my_rime_path
+rm -rf "$tmp_oh_my_rime_path"
 
 # docker
 mkdir -p /etc/systemd/system/docker.service.d
 cat <<EOF >/etc/systemd/system/docker.service.d/proxy.conf
 [Service]
-Environment="HTTP_PROXY=http://198.18.0.1:1080"
-Environment="HTTPS_PROXY=http://198.18.0.1:1080"
-Environment="NO_PROXY=localhost,198.18.0.1"
+Environment="HTTP_PROXY=$PROXY_POINT"
+Environment="HTTPS_PROXY=$PROXY_POINT"
+Environment="NO_PROXY=localhost,127.0.0.1,::1,$PROXY_HOST"
 EOF
 mkdir -p /etc/docker/
 cat <<EOF >/etc/docker/daemon.json
@@ -192,7 +258,7 @@ pip_to_install_list=(
 )
 
 for user in "${VALID_USER_LIST[@]}"; do
-	sudo -u $user pip install ${pip_to_install_list[@]}
+	sudo -u "$user" pip install "${pip_to_install_list[@]}"
 done
 
 # git
@@ -207,7 +273,7 @@ for user in "${VALID_USER_LIST[@]}"; do
 		sudo -u $user git config --global core.quotepath false
 		sudo -u $user git config --global pull.rebase true
 
-		sudo -u $user _curl "/home/$user/.gitignore_global" $GITHUB_URL_BASE/mtf/.gitignore_global
+		sudo -u "$user" env all_proxy="$all_proxy" curl -fLo "/home/$user/.gitignore_global" "$GITHUB_URL_BASE/mtf/.gitignore_global"
 		sudo -u $user git config --global core.excludesfile "/home/$user/.gitignore_global"
 
 		sudo -u $user git config --global --list
@@ -216,14 +282,32 @@ for user in "${VALID_USER_LIST[@]}"; do
 done
 
 # vim
+mkdir -p /tmp/tmp
 _curl /tmp/tmp/unix-install-vim.sh $GITHUB_URL_BASE/mtf/unix-install-vim.sh
 chmod +x /tmp/tmp/unix-install-vim.sh
 for user in "${VALID_USER_LIST[@]}"; do
-	sudo -u $user /tmp/tmp/unix-install-vim.sh install --force
+	sudo -u "$user" env \
+		all_proxy="$all_proxy" \
+		http_proxy="$http_proxy" \
+		https_proxy="$https_proxy" \
+		/tmp/tmp/unix-install-vim.sh install --force
 done
 
 # locale, or run `sudo dpkg-reconfigure locales` to config in terminal GUI
-echo "en_SG.UTF-8 UTF-8\nen_US.UTF-8 UTF-8\nzh_CN.UTF-8 UTF-8\nzh_SG.UTF-8 UTF-8" >>/etc/locale.gen
+sed -i '/\\n/d' /etc/locale.gen
+locale_entries=(
+	"en_SG.UTF-8 UTF-8"
+	"en_US.UTF-8 UTF-8"
+	"zh_CN.UTF-8 UTF-8"
+	"zh_SG.UTF-8 UTF-8"
+)
+for locale_entry in "${locale_entries[@]}"; do
+	if grep -Eq "^[#[:space:]]*${locale_entry}[[:space:]]*$" /etc/locale.gen; then
+		sed -i -E "s|^[#[:space:]]*(${locale_entry})[[:space:]]*$|\\1|" /etc/locale.gen
+	elif ! grep -qxF "$locale_entry" /etc/locale.gen; then
+		printf '%s\n' "$locale_entry" >>/etc/locale.gen
+	fi
+done
 # update-locale LANG=zh_CN.UTF-8 LANGUAGE=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8
 locale-gen
 locale

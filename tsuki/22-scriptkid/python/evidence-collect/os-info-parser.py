@@ -19,6 +19,7 @@ from typing import Any
 DEBUG_MODE = False
 DEFAULT_PORT = 22
 DEFAULT_OUTPUT_PREFIX = "info"
+SUDO_MODES = {"always", "never"}
 
 
 class CLIStyle:
@@ -367,16 +368,21 @@ def default_collect_jobs() -> list[CollectJob]:
 
 
 def command_with_prompt(
-    command_spec: CommandSpec, leading_newline: bool = False
+    command_spec: CommandSpec,
+    use_sudo: bool,
+    leading_newline: bool = False,
 ) -> str:
     """Build one shell command section with a CLI-style prompt."""
     prompt = "\\n$" if leading_newline else "$"
+    command_uses_sudo = command_spec.sudo and use_sudo
     display_text = (
-        f"sudo {command_spec.display}" if command_spec.sudo else command_spec.display
+        f"sudo {command_spec.display}"
+        if command_uses_sudo
+        else command_spec.display
     )
     display = shlex.quote(display_text)
     command = command_spec.command
-    if command_spec.sudo:
+    if command_uses_sudo:
         command = (
             "printf '%s\\n' \"$OS_INFO_SUDO_PASSWORD\" "
             f"| sudo -S -p '' \"$OS_INFO_REMOTE_SHELL\" -c {shlex.quote(command)}"
@@ -384,10 +390,10 @@ def command_with_prompt(
     return f"printf '{prompt} %s\\n' {display}; {command}"
 
 
-def command_group(commands: list[CommandSpec]) -> str:
+def command_group(commands: list[CommandSpec], use_sudo: bool) -> str:
     """Build a shell script that prints prompts before command output."""
     script = "; ".join(
-        command_with_prompt(command_spec, index > 0)
+        command_with_prompt(command_spec, use_sudo, index > 0)
         for index, command_spec in enumerate(commands)
     )
     return f"{script}; true"
@@ -566,10 +572,15 @@ def build_ssh_args(config: ConnectionConfig, command_script: str) -> list[str]:
     ]
 
 
-def collect_job(config: ConnectionConfig, job: CollectJob, output_dir: Path) -> bool:
+def collect_job(
+    config: ConnectionConfig,
+    job: CollectJob,
+    output_dir: Path,
+    use_sudo: bool,
+) -> bool:
     """Run one collection job and write its output file."""
     output_path = output_dir / job.filename
-    command_script = command_group(job.commands)
+    command_script = command_group(job.commands, use_sudo)
     ssh_args = build_ssh_args(config, command_script)
 
     CLIStyle.write(
@@ -698,6 +709,15 @@ def create_parser() -> ColoredArgumentParser:
         help=CLIStyle.color("SSH port. Defaults to 22.", CLIStyle.COLORS["CONTENT"]),
     )
     parser.add_argument(
+        "--sudo",
+        choices=sorted(SUDO_MODES),
+        default="always",
+        help=CLIStyle.color(
+            "Privilege mode: always (default) or never.",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
+    parser.add_argument(
         "-c",
         "--config",
         metavar="FILE",
@@ -754,12 +774,14 @@ def run_collection(args: argparse.Namespace) -> int:
         f"Target : {config.user}@{config.ip}:{config.port}", CLIStyle.COLORS["CONTENT"]
     )
     CLIStyle.write(f"Output : {output_dir}", CLIStyle.COLORS["CONTENT"])
+    CLIStyle.write(f"Sudo   : {args.sudo}", CLIStyle.COLORS["CONTENT"])
     CLIStyle.write(f"Jobs   : {len(jobs)}", CLIStyle.COLORS["CONTENT"])
     CLIStyle.write()
 
     success_count = 0
+    use_sudo = args.sudo == "always"
     for job in jobs:
-        if collect_job(config, job, output_dir):
+        if collect_job(config, job, output_dir, use_sudo):
             success_count += 1
 
     CLIStyle.write()

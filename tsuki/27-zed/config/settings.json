@@ -7,6 +7,21 @@
 // custom settings, run `zed: open default settings` from the
 // command palette (cmd-shift-p / ctrl-shift-p)
 {
+  "cli_default_open_behavior": "existing_window",
+  "project_panel": {
+    "dock": "left"
+  },
+  "agent": {
+    "enabled": false,
+    "button": false,
+    "favorite_models": [],
+    "model_parameters": []
+  },
+  "agent_servers": {
+    "codex-acp": {
+      "type": "registry"
+    }
+  },
   "telemetry": {
     "diagnostics": false,
     "metrics": false
@@ -18,17 +33,25 @@
     "enabled": false
   },
   "minimap": {
-    "show": "auto"
+    "show": "always"
   },
   "buffer_font_fallbacks": [
     "文泉驿等宽微米黑"
   ],
   "buffer_font_family": "MonoLisa-Medium",
   "file_types": {
+    "asm-collection": [
+      "*.{a80,z80,asm,inc,s}"
+    ],
+    "asm-list-file": [
+      "*.{list,lis}"
+    ],
     "markdown": [
+      "*.pmt",
       "*.pmt"
     ],
     "toml": [
+      "*.tldr",
       "*.tldr"
     ]
   },

@@ -21,42 +21,35 @@ _cp() {
 	cp -rf $1 $2
 }
 
-fix_resolvconf_dns() {
-	local dns_server=$(ip n | awk -F' ' { print $1 })
-	local conf_dir="/etc/resolvconf/resolv.conf.d"
-	local head_file="$conf_dir/head"
-	local backup_file="$conf_dir/head.backup.$(date +%Y%m%d-%H%M%S)"
-	local tmp_file="/tmp/resolvconf-head.$$"
+configure_resolvconf_dns() {
+	local config_dir="/etc/resolvconf/resolv.conf.d"
+	local head_file="$config_dir/head"
+	local dns_server
+	local tmp_file
 
-	if ! command -v resolvconf >/dev/null 2>&1; then
-		return 0
-	fi
+	command -v resolvconf >/dev/null 2>&1 || return 0
+	dns_server=$(ip n | awk 'NR == 1 { print $1 }')
+	[[ -n "$dns_server" ]] || {
+		printf 'Error: unable to determine the AWS DNS server\n' >&2
+		return 1
+	}
+	mkdir -p "$config_dir"
+	tmp_file=$(mktemp)
 
-	mkdir -p "$conf_dir"
-	if [ -e "$head_file" ]; then
-		cp -a "$head_file" "$backup_file"
-	else
-		: >"$backup_file"
-	fi
-
-	if [ -e "$head_file" ]; then
-		sed '/^# BEGIN aws-dns-fix$/,/^# END aws-dns-fix$/d' "$head_file" >"$tmp_file"
-	else
-		: >"$tmp_file"
+	if [[ -f "$head_file" ]]; then
+		sed '/^# BEGIN default-dns$/,/^# END default-dns$/d' "$head_file" >"$tmp_file"
 	fi
 
 	cat >>"$tmp_file" <<EOF
-# BEGIN aws-dns-fix
+# BEGIN default-dns
 nameserver $dns_server
 options timeout:2 attempts:3
-# END aws-dns-fix
+# END default-dns
 EOF
 	install -m 0644 -o root -g root "$tmp_file" "$head_file"
 	rm -f "$tmp_file"
 	resolvconf -u
 }
-
-fix_resolvconf_dns
 
 # init zsh
 tmp_zshrc_path="/tmp/zshrc"
@@ -118,7 +111,8 @@ to_install_list=(
 )
 
 apt update
-apt install -y ${to_install_list[@]}
+apt install -y "${to_install_list[@]}"
+configure_resolvconf_dns
 # apt install -y ibus ibus-gtk ibus-rime rime-data-emoji im-config
 
 python_version=$(python3 --version | awk '{print $2}' | awk -F. '{print "python"$1"."$2}')
@@ -175,7 +169,7 @@ pip_to_install_list=(
 )
 
 for user in "${VALID_USER_LIST[@]}"; do
-	sudo -u $user pip install ${pip_to_install_list[@]}
+	sudo -u "$user" pip install "${pip_to_install_list[@]}"
 done
 
 # git

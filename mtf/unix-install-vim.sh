@@ -11,6 +11,7 @@ NC='\033[0m'
 ACTION=""
 TARGET_SCOPE="all"
 FORCE=0
+PROXY_URL="${VIM_INSTALL_PROXY:-${all_proxy:-${ALL_PROXY:-${https_proxy:-${HTTPS_PROXY:-}}}}}"
 
 log_info() {
     printf "%b\n" "${CYAN}$1${NC}"
@@ -30,16 +31,22 @@ log_error() {
 
 usage() {
     cat <<USAGE
-usage: $0 <install|remove> [--user-only|--root-only] [--force]
+usage: $0 <install|remove> [--user-only|--root-only] [--force] [--proxy URL]
 
 options:
   --user-only   apply only to the primary login user
   --root-only   apply only to root user
   --force       overwrite existing files / relink conflicting paths
+  --proxy URL   use this proxy for downloads and PlugInstall
 USAGE
 }
 
 parse_args() {
+    if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+        usage
+        exit 0
+    fi
+
     if [[ $# -lt 1 ]]; then
         usage
         exit 1
@@ -75,6 +82,14 @@ parse_args() {
             --force)
                 FORCE=1
                 ;;
+            --proxy)
+                if [[ $# -lt 2 ]]; then
+                    log_error "--proxy requires a URL"
+                    exit 1
+                fi
+                PROXY_URL="$2"
+                shift
+                ;;
             -h|--help)
                 usage
                 exit 0
@@ -87,6 +102,24 @@ parse_args() {
         esac
         shift
     done
+}
+
+configure_proxy() {
+    if [[ -z "$PROXY_URL" ]]; then
+        return 0
+    fi
+
+    if [[ ! "$PROXY_URL" =~ ^[a-zA-Z][a-zA-Z0-9+.-]*://[^[:space:]\"]+$ ]]; then
+        log_error "invalid proxy URL: $PROXY_URL"
+        exit 1
+    fi
+
+    export ALL_PROXY="$PROXY_URL"
+    export HTTP_PROXY="$PROXY_URL"
+    export HTTPS_PROXY="$PROXY_URL"
+    export all_proxy="$PROXY_URL"
+    export http_proxy="$PROXY_URL"
+    export https_proxy="$PROXY_URL"
 }
 
 resolve_home() {
@@ -260,7 +293,6 @@ download_file() {
 
     local tmp_file
     tmp_file="$(mktemp)"
-    trap 'rm -f "$tmp_file"' RETURN
 
     if [[ "$FORCE" -eq 1 && ( -e "$target" || -L "$target" ) ]]; then
         log_info "overwrite $target <- $url"
@@ -268,11 +300,30 @@ download_file() {
         log_info "download $target <- $url"
     fi
 
-    curl -fsSL "$url" -o "$tmp_file"
-    install_file "$tmp_file" "$target" "$owner" "$group"
+    local attempt
+    for attempt in 1 2 3; do
+        if curl --fail --location --silent --show-error \
+            --connect-timeout 10 --max-time 120 \
+            --output "$tmp_file" "$url"; then
+            break
+        fi
+
+        if [[ "$attempt" -eq 3 ]]; then
+            log_error "download failed after $attempt attempts: $url"
+            rm -f "$tmp_file"
+            return 1
+        fi
+
+        log_warn "download failed (attempt $attempt/3), retrying: $url"
+        sleep "$attempt"
+    done
+
+    if ! install_file "$tmp_file" "$target" "$owner" "$group"; then
+        rm -f "$tmp_file"
+        return 1
+    fi
 
     rm -f "$tmp_file"
-    trap - RETURN
 }
 
 should_handle_primary() {
@@ -383,10 +434,20 @@ run_plug_install() {
         if [[ "$target_user" == "root" ]]; then
             HOME="$target_home" "$preferred_vim_bin" -u "$target_home/.vimrc" -c 'PlugInstall --sync' -c 'qa'
         else
-            sudo -u "$target_user" env HOME="$target_home" "$preferred_vim_bin" -u "$target_home/.vimrc" -c 'PlugInstall --sync' -c 'qa'
+            sudo -u "$target_user" env \
+                HOME="$target_home" \
+                all_proxy="${all_proxy:-}" \
+                http_proxy="${http_proxy:-}" \
+                https_proxy="${https_proxy:-}" \
+                "$preferred_vim_bin" -u "$target_home/.vimrc" -c 'PlugInstall --sync' -c 'qa'
         fi
     elif [[ "$target_user" == "root" ]]; then
-        sudo -u root env HOME="$target_home" "$preferred_vim_bin" -u "$target_home/.vimrc" -c 'PlugInstall --sync' -c 'qa'
+        sudo -u root env \
+            HOME="$target_home" \
+            all_proxy="${all_proxy:-}" \
+            http_proxy="${http_proxy:-}" \
+            https_proxy="${https_proxy:-}" \
+            "$preferred_vim_bin" -u "$target_home/.vimrc" -c 'PlugInstall --sync' -c 'qa'
     else
         HOME="$target_home" "$preferred_vim_bin" -u "$target_home/.vimrc" -c 'PlugInstall --sync' -c 'qa'
     fi
@@ -562,6 +623,7 @@ remove_vim() {
 }
 
 parse_args "$@"
+configure_proxy
 
 case "$ACTION" in
     install)

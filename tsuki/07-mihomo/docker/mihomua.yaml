@@ -10,11 +10,11 @@ services:
       - /dev/net/tun:/dev/net/tun
     environment:
       - TZ=Asia/Shanghai
-      - WEB_PORT=7894
+      - WEB_PORT=1082
     ports:
       - "1080:1080" # set your port here
-      - "7893:7893" # set your external controller port here
-      - "7894:7894"
+      - "1081:1081" # set your external controller port here
+      - "1082:1082"
     volumes:
       - ./config:/root/.config/mihomo
     restart: always
@@ -28,7 +28,7 @@ services:
       - NET_ADMIN
     environment:
       - WAN_IFACE=vmbr0          # adjust to your host's WAN/LAN-facing iface
-      - TUN_IFACE=paimon         # mihomo tun.device name in mihomo config file
+      - TUN_IFACE=segfault         # mihomo tun.device name in mihomo config file
       - MARK=0x100/0x100
       - RULE_PREF=8500           # must be < mihomo auto-route's pref (9002)
     depends_on:
