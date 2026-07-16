@@ -80,8 +80,6 @@ If the user accepts, continue with the initialization procedure below.
    python3 <UUPM-SKILL-DIRECTORY>/scripts/search.py --help
    ```
 
-5. Inspect the generated files' tracked/ignored state and existing project convention before deciding whether they need version-control handling. Preserve unrelated ignore rules and report the decision.
-
 If initialization fails, report the exact command, failure, and files created. Do not continue as though UUPM were initialized.
 
 ## Trellis Workflow Integration

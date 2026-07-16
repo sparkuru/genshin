@@ -159,7 +159,7 @@ to_install_list=(
 )
 
 apt update
-apt install -y "${to_install_list[@]}"
+aptitude install -y "${to_install_list[@]}"
 configure_resolvconf_dns
 # apt install -y ibus ibus-gtk ibus-rime rime-data-emoji im-config
 

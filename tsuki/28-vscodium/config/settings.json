@@ -134,5 +134,6 @@
 	"redhat.telemetry.enabled": false,
 	"markdown.copyFiles.destination": {
 		"**/*": "${documentDirName}/assets/${unixTime}.${fileExtName}"
-	}
+	},
+	"workbench.browser.showInTitleBar": false
 }

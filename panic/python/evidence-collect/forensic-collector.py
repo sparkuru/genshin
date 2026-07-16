@@ -809,6 +809,7 @@ def build_remote_collection_script(
     copy_fd_files = "1" if options.copy_fd_files else "0"
 
     return f"""set -u
+FORENSIC_REMOTE_SHELL=/bin/sh
 WORK_DIR={shlex.quote(remote_dir)}
 TOOL_DIR="$WORK_DIR/tools"
 TOOL_BASE_URL={shlex.quote(tool_url)}
@@ -924,6 +925,8 @@ write_manifest() {{
         echo "tool_base_url=$TOOL_BASE_URL"
         echo "dump_memory=$DUMP_MEMORY"
         echo "copy_fd_files=$COPY_FD_FILES"
+        echo "network_connections=enabled"
+        echo "open_file_handles=enabled"
         echo "max_fd_file_bytes=$MAX_FD_FILE_BYTES"
         echo "max_raw_memory_bytes=$MAX_RAW_MEMORY_BYTES"
     }} > "$WORK_DIR/manifest.txt"
@@ -962,6 +965,12 @@ collect_system_network() {{
     }} > "$WORK_DIR/network_io.txt"
 
     {{
+        run_shell_section "ss-all" "ss -H -a -n -e -o -p 2>/dev/null || netstat -anpe 2>/dev/null || true"
+        run_shell_section "proc-net-unix" "cat /proc/net/unix 2>/dev/null || true"
+        run_shell_section "conntrack-sample" "command -v conntrack >/dev/null && conntrack -L 2>/dev/null | head -n 5000 || true"
+    }} > "$WORK_DIR/network_connections.txt"
+
+    {{
         run_shell_section "ps-auxww" "ps auxww"
         run_shell_section "ps-detailed" "ps -eo pid,ppid,user,lstart,etime,stat,comm,args"
         run_shell_section "pstree" "command -v pstree >/dev/null && pstree -alp || true"
@@ -997,16 +1006,19 @@ FORENSIC_NAME_LIST
     }} | sort -un > "$WORK_DIR/process/target_pids.txt"
 }}
 
-collect_fd_links() {{
+collect_open_handles() {{
     pid="$1"
     pid_dir="$2"
     : > "$pid_dir/fd_links.tsv"
     : > "$pid_dir/files_from_fds.txt"
+    printf 'fd\\ttarget\\tfdinfo\\n' > "$pid_dir/open_handles.tsv"
     for fd_path in /proc/"$pid"/fd/*; do
         [ -e "$fd_path" ] || continue
         fd_name="${{fd_path##*/}}"
         target_path=$(readlink "$fd_path" 2>/dev/null || true)
+        fdinfo=$(tr '\\n' ';' < "/proc/$pid/fdinfo/$fd_name" 2>/dev/null || true)
         printf '%s\\t%s\\n' "$fd_name" "$target_path" >> "$pid_dir/fd_links.tsv"
+        printf '%s\\t%s\\t%s\\n' "$fd_name" "$target_path" "$fdinfo" >> "$pid_dir/open_handles.tsv"
         case "$target_path" in
             /*)
                 printf '%s\\n' "$target_path" | sed 's/ (deleted)$//' >> "$pid_dir/files_from_fds.txt"
@@ -1014,6 +1026,31 @@ collect_fd_links() {{
         esac
     done
     sort -u "$pid_dir/files_from_fds.txt" -o "$pid_dir/files_from_fds.txt" 2>/dev/null || true
+}}
+
+collect_process_network_connections() {{
+    pid="$1"
+    pid_dir="$2"
+    socket_fds="$pid_dir/socket_fds.tsv"
+    printf 'fd\\tsocket_inode\\n' > "$socket_fds"
+    for fd_path in /proc/"$pid"/fd/*; do
+        [ -e "$fd_path" ] || continue
+        fd_name=$(basename "$fd_path")
+        target_path=$(readlink "$fd_path" 2>/dev/null || true)
+        socket_inode=$(printf '%s\\n' "$target_path" | sed -n 's/^socket:\\[\\(.*\\)\\]$/\\1/p')
+        [ -n "$socket_inode" ] || continue
+        printf '%s\\t%s\\n' "$fd_name" "$socket_inode" >> "$socket_fds"
+    done
+
+    {{
+        run_shell_section "ss-by-pid" "ss -H -a -n -e -o -p 2>/dev/null | grep -F \\"pid=$pid,\\" || true"
+        run_shell_section "socket-fds" "cat $socket_fds"
+        run_shell_section "tcp" "awk 'NR == FNR {{ inode[\\$2] = 1; next }} FNR == 1 || (\\$10 in inode)' $socket_fds /proc/$pid/net/tcp 2>/dev/null"
+        run_shell_section "tcp6" "awk 'NR == FNR {{ inode[\\$2] = 1; next }} FNR == 1 || (\\$10 in inode)' $socket_fds /proc/$pid/net/tcp6 2>/dev/null"
+        run_shell_section "udp" "awk 'NR == FNR {{ inode[\\$2] = 1; next }} FNR == 1 || (\\$10 in inode)' $socket_fds /proc/$pid/net/udp 2>/dev/null"
+        run_shell_section "udp6" "awk 'NR == FNR {{ inode[\\$2] = 1; next }} FNR == 1 || (\\$10 in inode)' $socket_fds /proc/$pid/net/udp6 2>/dev/null"
+        run_shell_section "unix" "awk 'NR == FNR {{ inode[\\$2] = 1; next }} FNR == 1 || (\\$7 in inode)' $socket_fds /proc/$pid/net/unix 2>/dev/null"
+    }} > "$pid_dir/network_connections.txt"
 }}
 
 copy_regular_fd_files() {{
@@ -1130,12 +1167,11 @@ collect_process() {{
     cp "/proc/$pid/maps" "$pid_dir/maps.txt" 2>/dev/null || true
     cp "/proc/$pid/smaps" "$pid_dir/smaps.txt" 2>/dev/null || true
     cp -a "/proc/$pid/fdinfo" "$pid_dir/fdinfo" 2>/dev/null || true
-    collect_fd_links "$pid" "$pid_dir"
+    collect_open_handles "$pid" "$pid_dir"
+    collect_process_network_connections "$pid" "$pid_dir"
 
     {{
         run_shell_timeout_section "lsof" 15 "command -v lsof >/dev/null && lsof -nP -p $pid || true"
-        run_shell_section "sockets-by-ss" "ss -pan 2>/dev/null | grep -F \\"pid=$pid,\\" || true"
-        run_shell_section "socket-fds" "ls -al /proc/$pid/fd 2>/dev/null | grep socket || true"
     }} > "$pid_dir/open_files_and_sockets.txt"
 
     if [ "$COPY_FD_FILES" = "1" ]; then
@@ -1312,6 +1348,7 @@ def create_parser() -> ColoredArgumentParser:
         "Telnet configs are recognized, but telnet collection is not implemented yet.",
         "Memory dumping requires gcore or gdb on the target host and may briefly pause the process.",
         "If gdb/gcore fails, readable memory regions are dumped from /proc/<pid>/mem up to --max-memory-mb.",
+        "Network connections and process file-handle metadata are collected by default.",
         "Opened regular files are copied only when --copy-fd-files is set.",
         "Static tools are searched as <tool>-<arch>, <tool>_<arch>, <tool>.<arch>, then <tool>.",
         "Output includes sha256sums.txt for collected files.",

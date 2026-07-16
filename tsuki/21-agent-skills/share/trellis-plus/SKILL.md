@@ -20,7 +20,6 @@ The job is to inspect the project, infer how mature validation should work, then
 - If a frontend/UI project has no project-local UI/UX Pro Max initialization for the active AI platform, ask the user whether to initialize it before running UUPM commands or adding UUPM-derived design artifacts. Do not silently install or overwrite it.
 - If there is no `.trellis/` directory, stop after reporting that Trellis has not been initialized.
 - If there are unrecognized local changes, do not overwrite them. Read the affected files and patch around the user's work.
-- Before modifying agent-specific or platform-specific files, inspect their tracked/ignored state, Trellis delegation, existing project convention, and user intent. Apply the narrowest suitable change and report its version-control effect.
 - After `trellis update`, reapply Trellis Plus to affected customizations that were overwritten, skipped, or emitted as `.new`.
 
 ## Discovery Workflow
@@ -29,7 +28,6 @@ The job is to inspect the project, infer how mature validation should work, then
    - `.trellis/workflow.md`
    - `.trellis/spec/**/index.md`
    - `.trellis/tasks/**/task.json`
-   - agent templates or platform configuration when Trellis refers to them
 2. Classify Trellis-managed update state:
    - Check `.trellis/.version`, `.trellis/.template-hashes.json`, and recent `.trellis/.backup-*` directories when present.
    - If the user just ran `trellis update`, inspect the newest backup for previously injected Trellis Plus blocks before patching.
@@ -45,7 +43,7 @@ The job is to inspect the project, infer how mature validation should work, then
    - Classify frontend/UI presence and record the evidence used: frontend framework dependencies, UI source files, frontend scripts/configuration, mobile UI targets, or an explicit UI requirement in the active task.
    - Check whether UI/UX Pro Max is initialized in the project for the active platform. A global installation does not count as project initialization.
 5. Infer dev-command wrapper state:
-   - Check for `hako`, `dev`, `.devhome`, and active-platform configuration needed for local wrapper approval.
+   - Check for `hako`, `dx`, `dev`, and `.devhome`.
    - If no dev wrapper exists and the project has a clear toolchain, prepare to apply the Docker dev-wrapper enhancement.
 6. Infer commit attribution style:
    - Read `git log --format=%B -n 20` or equivalent recent history.
@@ -61,7 +59,6 @@ The job is to inspect the project, infer how mature validation should work, then
    - inferred validation profile
    - dev wrapper state and auto-allow target
    - inferred commit attribution trailer
-   - version-control handling for any agent-specific or platform-specific target changed
    - `trellis update` risk: whether any patched file is a Trellis template target and whether backup recovery was used
    - any manual follow-up the next Trellis task should request
 
@@ -82,11 +79,8 @@ Use the narrowest durable target that exists in the project:
 
 - Add state-machine behavior to `.trellis/workflow.md` when the rule must apply every time the workflow reaches a phase.
 - Add review or validation expectations to an existing `.trellis/spec/**/index.md` when the rule is a reusable project convention.
-- Add agent-specific wording only when Trellis delegates that exact phase to the target file and the repository's convention supports it.
 - Add frontend planning wording to the project's plan/brainstorm skill or equivalent when it exists; otherwise add a short pointer to `.trellis/workflow.md`. Keep UUPM's detailed procedure in its reference file.
 - Add commit-command wording to the Phase 3.4 section of `.trellis/workflow.md` when the rule changes how work commits are drafted or executed.
-
-Keep reusable phase behavior in `.trellis/workflow.md` and project conventions in `.trellis/spec/**`. Handle agent-specific and platform-specific files according to their role in the active project rather than a fixed directory policy.
 
 Do not create a parallel Trellis framework. Extend the installed one.
 
