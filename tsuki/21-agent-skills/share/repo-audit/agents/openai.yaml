@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repository Audit"
+  short_description: "Audit repository architecture and engineering risks"
+  default_prompt: "Use $repo-audit to inspect this repository, evaluate its architecture and engineering-practice fit, and recommend concrete improvements."

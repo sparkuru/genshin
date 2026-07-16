@@ -20,8 +20,8 @@ The job is to inspect the project, infer how mature validation should work, then
 - If a frontend/UI project has no project-local UI/UX Pro Max initialization for the active AI platform, ask the user whether to initialize it before running UUPM commands or adding UUPM-derived design artifacts. Do not silently install or overwrite it.
 - If there is no `.trellis/` directory, stop after reporting that Trellis has not been initialized.
 - If there are unrecognized local changes, do not overwrite them. Read the affected files and patch around the user's work.
-- Do not treat an ignored Trellis agent file as local-only by default. If Trellis delegates a phase to that file, make it visible with a scoped project `.gitignore` exception unless the user explicitly wants local-only behavior.
-- Assume `trellis update` may refresh `.trellis/workflow.md`, `.trellis/scripts/**`, `.trellis/agents/**`, platform skills, platform commands, hooks, and `AGENTS.md`. Reapply Trellis Plus after update when those files were overwritten, skipped, or emitted as `.new`.
+- Before modifying agent-specific or platform-specific files, inspect their tracked/ignored state, Trellis delegation, existing project convention, and user intent. Apply the narrowest suitable change and report its version-control effect.
+- After `trellis update`, reapply Trellis Plus to affected customizations that were overwritten, skipped, or emitted as `.new`.
 
 ## Discovery Workflow
 
@@ -29,10 +29,7 @@ The job is to inspect the project, infer how mature validation should work, then
    - `.trellis/workflow.md`
    - `.trellis/spec/**/index.md`
    - `.trellis/tasks/**/task.json`
-   - `.claude/skills/trellis-*`, `.claude/commands/trellis/**`, or equivalent agent templates if present
-   - Codex project files such as `.codex/config.toml`, `.codex/hooks.json`, `.codex/rules/default.rules`, `.codex/agents/trellis-*.toml`, and `.codex/hooks/*.py`
-   - OpenCode project files such as `opencode.json` and `.opencode/plugins/**`
-   - `AGENTS.md`, `CLAUDE.md`, or other agent instruction files when Trellis refers to them
+   - agent templates or platform configuration when Trellis refers to them
 2. Classify Trellis-managed update state:
    - Check `.trellis/.version`, `.trellis/.template-hashes.json`, and recent `.trellis/.backup-*` directories when present.
    - If the user just ran `trellis update`, inspect the newest backup for previously injected Trellis Plus blocks before patching.
@@ -48,7 +45,7 @@ The job is to inspect the project, infer how mature validation should work, then
    - Classify frontend/UI presence and record the evidence used: frontend framework dependencies, UI source files, frontend scripts/configuration, mobile UI targets, or an explicit UI requirement in the active task.
    - Check whether UI/UX Pro Max is initialized in the project for the active platform. A global installation does not count as project initialization.
 5. Infer dev-command wrapper state:
-   - Check for `hako`, `dx`, `dev`, `.devhome`, `.gitignore`, and agent config files such as `.claude/settings.local.json`, `.codex/rules/default.rules`, `.codex/config.toml`, and `opencode.json`.
+   - Check for `hako`, `dev`, `.devhome`, and active-platform configuration needed for local wrapper approval.
    - If no dev wrapper exists and the project has a clear toolchain, prepare to apply the Docker dev-wrapper enhancement.
 6. Infer commit attribution style:
    - Read `git log --format=%B -n 20` or equivalent recent history.
@@ -64,7 +61,7 @@ The job is to inspect the project, infer how mature validation should work, then
    - inferred validation profile
    - dev wrapper state and auto-allow target
    - inferred commit attribution trailer
-   - ignored/unignored Trellis agent targets and any `.gitignore` exceptions added
+   - version-control handling for any agent-specific or platform-specific target changed
    - `trellis update` risk: whether any patched file is a Trellis template target and whether backup recovery was used
    - any manual follow-up the next Trellis task should request
 
@@ -85,76 +82,17 @@ Use the narrowest durable target that exists in the project:
 
 - Add state-machine behavior to `.trellis/workflow.md` when the rule must apply every time the workflow reaches a phase.
 - Add review or validation expectations to an existing `.trellis/spec/**/index.md` when the rule is a reusable project convention.
-- Add agent-specific wording to `.claude/skills/trellis-before-dev/SKILL.md`, `.claude/skills/trellis-check/SKILL.md`, `.claude/skills/trellis-update-spec/SKILL.md`, `.codex/skills/before-dev/SKILL.md`, or similar files only when Trellis delegates that exact phase to those skills.
+- Add agent-specific wording only when Trellis delegates that exact phase to the target file and the repository's convention supports it.
 - Add frontend planning wording to the project's plan/brainstorm skill or equivalent when it exists; otherwise add a short pointer to `.trellis/workflow.md`. Keep UUPM's detailed procedure in its reference file.
 - Add commit-command wording to the Phase 3.4 section of `.trellis/workflow.md` when the rule changes how work commits are drafted or executed.
-- Add a short pointer in `AGENTS.md` only if the project already uses it as the agent entry point.
 
-Before patching agent-specific Trellis files such as `.agents/**`, `.claude/**`, `.codex/**`, `.cursor/**`, `.opencode/**`, `.gemini/**`, `opencode.json`, or `AGENTS.md`, check whether the target is tracked or ignored with `git ls-files -- <TARGET-PATH>` and `git check-ignore -v -- <TARGET-PATH>`.
-
-If a direct Trellis delegation target is ignored only because of a global or broad ignore rule, prefer adding a scoped project `.gitignore` exception before editing it. Unignore every parent directory needed for Git to see the file. Keep the exception narrow, for example:
-
-```gitignore
-# Project-owned Trellis agent instructions.
-!.agents/
-!.agents/skills/
-!.agents/skills/trellis-*/
-!.agents/skills/trellis-*/SKILL.md
-```
-
-Platform files are project behavior when Trellis generated or references them. Do not classify them as local-only just because their directory is usually ignored globally. Use platform-specific narrow exceptions instead of broad unignore rules:
-
-```gitignore
-# Project-owned Codex Trellis integration.
-!.codex/
-.codex/*
-!.codex/config.toml
-!.codex/hooks.json
-!.codex/rules/
-.codex/rules/*
-!.codex/rules/default.rules
-!.codex/agents/
-.codex/agents/*
-!.codex/agents/trellis-*.toml
-!.codex/hooks/
-.codex/hooks/*
-!.codex/hooks/inject-workflow-state.py
-!.codex/hooks/session-start.py
-```
-
-```gitignore
-# Project-owned Claude Trellis integration.
-!.claude/
-.claude/*
-!.claude/skills/
-.claude/skills/*
-!.claude/skills/trellis-*/
-!.claude/skills/trellis-*/SKILL.md
-!.claude/commands/
-.claude/commands/*
-!.claude/commands/trellis/
-!.claude/commands/trellis/**
-```
-
-```gitignore
-# Project-owned OpenCode Trellis integration.
-!opencode.json
-!.opencode/
-.opencode/*
-!.opencode/plugins/
-!.opencode/plugins/trellis-*/
-!.opencode/plugins/trellis-*/**
-!.opencode/plugins/trellis-*.js
-!.opencode/plugins/trellis-*.ts
-```
-
-Do not silently move phase-local behavior into `.trellis/workflow.md` merely because the direct agent file is ignored. Use `.trellis/workflow.md` for shared state-machine and phase rules; use agent skill, command, hook, rules, or platform config files for runtime instructions consumed by that platform. If the user explicitly wants ignored local-only behavior, patch the ignored file and report that the change will not be committed.
+Keep reusable phase behavior in `.trellis/workflow.md` and project conventions in `.trellis/spec/**`. Handle agent-specific and platform-specific files according to their role in the active project rather than a fixed directory policy.
 
 Do not create a parallel Trellis framework. Extend the installed one.
 
 ## Update Resilience
 
-Trellis documents `trellis update` as syncing the project's `.trellis/` templates and platform files to the installed CLI version while preserving local edits through hash-based conflict handling and timestamped backups. Treat Trellis Plus blocks as project customizations that may be prompted, skipped, copied to `.new`, or overwritten with `trellis update -f`.
+Trellis may update project templates while preserving local edits through hash-based conflict handling and timestamped backups. Treat Trellis Plus blocks as project customizations that may be prompted, skipped, copied to `.new`, or overwritten with `trellis update -f`.
 
 When applying Trellis Plus after an update:
 
@@ -162,7 +100,7 @@ When applying Trellis Plus after an update:
 - Inspect the active files and the newest `.trellis/.backup-*` snapshot for prior `Trellis Plus:` sections.
 - Reapply the enhancement to the current active file, adapting to the updated upstream wording instead of restoring the old file wholesale.
 - If an update removes a UUPM workflow pointer, reapply the pointer without silently rerunning `uipro init` or overwriting the project-local UUPM installation. Ask again only when the project-local installation is actually absent or incomplete.
-- Do not add `.trellis/workflow.md`, platform skill directories, or platform command directories to `update.skip` by default; that prevents upstream workflow fixes from landing. Use `update.skip` only when the user deliberately forks a target and accepts manual merges after each Trellis update.
+- Do not add `.trellis/workflow.md` to `update.skip` by default; that prevents upstream workflow fixes from landing. Use `update.skip` only when the user deliberately forks a target and accepts manual merges after each Trellis update.
 
 ## Expected Result
 

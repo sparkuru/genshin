@@ -1,6 +1,6 @@
 # init-my-dpkg
 
-选择 dpkg 系的 debian、ubuntu、kali 都可以，下文以 kali 为参考
+选择 dpkg 系的 debian、ubuntu、kali、aosc 都可以，下文以 kali 为参考
 
 1. 如果是使用 vmware 直接的镜像，需要改名
     1. `sudo passwd root`，然后使用 root 登录：`su`，关闭原 kali 用户所有进程 `pkill -9 kali`
@@ -284,7 +284,7 @@ Device          Start        End   Sectors   Size Type
 
         mount /dev/neme0n1p1 boot/efi --mkdir
         ```
-    4. 设置自动挂载，通过 `genfstab -U / >> /etc/fstab` 写入开机自动挂载表
+    4. 设置自动挂载，通过 `genfstab -U / > /etc/fstab` 写入开机自动挂载表
         ```bash
         # /dev/nvme1n1p2
         UUID=16b28ae6-839d-4601-801b-c57ebc5b15ff       /               ext4            rw,relatime     0 1

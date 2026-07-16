@@ -1,23 +1,12 @@
----
-name: architecture-audit
-description: "Audit a software project's architecture, architecture documents, Trellis specs/tasks/workflow fit, module boundaries, dependency direction, maintainability, extensibility, and fit to engineering best/major practices. Use when the user asks to review whether a project's architecture is reasonable, whether an existing architecture design or Trellis spec satisfies requirements, whether the project is low-coupling/high-cohesion, or how to evolve the codebase toward better architecture."
----
+# Architecture and Evolution Audit
 
-# Architecture Audit
-
-## Purpose
-
-Use this skill to inspect a repository as an engineering system, not just as isolated code. Ground every conclusion in project evidence, then guide the project toward lower coupling, higher cohesion, clearer boundaries, easier extension, and easier maintenance.
+Use this module to inspect a repository's architecture as an engineering system. Ground every conclusion in project evidence, then guide the project toward lower coupling, higher cohesion, clearer boundaries, easier extension, and easier maintenance.
 
 Prefer concrete project fit over generic architecture slogans. A small script repo does not need the same structure as a distributed service; a product with compliance, data integrity, or deployment risk needs stronger design records and validation gates.
 
 ## Operating Rules
 
-- Respond in the user's language unless they ask otherwise.
-- Read repository evidence before judging. Do not infer architecture quality from directory names alone.
 - Separate confirmed facts, reasoned inferences, and open questions.
-- Prefer incremental, behavior-preserving evolution over big rewrites unless the current design blocks delivery or creates clear operational risk.
-- Treat "best practice" as context-sensitive major practice: explain why a practice fits this project's scale, team, domain, risk, and change rate.
 - When proposing changes, include the smallest useful next step, the validation needed, and the expected reduction in coupling, ambiguity, or risk.
 
 ## Discovery Workflow
@@ -50,7 +39,7 @@ When `.trellis/` exists, treat Trellis as part of the architecture evidence mode
 - Treat `.trellis/tasks/**` as planned or in-progress change evidence, not necessarily as final architecture.
 - Treat `.trellis/workflow.md` as governance evidence: check whether the workflow asks for design review, validation, human feedback, architecture docs, or task completion gates.
 - Report whether architecture gaps belong in an ADR, a Trellis spec update, a workflow rule, or a task-local note. Prefer the narrowest durable location that matches the project's existing Trellis conventions.
-- Do not apply `$trellis-plus` enhancements unless the user asks for Trellis workflow changes. This skill audits architecture; Trellis workflow injection is a separate concern.
+- Do not apply `$trellis-plus` enhancements unless the user asks for Trellis workflow changes. This module audits architecture; Trellis workflow injection is a separate concern.
 
 ## Evaluation Dimensions
 
@@ -93,7 +82,7 @@ Do not introduce heavyweight patterns by default. Use layered architecture, hexa
 
 ## Output Shape
 
-For an audit, produce:
+For an architecture audit, produce:
 
 1. Architecture summary: what the system appears to be and its main moving parts.
 2. Design-document status: found, missing, stale, or partial; include searched locations.

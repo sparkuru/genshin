@@ -80,7 +80,7 @@ If the user accepts, continue with the initialization procedure below.
    python3 <UUPM-SKILL-DIRECTORY>/scripts/search.py --help
    ```
 
-5. Apply the main skill's tracked/ignored-file rules to generated `.codex/`, `.claude/`, `.opencode/`, or other platform files. Add only narrow project `.gitignore` exceptions when the files are Trellis- or UUPM-owned project behavior.
+5. Inspect the generated files' tracked/ignored state and existing project convention before deciding whether they need version-control handling. Preserve unrelated ignore rules and report the decision.
 
 If initialization fails, report the exact command, failure, and files created. Do not continue as though UUPM were initialized.
 

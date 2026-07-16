@@ -4,6 +4,8 @@
 import argparse
 import atexit
 import base64
+from contextlib import contextmanager
+from dataclasses import dataclass
 import http.server
 import html
 import io
@@ -20,11 +22,12 @@ import socket
 import socketserver
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import traceback
 import webbrowser
-from typing import List, Optional, Tuple
+from typing import BinaryIO, Dict, Iterator, List, Optional, Tuple
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import cgi
@@ -39,10 +42,12 @@ DEBUG_MODE = False
 BATCH_MODE = False
 SERVER_INSTANCE = None
 DEFAULT_PORT = 7888
+PORTAL_NAME = "HTTP-based FILE TRANSFER PORTAL"
 EXIT_EVENT = threading.Event()
 LOCAL_IPS = set()
 PASTEBIN_ENDPOINT = "/__pastebin"
 MAX_PASTEBIN_BYTES = 1024 * 1024
+UPLOAD_CHUNK_SIZE = 1024 * 1024
 
 FAVICON_ICO_BASE64 = "AAABAAIAEBAAAAEAIABoBAAAJgAAACAgAAABACAAqBAAAI4EAAAoAAAAEAAAACAAAAABACAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAA/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////+7u7v/h4eH/4eHh/+Hh4f/h4eH/4eHh/+Hh4f/h4eH/4eHh/+Hh4f/h4eH/4eHh/+Hh4f/h4eH/6enp//39/f///////////87Ozv89PT3/HR0d/x4eHv8eHh7/Hh4e/x4eHv8eHh7/Hh4e/x4eHv8eHh7/HR0d/ysrK/+oqKj///////////+IiIj/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/UlJS//v7+///////gICA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/0pKSv/5+fn//////4CAgP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/SkpK//n5+f//////gICA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/0pKSv/5+fn//////4CAgP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP9KSkr/+fn5//////+AgID/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/0pKSv/5+fn//////4CAgP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP9MTEz/+vr6//////+Dg4P/AAAA/wAAAP8AAAD/AAAA/wEBAf8FBQX/BQUF/wUFBf8FBQX/BQUF/wUFBf8FBQX/BQUF/wUFBf8LCwv/iYmJ////////////t7e3/xkZGf8EBAT/BQUF/wcHB/9iYmL/tra2/7a2tv+2trb/tra2/7a2tv+2trb/xMTE//T09P////////////v7+//Pz8//tra2/7a2tv+7u7v/7+/v/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAoAAAAIAAAAEAAAAABACAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAA///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////7+/v/6urq/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/4+Pj/+Pj4//j4+P/5OTk//Pz8//+/v7/////////////////////////////////5+fn/3t7e/8vLy//Gxsb/xwcHP8cHBz/HBwc/xwcHP8cHBz/HBwc/xwcHP8cHBz/HBwc/xwcHP8cHBz/HBwc/xwcHP8cHBz/HBwc/xwcHP8fHx//TU1N/7W1tf/9/f3///////////////////////39/f96enr/AQEB/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/JSUl/9TU1P//////////////////////6urq/zAwMP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/CAgL/lJSU///////////////////////j4+P/HBwc/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/4CAgP//////////////////////4+Pj/xwcHP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/gICA///////////////////////j4+P/HBwc/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/+AgID//////////////////////+Pj4/8cHBz/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/4CAgP//////////////////////4+Pj/xwcHP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/4ODg///////////////////////4+Pj/xwcHP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8MDAz/sbGx///////////////////////k5OT/Hx8f/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/CwsL/2FhYf/w8PD///////////////////////Pz8/9OTk7/AAAA/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/wAAAP8BAQH/RkZG/4GBgf+AgID/f39//39/f/9/f3//f39//39/f/9/f3//f39//39/f/9/f3//f39//4ODg/+xsbH/8PDw/////////////////////////////////7W1tf8kJCT/AwMD/wAAAP8AAAD/AAAA/wAAAP8AAAD/AAAA/09PT//k5OT//////////////////////////////////////////////////////////////////////////////////////////////////////////////////f39/9TU1P+Tk5P/f39//39/f/9/f3//f39//39/f/+JiYn/4+Pj/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 FAVICON_ICO_BYTES = base64.b64decode(FAVICON_ICO_BASE64)
@@ -83,6 +88,94 @@ class NewFileTracker:
 
 
 NEW_FILE_TRACKER = NewFileTracker()
+
+
+@dataclass(frozen=True)
+class UploadResult:
+    """Describe a completed atomic upload."""
+
+    existed: bool
+    size: int
+
+
+class UploadCoordinator:
+    """Serialize writes per target and replace completed uploads atomically."""
+
+    def __init__(self) -> None:
+        self._registry_lock = threading.Lock()
+        self._locks: Dict[str, Tuple[threading.Lock, int]] = {}
+
+    @contextmanager
+    def _lock_target(self, filepath: str) -> Iterator[None]:
+        target = os.path.realpath(filepath)
+        with self._registry_lock:
+            lock, users = self._locks.get(target, (threading.Lock(), 0))
+            self._locks[target] = (lock, users + 1)
+
+        lock.acquire()
+        try:
+            yield
+        finally:
+            lock.release()
+            with self._registry_lock:
+                _, users = self._locks[target]
+                if users == 1:
+                    del self._locks[target]
+                else:
+                    self._locks[target] = (lock, users - 1)
+
+    def write_stream(
+        self, filepath: str, source: BinaryIO, expected_size: Optional[int] = None
+    ) -> UploadResult:
+        """Write a stream to a sibling temporary file and atomically replace its target."""
+        destination = os.path.realpath(filepath)
+        directory = os.path.dirname(destination)
+        os.makedirs(directory, exist_ok=True)
+
+        with self._lock_target(destination):
+            existed = os.path.exists(destination)
+            descriptor, temp_path = tempfile.mkstemp(
+                prefix=f".{os.path.basename(destination)}.",
+                suffix=".upload",
+                dir=directory,
+            )
+            try:
+                with os.fdopen(descriptor, "wb") as target:
+                    size = self._copy_stream(source, target, expected_size)
+                    target.flush()
+                    os.fsync(target.fileno())
+                os.replace(temp_path, destination)
+                return UploadResult(existed=existed, size=size)
+            finally:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+
+    def write_bytes(self, filepath: str, content: bytes) -> UploadResult:
+        """Atomically write in-memory upload content."""
+        return self.write_stream(filepath, io.BytesIO(content), len(content))
+
+    @staticmethod
+    def _copy_stream(
+        source: BinaryIO, target: BinaryIO, expected_size: Optional[int]
+    ) -> int:
+        """Copy an upload stream in bounded chunks and reject incomplete bodies."""
+        total = 0
+        while expected_size is None or total < expected_size:
+            remaining = None if expected_size is None else expected_size - total
+            chunk_size = UPLOAD_CHUNK_SIZE if remaining is None else min(
+                UPLOAD_CHUNK_SIZE, remaining
+            )
+            chunk = source.read(chunk_size)
+            if not chunk:
+                if expected_size is not None and total != expected_size:
+                    raise ValueError("Incomplete upload body")
+                break
+            target.write(chunk)
+            total += len(chunk)
+        return total
+
+
+UPLOAD_COORDINATOR = UploadCoordinator()
 
 
 TEXT_EXTENSIONS = {
@@ -1837,13 +1930,11 @@ initTheme();
             self.send_error(400, "Cannot PUT to directory")
             return
 
-        existed = os.path.exists(path)
-        action = "modify" if existed else "upload"
+        action = "upload"
         try:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
             length = int(self.headers["Content-Length"])
-            with open(path, "wb") as f:
-                f.write(self.rfile.read(length))
+            result = UPLOAD_COORDINATOR.write_stream(path, self.rfile, length)
+            action = "modify" if result.existed else "upload"
 
             NEW_FILE_TRACKER.register(path)
             self.send_response(201)
@@ -1944,7 +2035,7 @@ initTheme();
 
         displaypath = unquote(self.path)
         enc = sys.getfilesystemencoding()
-        title = f"Directory: {displaypath}"
+        title = f"{PORTAL_NAME} - Directory: {displaypath}"
         paste_snapshot = PASTEBIN.snapshot()
         paste_text = html.escape(paste_snapshot["text"])
         paste_size = self._format_size(paste_snapshot["size"])
@@ -1972,6 +2063,8 @@ initTheme();
     --accent-purple: #8250df;
     --accent-red: #cf222e;
     --hover-bg: rgba(208, 215, 222, 0.32);
+    --header-bg: #e8f1fb;
+    --header-border: #8fbbe8;
 }}
 [data-theme="dark"] {{
     --bg-primary: #0d1117;
@@ -1986,6 +2079,8 @@ initTheme();
     --accent-purple: #a371f7;
     --accent-red: #f85149;
     --hover-bg: rgba(48, 54, 61, 0.5);
+    --header-bg: #1b2a3a;
+    --header-border: #3974a8;
 }}
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}
 html {{ font-size: 18px; }}
@@ -2003,11 +2098,14 @@ body {{
     padding: 1.5rem;
 }}
 header {{
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
+    background: var(--header-bg);
+    border: 1px solid var(--header-border);
     border-radius: 8px;
     padding: 1rem 1.25rem;
     margin-bottom: 1rem;
+    position: sticky;
+    top: 0.75rem;
+    z-index: 10;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
@@ -2558,7 +2656,7 @@ footer {{
 <div class="container">
     <header>
         <div class="header-left">
-            <h1>File Server</h1>
+            <h1>{html.escape(PORTAL_NAME)}</h1>
             <div class="breadcrumb">{self._generate_breadcrumb(displaypath)}</div>
         </div>
         <button class="theme-toggle" onclick="toggleTheme()">
@@ -2792,7 +2890,8 @@ footer {{
 
         html_content += """
     </div>
-    <footer>FAST FILE TRANSFER SERVER by HTTP</footer>
+</div>
+<footer>""" + html.escape(PORTAL_NAME) + """</footer>
 </div>
 
 <div class="modal-overlay" id="deleteModal">
@@ -3060,23 +3159,29 @@ function uploadOneFile(file, index, total, basePath) {
 
         let lastLoaded = 0;
         let lastTime = Date.now();
+        let smoothedSpeed = 0;
+        let speedText = '-';
+        let remainingText = '-';
 
         xhr.upload.addEventListener('progress', function(e) {
             if (e.lengthComputable) {
                 const percent = Math.round((e.loaded / e.total) * 100);
                 const now = Date.now();
                 const timeDiff = (now - lastTime) / 1000;
-                let speed = '-';
-                let remaining = '-';
                 if (timeDiff >= 0.25) {
                     const byteDiff = e.loaded - lastLoaded;
-                    speed = formatBytes(byteDiff / timeDiff) + '/s';
-                    const left = e.total - e.loaded;
-                    remaining = formatTime(byteDiff > 0 ? left / (byteDiff / timeDiff) : 0);
+                    const measuredSpeed = byteDiff / timeDiff;
+                    if (measuredSpeed > 0) {
+                        smoothedSpeed = smoothedSpeed > 0
+                            ? smoothedSpeed * 0.7 + measuredSpeed * 0.3
+                            : measuredSpeed;
+                        speedText = formatBytes(smoothedSpeed) + '/s';
+                        remainingText = formatTime((e.total - e.loaded) / smoothedSpeed);
+                    }
                     lastLoaded = e.loaded;
                     lastTime = now;
                 }
-                updateProgressForFile(file, index, total, percent, e.loaded, e.total, speed, remaining);
+                updateProgressForFile(file, index, total, percent, e.loaded, e.total, speedText, remainingText);
             }
         });
 
@@ -3264,9 +3369,9 @@ function initUploadCliExamples() {
     const target = base + path;
 
     window.__hftpCmds = {
-        curlPut: `curl -T file.txt ${target}`,
-        curlPutBinary: `curl -X PUT --data-binary @file.txt ${target}`,
-        wgetPut: `wget --method=PUT --body-file=file.txt ${target}`
+        curlPut: `curl ${target} -T file.txt`,
+        curlPutBinary: `curl ${target} -X PUT --data-binary @file.txt`,
+        wgetPut: `wget ${target} --method=PUT --body-file=file.txt`
     };
 
     const el1 = document.getElementById('cmdCurlPut');
@@ -3284,10 +3389,10 @@ function initPasteCliExamples() {
 
     window.__hftpPasteCmds = {
         curlGet: `curl -sS '${rawEndpoint}'`,
-        curlPut: `curl -T paste.txt '${endpoint}'`,
+        curlPut: `curl '${endpoint}' -T paste.txt`,
         curlPipe: `echo 'STH' | curl -sS -X PUT --data-binary @- '${endpoint}'`,
         wgetGet: `wget -qO- '${rawEndpoint}'`,
-        wgetPut: `wget --method=PUT --body-file=paste.txt -O- '${endpoint}'`,
+        wgetPut: `wget -O- '${endpoint}' --method=PUT --body-file=paste.txt`,
         wgetPipe: `echo 'STH' | sh -c 'wget --method=PUT --body-data="$(cat)" -O- "$1"' sh '${endpoint}'`
     };
 
@@ -3572,11 +3677,8 @@ initPasteCliExamples();
         for fileitem in fileitems:
             fn = os.path.basename(fileitem.filename)
             save_path = self._resolve_upload_path(fn)
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            file_exists = os.path.exists(save_path)
-
-            with open(save_path, "wb") as f:
-                shutil.copyfileobj(fileitem.file, f)
+            result = UPLOAD_COORDINATOR.write_stream(save_path, fileitem.file)
+            file_exists = result.existed
 
             NEW_FILE_TRACKER.register(save_path)
             action = "modify" if file_exists else "upload"
@@ -3618,11 +3720,8 @@ initPasteCliExamples();
         file_content = base64.b64decode(data_field)
         filename = params.get("filename", [None])[0]
         save_path = self._resolve_upload_path(filename)
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        file_exists = os.path.exists(save_path)
-
-        with open(save_path, "wb") as f:
-            f.write(file_content)
+        result = UPLOAD_COORDINATOR.write_bytes(save_path, file_content)
+        file_exists = result.existed
 
         NEW_FILE_TRACKER.register(save_path)
         action = "modify" if file_exists else "upload"
@@ -3646,11 +3745,8 @@ initPasteCliExamples();
             return
 
         save_path = self._resolve_upload_path()
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        file_exists = os.path.exists(save_path)
-
-        with open(save_path, "wb") as f:
-            f.write(self.rfile.read(length))
+        result = UPLOAD_COORDINATOR.write_stream(save_path, self.rfile, length)
+        file_exists = result.existed
 
         NEW_FILE_TRACKER.register(save_path)
         action = "modify" if file_exists else "upload"
@@ -4053,7 +4149,7 @@ def _is_unstable_exec_path(exec_cmd: str) -> bool:
 def generate_systemd_service(port: int, work_dir: str, exec_cmd: str) -> str:
     """Generate systemd service file content."""
     service_content = f"""[Unit]
-Description=FAST FILE TRANSFER SERVER by HTTP
+Description={PORTAL_NAME}
 After=network.target
 
 [Service]
@@ -4139,7 +4235,7 @@ def main() -> int:
     ]
 
     parser = ColoredArgumentParser(
-        description=CLIStyle.color("Fast HTTP File Server", CLIStyle.COLORS["TITLE"])
+        description=CLIStyle.color(PORTAL_NAME, CLIStyle.COLORS["TITLE"])
         + "\n"
         + CLIStyle.color(f"Script path: {script_path}", CLIStyle.COLORS["CONTENT"]),
         formatter_class=argparse.RawDescriptionHelpFormatter,
