@@ -488,7 +488,7 @@ fi
 
 # repo
 github_username="sparkuru"
-github_url_base="https://raw.githubusercontent.com/${github_username}/genshin/refs/heads/main"
+github_url_base="https://raw.githubusercontent.com/${github_username}/genshin/main"
 # local
 leader_path_name="cargo"
 
