@@ -2,9 +2,12 @@
 
 DEFAULT_PROXY_POINT="http://198.18.0.1:1080"
 PROXY_POINT="${PROXY_POINT:-$DEFAULT_PROXY_POINT}"
+readonly STYLE_RESET=$'\033[0m'
+readonly STYLE_PROGRESS=$'\033[1;36m'
+readonly STYLE_SUCCESS=$'\033[1;32m'
 
 usage() {
-	printf 'Usage: %s [--proxy URL]\n' "$0"
+	printf 'Usage: %s [--proxy URL] [--dns "SERVER ..."]\n' "$0"
 	printf 'Default proxy: %s\n' "$DEFAULT_PROXY_POINT"
 }
 
@@ -13,11 +16,32 @@ die() {
 	exit 1
 }
 
+progress() {
+	if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+		printf '\n==> %s\n' "$*"
+		return 0
+	fi
+	printf '\n%s==> %s%s\n' "$STYLE_PROGRESS" "$*" "$STYLE_RESET"
+}
+
+success() {
+	if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+		printf '==> %s\n' "$*"
+		return 0
+	fi
+	printf '%s==> %s%s\n' "$STYLE_SUCCESS" "$*" "$STYLE_RESET"
+}
+
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 	--proxy)
 		[[ $# -ge 2 ]] || die "--proxy requires a URL"
 		PROXY_POINT="$2"
+		shift 2
+		;;
+	--dns)
+		[[ $# -ge 2 ]] || die "--dns requires one or more IP addresses"
+		DNS_SERVERS="$2"
 		shift 2
 		;;
 	--help | -h)
@@ -47,8 +71,8 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 GITHUB_URL_BASE="https://raw.githubusercontent.com/sparkuru/genshin/main"
-DEFAULT_DNS_SERVER="223.5.5.5"
 
+progress "Detecting configured users"
 VALID_USER_LIST=("root")
 while read -r line; do
 	if [[ -d "/home/$line" ]]; then
@@ -64,38 +88,14 @@ _cp() {
 	cp -rf "$1" "$2"
 }
 
-configure_resolvconf_dns() {
-	local config_dir="/etc/resolvconf/resolv.conf.d"
-	local head_file="$config_dir/head"
-	local tmp_file
-
-	command -v resolvconf >/dev/null 2>&1 || return 0
-	mkdir -p "$config_dir"
-	tmp_file=$(mktemp)
-
-	if [[ -f "$head_file" ]]; then
-		sed '/^# BEGIN default-dns$/,/^# END default-dns$/d' "$head_file" >"$tmp_file"
-	fi
-
-	cat >>"$tmp_file" <<EOF
-# BEGIN default-dns
-nameserver $DEFAULT_DNS_SERVER
-options timeout:2 attempts:3
-# END default-dns
-EOF
-	install -m 0644 -o root -g root "$tmp_file" "$head_file"
-	rm -f "$tmp_file"
-	resolvconf -u
-}
-
 # init zsh
+progress "Installing Zsh configuration"
 tmp_zshrc_path="/tmp/zshrc"
 _curl $tmp_zshrc_path $GITHUB_URL_BASE/mtf/.zshrc
 for user in "${VALID_USER_LIST[@]}"; do
 	if [ $user = "root" ]; then
 		target_dir_path="/root/.zshrc"
 	else
-
 		target_dir_path=/home/$user/.zshrc
 	fi
 	_cp $tmp_zshrc_path $target_dir_path
@@ -103,6 +103,7 @@ done
 rm -f $tmp_zshrc_path
 
 # ssh
+progress "Installing SSH configuration"
 tmp_ssh_authorized_keys_path="/tmp/ssh_authorized_keys"
 _curl $tmp_ssh_authorized_keys_path $GITHUB_URL_BASE/mtf/authorized_keys
 for user in "${VALID_USER_LIST[@]}"; do
@@ -158,11 +159,24 @@ to_install_list=(
 	freecad
 )
 
+progress "Updating package index and installing system packages"
 apt update
 aptitude install -y "${to_install_list[@]}"
-configure_resolvconf_dns
 # apt install -y ibus ibus-gtk ibus-rime rime-data-emoji im-config
 
+# configure DNS
+progress "Downloading and applying DNS configuration"
+tmp_dns_config_path=$(mktemp)
+_curl "$tmp_dns_config_path" "$GITHUB_URL_BASE/mtf/configure-dns.sh" || die "failed to download DNS configuration script"
+chmod +x "$tmp_dns_config_path" || die "failed to make DNS configuration script executable"
+if [[ -n "${DNS_SERVERS:-}" ]]; then
+	"$tmp_dns_config_path" --dns "$DNS_SERVERS" || die "DNS configuration failed"
+else
+	"$tmp_dns_config_path" || die "DNS configuration failed"
+fi
+rm -f -- "$tmp_dns_config_path"
+
+progress "Preparing Python package installation"
 python_version=$(python3 --version | awk '{print $2}' | awk -F. '{print "python"$1"."$2}')
 if [[ -f "/usr/lib/${python_version}/EXTERNALLY-MANAGED" ]]; then
 	mv /usr/lib/${python_version}/EXTERNALLY-MANAGED /usr/lib/${python_version}/EXTERNALLY-MANAGED.backup
@@ -178,6 +192,7 @@ fi
 # fi
 
 # for pkg in $(dpkg -l | grep fcitx | awk '{print $2}'); do apt purge -y $pkg; done
+progress "Cleaning unused system packages"
 apt purge -y needrestart
 apt autoremove -y
 apt autoclean -y
@@ -185,16 +200,23 @@ apt autoclean -y
 update-alternatives --install /usr/bin/fd fd /usr/bin/fdfind 1
 
 # fonts
+progress "Installing font configuration"
 tmp_fonts_conf_path="/tmp/fonts.conf"
 _curl $tmp_fonts_conf_path $GITHUB_URL_BASE/mtf/etc/fonts.conf
 for user in "${VALID_USER_LIST[@]}"; do
-	mkdir -p /home/$user/.config/fontconfig
-	_cp $tmp_fonts_conf_path /home/$user/.config/fontconfig/fonts.conf
+	if [ "$user" = "root" ]; then
+		target_dir_path="/root/.config/fontconfig"
+	else
+		target_dir_path="/home/$user/.config/fontconfig"
+	fi
+	mkdir -p "$target_dir_path"
+	_cp "$tmp_fonts_conf_path" "$target_dir_path/fonts.conf"
 done
 fc-cache -f
 rm -f $tmp_fonts_conf_path
 
 # rime
+progress "Installing Rime schema files"
 tmp_oh_my_rime_path="/tmp/oh_my_rime"
 rm -rf "$tmp_oh_my_rime_path"
 git clone https://github.com/Mintimate/oh-my-rime.git $tmp_oh_my_rime_path
@@ -210,6 +232,7 @@ done
 rm -rf "$tmp_oh_my_rime_path"
 
 # docker
+progress "Configuring Docker proxy and network pools"
 mkdir -p /etc/systemd/system/docker.service.d
 cat <<EOF >/etc/systemd/system/docker.service.d/proxy.conf
 [Service]
@@ -234,6 +257,7 @@ cat <<EOF >/etc/docker/daemon.json
 EOF
 
 # python
+progress "Configuring Python package index"
 cat <<EOF >/etc/pip.conf
 [global]
 index-url = https://mirrors.ustc.edu.cn/pypi/simple
@@ -257,11 +281,13 @@ pip_to_install_list=(
 	pillow markdown pygments playwright
 )
 
+progress "Installing Python packages for configured users"
 for user in "${VALID_USER_LIST[@]}"; do
 	sudo -u "$user" pip install "${pip_to_install_list[@]}"
 done
 
 # git
+progress "Configuring Git defaults"
 for user in "${VALID_USER_LIST[@]}"; do
 	if [ $user = "wkyuu" ]; then
 		sudo -u $user git config --global user.email i@majo.im
@@ -282,18 +308,19 @@ for user in "${VALID_USER_LIST[@]}"; do
 done
 
 # vim
-mkdir -p /tmp/tmp
-_curl /tmp/tmp/unix-install-vim.sh $GITHUB_URL_BASE/mtf/unix-install-vim.sh
-chmod +x /tmp/tmp/unix-install-vim.sh
+progress "Installing Vim configuration"
+_curl /tmp/unix-install-vim.sh $GITHUB_URL_BASE/mtf/unix-install-vim.sh
+chmod +x /tmp/unix-install-vim.sh
 for user in "${VALID_USER_LIST[@]}"; do
 	sudo -u "$user" env \
 		all_proxy="$all_proxy" \
 		http_proxy="$http_proxy" \
 		https_proxy="$https_proxy" \
-		/tmp/tmp/unix-install-vim.sh install --force
+		/tmp/unix-install-vim.sh install --force
 done
 
 # locale, or run `sudo dpkg-reconfigure locales` to config in terminal GUI
+progress "Generating locales"
 sed -i '/\\n/d' /etc/locale.gen
 locale_entries=(
 	"en_SG.UTF-8 UTF-8"
@@ -313,16 +340,23 @@ locale-gen
 locale
 
 # timezone
+progress "Setting system timezone"
 timedatectl set-timezone Asia/Singapore
 
+progress "Adding users to system groups"
 groups="adm,sudo,docker,netdev,libvirt,dialout,plugdev,wireshark"
 for user in "${VALID_USER_LIST[@]}"; do
 	usermod -aG $groups $user
 done
 
+progress "Correcting home directory ownership"
 for user in "${VALID_USER_LIST[@]}"; do
-	chown -R $user:$user /home/$user
+	if [ "$user" != "root" ]; then
+		chown -R "$user:$user" "/home/$user"
+	fi
 done
+
+success "System initialization completed"
 
 # 其他需要安装的软件
 # siyuan-note、百度网盘、wps（12.1.0.17881）、wechat、linuxqq、wemeet、vmware-workstation、virtualbox、mihomua

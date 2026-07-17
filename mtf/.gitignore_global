@@ -2,12 +2,11 @@
 *.gdb_history
 *.pdf
 
-geass
+*.iso
 
 .opencode
 .claude
 .codex
-.cursor
 
 .venv
 .env
@@ -20,9 +19,6 @@ geass
 *.tgz
 *.gz
 *.bz2
-
-# think
-*.pmt
 
 # ai agent
 .agents

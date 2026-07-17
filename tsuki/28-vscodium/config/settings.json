@@ -21,9 +21,6 @@
 	"extensions.autoCheckUpdates": false,
 	"editor.stickyScroll.enabled": false,
 	"window.confirmSaveUntitledWorkspace": false,
-	"[nginx]": {
-		"editor.defaultFormatter": "ahmadalli.vscode-nginx-conf"
-	},
 	"[json]": {
 		"editor.defaultFormatter": "vscode.json-language-features"
 	},
@@ -64,9 +61,6 @@
 		}
 	},
 	"terminal.external.linuxExec": "bash",
-	"[dockerfile]": {
-		"editor.defaultFormatter": "ms-azuretools.vscode-docker"
-	},
 	"git.openRepositoryInParentFolders": "never",
 	"editor.minimap.enabled": true,
 	"editor.insertSpaces": false,
@@ -135,5 +129,6 @@
 	"markdown.copyFiles.destination": {
 		"**/*": "${documentDirName}/assets/${unixTime}.${fileExtName}"
 	},
-	"workbench.browser.showInTitleBar": false
+	"workbench.browser.showInTitleBar": false,
+	"chatgpt.commentCodeLensEnabled": false
 }

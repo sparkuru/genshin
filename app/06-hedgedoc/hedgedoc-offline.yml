@@ -3,39 +3,40 @@ services:
     image: mariadb:10.11
     container_name: hedgedoc_db
     environment:
-      - TZ=Asia/Shanghai
-      - MARIADB_ROOT_PASSWORD=password
-      - MARIADB_DATABASE=hedgedoc
-      - MARIADB_USER=hedgedoc
-      - MARIADB_PASSWORD=password
+      TZ: Asia/Shanghai
+      MARIADB_ROOT_PASSWORD: ${HEDGEDOC_DB_ROOT_PASSWORD:?Run ./init-hedgedoc.sh first}
+      MARIADB_DATABASE: hedgedoc
+      MARIADB_USER: hedgedoc
+      MARIADB_PASSWORD: ${HEDGEDOC_DB_PASSWORD:?Run ./init-hedgedoc.sh first}
     volumes:
       - ./db:/var/lib/mysql
-    restart: always
+    restart: unless-stopped
     networks:
       - hedgedoc_network
 
   hedgedoc:
-    image: lscr.io/linuxserver/hedgedoc:latest
+    image: lscr.io/linuxserver/hedgedoc:1.11.0
     container_name: hedgedoc
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Asia/Shanghai
-      - CMD_DOMAIN=localhost # nginx 会动态替换为实际访问的 host, 实现 docker network 内网隔离, 对外只暴露一个 port
-      - CMD_PROTOCOL_USESSL=false
-      - CMD_URL_ADDPORT=true
-      - CMD_DOCUMENT_MAX_LENGTH=100000000
-      - CMD_PORT=${HEDGEDOC_PORT:-3000}
-      - CMD_EMAIL=true # 是否需要加 @email.com 后缀登录，若 false 则无法注册
-      - CMD_ALLOW_EMAIL_REGISTER=true # 是否允许用户注册，建议是在注册完后再关闭注册
-      - CMD_ALLOW_ORIGIN=['localhost','127.0.0.1']
-      - CMD_CSP_ENABLE=false
-      - CMD_DB_URL=mysql://hedgedoc:password@hedgedoc_db:3306/hedgedoc # 需要提前创建数据库 hedgedoc, 账密 hedgedoc / password
-      - UPLOADS_MODE=0744
-      - CMD_HSTS_ENABLE=false
+      PUID: 1000
+      PGID: 1000
+      TZ: Asia/Shanghai
+      CMD_DOMAIN: ${CMD_DOMAIN:?Run ./init-hedgedoc.sh first}
+      CMD_PROTOCOL_USESSL: ${CMD_PROTOCOL_USESSL:?Run ./init-hedgedoc.sh first}
+      CMD_URL_ADDPORT: ${CMD_URL_ADDPORT:?Run ./init-hedgedoc.sh first}
+      CMD_ALLOW_ORIGIN: ${CMD_ALLOW_ORIGIN:?Run ./init-hedgedoc.sh first}
+      CMD_CSP_ENABLE: ${CMD_CSP_ENABLE:?Run ./init-hedgedoc.sh first}
+      CMD_PORT: ${HEDGEDOC_APP_PORT:?Run ./init-hedgedoc.sh first}
+      CMD_DOCUMENT_MAX_LENGTH: 100000000
+      CMD_EMAIL: "true"
+      CMD_ALLOW_EMAIL_REGISTER: "true"
+      CMD_DB_URL: mysql://hedgedoc:${HEDGEDOC_DB_PASSWORD:?Run ./init-hedgedoc.sh first}@hedgedoc_db:3306/hedgedoc
+      UPLOADS_MODE: "0744"
+      CMD_HSTS_ENABLE: "false"
+      FILE__CMD_SESSION_SECRET: /config/secrets/session-secret
     volumes:
       - ./config:/config
-    restart: always
+    restart: unless-stopped
     networks:
       - hedgedoc_network
     depends_on:
@@ -45,15 +46,15 @@ services:
     image: nginx:alpine
     container_name: hedgedoc_nginx
     environment:
-      - HEDGEDOC_PORT=${HEDGEDOC_PORT:-3000}
-      - NGINX_LISTEN_PORT=${NGINX_LISTEN_PORT:-80}
+      HEDGEDOC_APP_PORT: ${HEDGEDOC_APP_PORT:?Run ./init-hedgedoc.sh first}
+      NGINX_LISTEN_PORT: 80
     volumes:
       - ./nginx.conf:/etc/nginx/templates/nginx.conf.template:ro
     command: >
-      sh -c "envsubst '$$HEDGEDOC_PORT $$NGINX_LISTEN_PORT' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
+      sh -c "envsubst '$$HEDGEDOC_APP_PORT $$NGINX_LISTEN_PORT' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
     ports:
-      - ${HEDGEDOC_PORT:-3000}:${NGINX_LISTEN_PORT:-80}
-    restart: always
+      - ${HEDGEDOC_HOST_PORT:?Run ./init-hedgedoc.sh first}:80
+    restart: unless-stopped
     networks:
       - hedgedoc_network
     depends_on:
@@ -61,4 +62,3 @@ services:
 
 networks:
   hedgedoc_network:
-# docker-compose -f $PWD/hedgedoc.yml up -d
