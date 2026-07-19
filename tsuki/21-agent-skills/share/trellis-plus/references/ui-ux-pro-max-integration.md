@@ -157,7 +157,7 @@ The check agent must verify the implementation against both the task acceptance 
 - chart readability and non-color indicators when data visualization exists
 - page performance, image handling, large-list strategy, and stack-specific conventions
 
-Lint, type-check, unit tests, and build success are not sufficient UI verification. Use browser/device/manual checks when repository evidence or the change risk requires them, and feed the result into the submit-ready human review gate.
+Lint, type-check, unit tests, and build success are not sufficient UI verification. For browser-automatable web UI work, follow the Playwright automated validation enhancement before asking for manual review. Use device or manual checks only for residual risks that Playwright cannot test effectively, then feed those residual risks into the submit-ready human review gate.
 
 ### Update Spec
 
@@ -173,5 +173,5 @@ After applying this enhancement, verify:
 - incomplete initialization is not reported as successful
 - the workflow points to UUPM in Plan, Implement, Check, and Update Spec at the narrowest available targets
 - UUPM research is saved under the active task and added to both implement and check context
-- UI checks include states, responsive behavior, accessibility, and manual review when needed
+- UI checks include states, responsive behavior, accessibility, Playwright validation when browser-automatable, and manual review only when needed
 - `trellis update` recovery re-applies pointers without silently reinstalling or overwriting UUPM

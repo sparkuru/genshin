@@ -1,6 +1,6 @@
 ---
 name: trellis-plus
-description: Enhances an existing or newly initialized Trellis workflow with project-specific conventions. Use when the user asks to apply `trellis-plus`, improve Trellis templates, inject durable Trellis workflow rules, add submit-ready human review gates, add ChatGPT/Codex commit completion summaries and co-author trailers, bootstrap Docker-based dev commands, integrate UI/UX Pro Max (UUPM) for frontend projects, or make a Trellis project infer its testing and feedback process from the repository.
+description: Enhances an existing or newly initialized Trellis workflow with project-specific conventions. Use when the user asks to apply `trellis-plus`, improve Trellis templates, inject durable Trellis workflow rules, add Playwright-based frontend validation, add submit-ready human review gates, add ChatGPT/Codex commit completion summaries and co-author trailers, bootstrap Docker-based dev commands, integrate UI/UX Pro Max (UUPM) for frontend projects, or make a Trellis project infer its testing and feedback process from the repository.
 ---
 
 # Trellis Plus
@@ -17,6 +17,7 @@ The job is to inspect the project, infer how mature validation should work, then
 - Preserve existing Trellis wording and state names. Add small, clearly titled sections instead of rewriting the whole workflow.
 - Prefer repository evidence over generic advice: package files, test scripts, CI files, existing test directories, docs, and the current task's PRD/check context.
 - Classify whether the repository or active task has a frontend/UI surface before applying frontend-specific enhancements. Do not trigger UI/UX Pro Max (UUPM) for a backend-only project merely because it contains a package manifest.
+- For browser-automatable frontend work, prefer a reproducible Playwright validation over asking the user to perform a generic smoke test. Retain human review only for the residual judgment or environment the agent cannot test effectively.
 - If a frontend/UI project has no project-local UI/UX Pro Max initialization for the active AI platform, ask the user whether to initialize it before running UUPM commands or adding UUPM-derived design artifacts. Do not silently install or overwrite it.
 - If there is no `.trellis/` directory, stop after reporting that Trellis has not been initialized.
 - If there are unrecognized local changes, do not overwrite them. Read the affected files and patch around the user's work.
@@ -41,6 +42,9 @@ The job is to inspect the project, infer how mature validation should work, then
    - Identify lint, format, type-check, unit, integration, e2e, build, smoke, visual, device, or manual validation commands.
    - Distinguish commands the agent can run from checks that require the user's environment, credentials, GUI inspection, hardware, production-like data, or paid/external services.
    - Classify frontend/UI presence and record the evidence used: frontend framework dependencies, UI source files, frontend scripts/configuration, mobile UI targets, or an explicit UI requirement in the active task.
+   - For frontend/UI work, inspect for `@playwright/test`, `playwright.config.*`, Playwright scripts, browser-test directories, test fixtures, screenshot baselines, and CI browser-install steps. Decide whether the changed acceptance criteria can be exercised against a local or test deployment without private credentials or real devices.
+   - If another browser-test runner is already the project convention, record whether it provides equivalent coverage; do not silently migrate or duplicate the suite merely to introduce Playwright.
+   - Read any existing `Trellis Plus: Playwright Validation Profile` before consulting external Playwright documentation. Reconcile its exact commands and constraints with current repository evidence, then update it only when a durable convention changed.
    - Check whether UI/UX Pro Max is initialized in the project for the active platform. A global installation does not count as project initialization.
 5. Infer dev-command wrapper state:
    - Check for `hako`, `dx`, `dev`, and `.devhome`.
@@ -57,6 +61,7 @@ The job is to inspect the project, infer how mature validation should work, then
    - files changed
    - rules injected
    - inferred validation profile
+   - Playwright execution mode and profile location when browser validation applies
    - dev wrapper state and auto-allow target
    - inferred commit attribution trailer
    - `trellis update` risk: whether any patched file is a Trellis template target and whether backup recovery was used
@@ -70,6 +75,7 @@ Default Enhancement Set:
 - **ChatGPT/Codex commit completion summary and co-author trailer**: read `references/chatgpt-codex-commit-trailer.md` when adding commit body and attribution rules for commits made during Trellis Phase 3.4.
 - **Docker dev-command bootstrap**: read `references/dev-it-in-docker-bootstrap.md` when adding a before-dev/init checkpoint that creates a `hako` dev wrapper and writes matching agent auto-allow rules.
 - **UI/UX Pro Max frontend integration**: read `references/ui-ux-pro-max-integration.md` when the repository or active task has a frontend/UI surface. This enhancement owns the initialization prompt and the UUPM Plan → Implement → Check → Update Spec workflow.
+- **Playwright automated frontend validation**: read `references/playwright-automated-validation.md` when the repository or active task has a browser-accessible UI change. This enhancement owns the automate-first decision, Playwright test evidence, and residual manual-review handoff.
 
 Future enhancements should be added as separate files under `references/` and listed in this registry with a one-line loading rule.
 
@@ -80,6 +86,7 @@ Use the narrowest durable target that exists in the project:
 - Add state-machine behavior to `.trellis/workflow.md` when the rule must apply every time the workflow reaches a phase.
 - Add review or validation expectations to an existing `.trellis/spec/**/index.md` when the rule is a reusable project convention.
 - Add frontend planning wording to the project's plan/brainstorm skill or equivalent when it exists; otherwise add a short pointer to `.trellis/workflow.md`. Keep UUPM's detailed procedure in its reference file.
+- Add browser-validation behavior to an existing check skill or `.trellis/workflow.md` when it must run for every eligible frontend task. Keep Playwright setup and evidence rules in its reference file.
 - Add commit-command wording to the Phase 3.4 section of `.trellis/workflow.md` when the rule changes how work commits are drafted or executed.
 
 Do not create a parallel Trellis framework. Extend the installed one.
@@ -94,6 +101,7 @@ When applying Trellis Plus after an update:
 - Inspect the active files and the newest `.trellis/.backup-*` snapshot for prior `Trellis Plus:` sections.
 - Reapply the enhancement to the current active file, adapting to the updated upstream wording instead of restoring the old file wholesale.
 - If an update removes a UUPM workflow pointer, reapply the pointer without silently rerunning `uipro init` or overwriting the project-local UUPM installation. Ask again only when the project-local installation is actually absent or incomplete.
+- If an update removes a Playwright validation pointer, reapply the pointer and preserve the project's existing test command, config, fixtures, and snapshot policy. Do not regenerate screenshot baselines or install browser dependencies merely while recovering workflow text.
 - Do not add `.trellis/workflow.md` to `update.skip` by default; that prevents upstream workflow fixes from landing. Use `update.skip` only when the user deliberately forks a target and accepts manual merges after each Trellis update.
 
 ## Expected Result
@@ -104,6 +112,9 @@ After applying this skill with the default enhancement set, a future Trellis run
 - ensure the project has a Docker-backed dev command wrapper or a before-dev checkpoint that can bootstrap one
 - detect frontend projects and ask before initializing project-local UI/UX Pro Max when it is absent
 - use UI/UX Pro Max design-system output as shared task context for frontend implementation and verification
+- run focused Playwright validation for eligible UI changes before requesting human feedback, with traces, screenshots, and logs available when it fails
+- maintain one project-level Playwright Validation Profile so later tasks can reuse exact setup, commands, fixtures, browser projects, and artifact locations without rediscovering them
+- ask for manual review only when browser automation is ineffective, unavailable, or cannot resolve the remaining product, visual, accessibility, device, or private-environment risk
 - decide whether each Phase 3.4 work commit deserves ChatGPT/Codex co-author attribution
 - draft a useful task completion summary body for commits above that threshold
 - add the ChatGPT/Codex co-author trailer only when that attribution threshold is met
