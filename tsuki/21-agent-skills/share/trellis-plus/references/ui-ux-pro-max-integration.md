@@ -74,6 +74,7 @@ If the user accepts, continue with the initialization procedure below.
 
    Use `--force` only when repairing an incomplete installation after telling the user which files will be replaced. Use `--offline` only when network access is unavailable and the CLI's bundled assets are known to be available.
 3. Inspect the resulting diff before continuing. Preserve unrelated user changes and do not overwrite an existing platform skill without the user's approval.
+   - Keep generic assistant settings subject to the repository's existing ignore rules. Do not force-stage UUPM or other generated assistant files with `git add -f`, `git add --force`, or an equivalent operation unless the user explicitly asks for tracking.
 4. Verify the generated UUPM entry point and the script/data paths referenced by its instructions. When `scripts/search.py` exists, run its cheapest help/version check before generating design material:
 
    ```bash

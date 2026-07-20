@@ -164,10 +164,10 @@ download_templates() {
 		compose_file='hedgedoc.yml'
 	fi
 
-	for filename in '.gitignore' 'init-hedgedoc.sh' 'nginx.conf' 'readme.md' "$compose_file"; do
+	for filename in '.gitignore' 'change-hedgedoc-address.sh' 'init-hedgedoc.sh' 'nginx.conf' 'readme.md' "$compose_file"; do
 		download_file "$filename"
 	done
-	chmod 755 -- "$install_dir/init-hedgedoc.sh"
+	chmod 755 -- "$install_dir/change-hedgedoc-address.sh" "$install_dir/init-hedgedoc.sh"
 }
 
 initialize_installation() {

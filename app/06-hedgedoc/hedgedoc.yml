@@ -22,5 +22,5 @@ services:
     volumes:
       - ./config:/config
     ports:
-      - ${HEDGEDOC_HOST_PORT:?Run ./init-hedgedoc.sh first}:${HEDGEDOC_APP_PORT:?Run ./init-hedgedoc.sh first}
+      - "${HEDGEDOC_BIND_IP:-0.0.0.0}:${HEDGEDOC_HOST_PORT:?Run ./init-hedgedoc.sh first}:${HEDGEDOC_APP_PORT:?Run ./init-hedgedoc.sh first}"
     restart: unless-stopped

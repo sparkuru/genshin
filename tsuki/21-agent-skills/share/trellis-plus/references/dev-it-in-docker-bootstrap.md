@@ -28,7 +28,7 @@ Keep the wording as a pointer to the base skill. Do not paste the full `dev-it-i
 
 Before patching, inspect:
 
-- `hako`, `dx`, `dev`, or similar wrapper scripts
+- `hako`, `agent`, `dev`, or similar wrapper scripts
 - `.devhome` and `.gitignore`
 - manifests: `bun.lockb`, `bunfig.toml`, `pnpm-lock.yaml`, `package-lock.json`, `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, `Cargo.toml`
 - `.claude/settings.local.json`
@@ -56,7 +56,7 @@ Add:
 "Bash(./hako *)"
 ```
 
-If the project uses another wrapper name, substitute that name, such as `Bash(./dx *)`.
+If the project uses another wrapper name, substitute that name, such as `Bash(./agent *)`.
 
 ### Codex
 

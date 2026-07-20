@@ -53,7 +53,7 @@ services:
     command: >
       sh -c "envsubst '$$HEDGEDOC_APP_PORT $$NGINX_LISTEN_PORT' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
     ports:
-      - ${HEDGEDOC_HOST_PORT:?Run ./init-hedgedoc.sh first}:80
+      - "${HEDGEDOC_BIND_IP:-0.0.0.0}:${HEDGEDOC_HOST_PORT:?Run ./init-hedgedoc.sh first}:80"
     restart: unless-stopped
     networks:
       - hedgedoc_network

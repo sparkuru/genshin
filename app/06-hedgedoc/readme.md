@@ -23,6 +23,22 @@ docker compose --env-file .hedgedoc.env -f hedgedoc-offline.yml up -d
 
 The generated `.hedgedoc.env` contains database passwords and is ignored by Git. `config/secrets/session-secret` is generated once with mode `0600`; do not remove it unless every existing browser session should be invalidated.
 
+## Change the bind address
+
+For an existing installation, use the address-change helper. It updates the public URL and Docker host binding, then recreates only HedgeDoc and, in offline mode, Nginx. The database service is not included in the Compose command.
+
+```sh
+./change-hedgedoc-address.sh \
+  --ip 192.168.1.90 \
+  --domain schale.local \
+  --port 9426 \
+  --compose-file hedgedoc-offline.yml
+```
+
+`--ip` is the local IPv4 address Docker binds to; `--domain` is the hostname used by browsers and must resolve to that address. To listen on every local interface while using a domain, use `--ip 0.0.0.0 --domain schale.local`.
+
+When both Compose files are present, `--compose-file` is required. The helper creates a mode-600 backup of `.hedgedoc.env` before changing it and never runs `docker compose down -v`.
+
 ## Existing deployment
 
 Do not run the initializer against an existing `db/` directory unless `.hedgedoc.env` already contains that database's current credentials. To change only the public origin while preserving those credentials, run:

@@ -68,12 +68,14 @@ write_runtime_env() {
 	local db_url=$2
 	local db_password=$3
 	local db_root_password=$4
+	local bind_ip=$5
 	local tmp_path
 
 	tmp_path=$(mktemp "${output_path}.XXXXXX")
 	{
 		printf 'HEDGEDOC_HOST_PORT=%s\n' "$port"
 		printf 'HEDGEDOC_APP_PORT=%s\n' "$port"
+		printf 'HEDGEDOC_BIND_IP=%s\n' "$bind_ip"
 		printf 'CMD_DOMAIN=%s\n' "$domain"
 		printf 'CMD_PROTOCOL_USESSL=%s\n' "$protocol_use_ssl"
 		printf 'CMD_URL_ADDPORT=%s\n' "$url_add_port"
@@ -99,6 +101,7 @@ main() {
 	local force=false
 	local db_password
 	local db_root_password
+	local bind_ip
 
 	while (($# > 0)); do
 		case $1 in
@@ -141,14 +144,17 @@ main() {
 	if [[ -f $RUNTIME_ENV_PATH ]]; then
 		db_password=$(read_runtime_value HEDGEDOC_DB_PASSWORD)
 		db_root_password=$(read_runtime_value HEDGEDOC_DB_ROOT_PASSWORD)
+		bind_ip=$(read_runtime_value HEDGEDOC_BIND_IP)
 		[[ -n $db_password && -n $db_root_password ]] || die 'existing runtime environment has no database passwords'
 		[[ -n $db_url ]] || db_url=$(read_runtime_value CMD_DB_URL)
 	else
 		db_password=$(openssl rand -hex 32)
 		db_root_password=$(openssl rand -hex 32)
+		bind_ip=''
 	fi
+	bind_ip=${bind_ip:-0.0.0.0}
 	generate_secret "$SESSION_SECRET_PATH"
-	write_runtime_env "$RUNTIME_ENV_PATH" "$db_url" "$db_password" "$db_root_password"
+	write_runtime_env "$RUNTIME_ENV_PATH" "$db_url" "$db_password" "$db_root_password" "$bind_ip"
 
 	printf 'Created %s\n' "$RUNTIME_ENV_PATH"
 	printf 'Public URL: %s://%s' "$protocol" "$domain"

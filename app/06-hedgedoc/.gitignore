@@ -1,3 +1,4 @@
 .hedgedoc.env
+.hedgedoc.env.backup.*
 config/
 db/

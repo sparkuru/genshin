@@ -941,11 +941,66 @@ ggit() {
             local raw_url="https://raw.githubusercontent.com/$user/$repo/refs/heads/$branch/$rel_path"
             echo "$raw_url"
             ;;
+		ignore)
+			if [[ -z "${2:-}" ]]; then
+				echo "usage: ggit ignore <file_or_dir_path>"
+				return 1
+			fi
+
+			local target_path="$2"
+			if [[ ! "$target_path" = /* ]]; then
+				target_path="$(pwd)/$target_path"
+			fi
+			target_path="${target_path:A}"
+
+			local target_dir="$target_path"
+			if [[ ! -d "$target_dir" ]]; then
+				target_dir=$(dirname "$target_dir")
+			fi
+			while [[ ! -d "$target_dir" && "$target_dir" != "/" ]]; do
+				target_dir=$(dirname "$target_dir")
+			done
+
+			local git_root
+			git_root=$(cd "$target_dir" && git rev-parse --show-toplevel 2>/dev/null)
+			if [[ -z "$git_root" ]]; then
+				echo "not a git repository: $target_dir"
+				return 1
+			fi
+
+			local rel_path
+			if [[ "$target_path" == "$git_root" ]]; then
+				rel_path="."
+			else
+				rel_path="${target_path#"$git_root"/}"
+			fi
+			local ignore_info ignore_status
+			if ignore_info=$(cd "$git_root" && git check-ignore -v -- "$rel_path" 2>/dev/null); then
+				local ignore_source="${ignore_info%%:*}"
+				local ignore_details="${ignore_info#*:}"
+				local ignore_line="${ignore_details%%:*}"
+				local ignore_rule="${ignore_details#*:}"
+				ignore_rule="${ignore_rule%%$'\t'*}"
+
+				echo "ignored: yes"
+				echo "rule file: $ignore_source (line $ignore_line)"
+				echo "rule: $ignore_rule"
+			else
+				ignore_status=$?
+				if [[ $ignore_status -ne 1 ]]; then
+					echo "unable to check ignore rules: $target_path"
+					return "$ignore_status"
+				fi
+
+				echo "ignored: no"
+				echo "rule file: none"
+			fi
+			;;
 		init)
 			git init
 			;;
         *)
-            echo "usage: ggit {status | push | commit [commit_msg] | auto [commit_msg] | root | path <file_path> | init}"
+            echo "usage: ggit {status | push | commit [commit_msg] | auto [commit_msg] | root | path <file_path> | ignore <file_or_dir_path> | init}"
             return 1
             ;;
     esac
