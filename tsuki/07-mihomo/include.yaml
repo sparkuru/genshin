@@ -4,7 +4,7 @@ mode: rule
 log-level: info
 ipv6: false
 external-controller: 0.0.0.0:1081
-secret: "atT327MYW71KU4zm"
+secret: "ityWgXJcRIMjXNn2"
 unified-delay: true
 sniffer:
   sniff:
@@ -140,66 +140,63 @@ dns:
   - +.media.dssott.com
   - +.pvp.net
   nameserver:
-  - 223.5.5.5
-  - 119.29.29.29
+  - https://doh.pub/dns-query#DIRECT
+  - https://dns.alidns.com/dns-query#DIRECT
+  proxy-server-nameserver:
+  - https://doh.pub/dns-query#DIRECT
+  - https://dns.alidns.com/dns-query#DIRECT
+  direct-nameserver:
+  - https://doh.pub/dns-query#DIRECT
+  - https://dns.alidns.com/dns-query#DIRECT
 proxies:
-  - {
-      name: "test",
-      server: test.test.com,
-      port: 1234,
-      type: trojan,
-      password: testpassword,
-      sni: test.test.com,
-      skip-cert-verify: true,
-      udp: true,
-    }
+- { name: "test", server: test.test.com, port: 1234, type: trojan, password: testpassword, sni: test.test.com, skip-cert-verify: false, udp: true }
 proxy-groups:
-  - name: outside
-    type: select
-    proxies:
-      - DIRECT
-      - test
-  - name: inside
-    type: select
-    proxies:
-      - DIRECT
-      - outside
-      - reject
-  - name: other
-    type: select
-    proxies:
-      - DIRECT
-      - outside
-  - name: bilibili
-    type: select
-    proxies:
-      - DIRECT
-      - outside
-      - inside
-  - name: apple
-    type: select
-    proxies:
-      - DIRECT
-      - outside
-      - inside
-  - name: steam
-    type: select
-    proxies:
-      - DIRECT
-      - outside
-      - inside
-  - name: llm
-    type: select
-    proxies:
-      - DIRECT
-      - outside
-      - test
-  - name: reject
-    type: select
-    proxies:
-      - outside
-      - DIRECT
-      - REJECT
+- name: outside
+  type: select
+  proxies:
+  - DIRECT
+  - test
+- name: inside
+  type: select
+  proxies:
+  - DIRECT
+  - outside
+  - reject
+- name: other
+  type: select
+  proxies:
+  - DIRECT
+  - outside
+- name: bilibili
+  type: select
+  proxies:
+  - DIRECT
+  - outside
+  - inside
+- name: apple
+  type: select
+  proxies:
+  - DIRECT
+  - outside
+  - inside
+- name: steam
+  type: select
+  proxies:
+  - DIRECT
+  - outside
+  - inside
+- name: llm
+  type: select
+  proxies:
+  - DIRECT
+  - outside
+  - test
+- name: reject
+  type: select
+  proxies:
+  - outside
+  - DIRECT
+  - REJECT
 rules:
 - DOMAIN-SUFFIX,docker.io,outside
 - DOMAIN-SUFFIX,chatgpt.com,llm
@@ -24560,6 +24557,7 @@ rules:
 - DOMAIN-SUFFIX,googlevideo.com,outside
 - DOMAIN,dl.google.com,outside
 - DOMAIN-SUFFIX,google.com,outside
+- DOMAIN-SUFFIX,googleusercontent.com,outside
 - DOMAIN-SUFFIX,anticheatexpert.com,reject
 - DOMAIN-SUFFIX,gjfzpt.cn,reject
 - IP-CIDR,219.143.187.136/32,reject,no-resolve

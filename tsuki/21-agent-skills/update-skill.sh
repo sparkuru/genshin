@@ -8,6 +8,12 @@ readonly STYLE_WARNING=$'\033[33m'
 readonly STYLE_CONTENT=$'\033[38;5;218m'
 readonly STYLE_TITLE=$'\033[96m'
 
+if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+    readonly COLOR_ENABLED=false
+else
+    readonly COLOR_ENABLED=true
+fi
+
 workdir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
 platform_name() {
@@ -42,7 +48,7 @@ color_text() {
     local style="$1"
     local text="$2"
 
-    if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+    if [[ "$COLOR_ENABLED" != true ]]; then
         printf '%s' "$text"
         return 0
     fi
@@ -63,14 +69,14 @@ print_sync() {
     local path="$1"
 
     note_change
-    printf 'sync: %s\n' "$(color_text "$STYLE_SUCCESS" "$(display_path "$path")")"
+    printf '%s: %s\n' "$(color_text "$STYLE_SUCCESS" 'sync')" "$(color_text "$STYLE_SUCCESS" "$(display_path "$path")")"
 }
 
 print_remove() {
     local path="$1"
 
     note_change
-    printf 'remove: %s\n' "$(color_text "$STYLE_ERROR" "$(display_path "$path")")"
+    printf '%s: %s\n' "$(color_text "$STYLE_ERROR" 'remove')" "$(color_text "$STYLE_ERROR" "$(display_path "$path")")"
 }
 
 print_skip() {
@@ -238,12 +244,12 @@ clean_stale_links() {
 }
 
 do_sync() {
-    printf '==> %s\n' "$(color_text "$STYLE_TITLE" "$(display_path "$base_skill_dir")")"
+    printf '%s %s\n' "$(color_text "$STYLE_WARNING" '==>')" "$(color_text "$STYLE_TITLE" "$(display_path "$base_skill_dir")")"
     sync_base_links
     list_dir "$base_skill_dir"
 
     for t in "${target_dirs[@]}"; do
-        printf '==> %s\n' "$(color_text "$STYLE_TITLE" "$(display_path "$t")")"
+        printf '%s %s\n' "$(color_text "$STYLE_WARNING" '==>')" "$(color_text "$STYLE_TITLE" "$(display_path "$t")")"
         do_link_into "$t"
         list_dir "$t"
     done

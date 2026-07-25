@@ -3138,11 +3138,12 @@ function setupSorting() {
     applySort();
 }
 
-function updateProgressForFile(file, index, total, percent, loaded, totalSize, speed, remaining) {
+var activeUpload = false;
+var queuedUploads = [];
+
+function updateBatchProgress(label, percent, loaded, totalSize, speed, remaining) {
     progressContainer.classList.add('active');
-    document.getElementById('fileName').textContent = total > 1
-        ? (index + 1) + '/' + total + ' ' + file.name
-        : file.name;
+    document.getElementById('fileName').textContent = label;
     document.getElementById('progressFill').style.width = percent + '%';
     document.getElementById('progressPercent').textContent = percent + '%';
     document.getElementById('uploadedSize').textContent = formatBytes(loaded);
@@ -3151,11 +3152,13 @@ function updateProgressForFile(file, index, total, percent, loaded, totalSize, s
     document.getElementById('timeRemaining').textContent = remaining;
 }
 
-function uploadOneFile(file, index, total, basePath) {
+function uploadBatch(files, basePath, onProgress) {
     return new Promise(function(resolve, reject) {
         const xhr = new XMLHttpRequest();
         const formData = new FormData();
-        formData.append('file', file);
+        files.forEach(function(file) {
+            formData.append('file', file, file.name);
+        });
 
         let lastLoaded = 0;
         let lastTime = Date.now();
@@ -3176,25 +3179,27 @@ function uploadOneFile(file, index, total, basePath) {
                             ? smoothedSpeed * 0.7 + measuredSpeed * 0.3
                             : measuredSpeed;
                         speedText = formatBytes(smoothedSpeed) + '/s';
-                        remainingText = formatTime((e.total - e.loaded) / smoothedSpeed);
                     }
                     lastLoaded = e.loaded;
                     lastTime = now;
                 }
-                updateProgressForFile(file, index, total, percent, e.loaded, e.total, speedText, remainingText);
+                remainingText = smoothedSpeed > 0
+                    ? formatTime((e.total - e.loaded) / smoothedSpeed)
+                    : '-';
+                onProgress(e.loaded, e.total, speedText, remainingText);
             }
         });
 
         xhr.addEventListener('load', function() {
-            if (xhr.status === 200) {
+            if (xhr.status >= 200 && xhr.status < 300) {
                 resolve();
             } else {
-                reject(new Error(file.name + ': ' + xhr.statusText));
+                reject(new Error(xhr.status + ' ' + (xhr.statusText || 'upload failed')));
             }
         });
 
         xhr.addEventListener('error', function() {
-            reject(new Error(file.name + ': network error'));
+            reject(new Error('network error'));
         });
 
         xhr.open('POST', basePath, true);
@@ -3204,32 +3209,55 @@ function uploadOneFile(file, index, total, basePath) {
 
 function uploadFiles(files) {
     if (!files || files.length === 0) return;
+    const validFiles = files.filter(function(file) {
+        return file && typeof file.name === 'string';
+    });
+    if (validFiles.length === 0) return;
+    queuedUploads.push(validFiles);
+    if (activeUpload) return;
+    uploadNextBatch();
+}
+
+function uploadNextBatch() {
+    const files = queuedUploads.shift();
+    if (!files || files.length === 0) {
+        activeUpload = false;
+        return;
+    }
+
+    activeUpload = true;
     const basePath = (window.location.pathname || '/').replace(/\\/$/, '') + '/';
     const total = files.length;
-    let done = 0;
-
-    function next() {
-        if (done >= total) {
+    const totalSize = files.reduce(function(size, file) {
+        return size + file.size;
+    }, 0);
+    const label = total > 1 ? 'Uploading ' + total + ' files' : files[0].name;
+    updateBatchProgress(label, 0, 0, totalSize, '-', '-');
+    uploadBatch(files, basePath, function(loaded, requestSize, speed, remaining) {
+        const uploadedSize = requestSize > 0
+            ? Math.min(totalSize, Math.round((loaded / requestSize) * totalSize))
+            : 0;
+        const percent = totalSize > 0 ? Math.round((uploadedSize / totalSize) * 100) : 100;
+        updateBatchProgress(label, percent, uploadedSize, totalSize, speed, remaining);
+    })
+        .then(function() {
+            updateBatchProgress(label, 100, totalSize, totalSize, '-', '0s');
             document.getElementById('progressPercent').textContent = 'Complete!';
+            if (queuedUploads.length > 0) {
+                uploadNextBatch();
+            } else {
+                activeUpload = false;
+                setTimeout(function() { location.reload(); }, 800);
+            }
+        })
+        .catch(function(err) {
+            activeUpload = false;
+            queuedUploads = [];
+            document.getElementById('progressPercent').textContent = 'Failed';
             document.getElementById('uploadSpeed').textContent = '-';
-            document.getElementById('timeRemaining').textContent = '0s';
-            setTimeout(function() { location.reload(); }, 800);
-            return;
-        }
-        const file = files[done];
-        updateProgressForFile(file, done, total, 0, 0, file.size, '-', '-');
-        uploadOneFile(file, done, total, basePath)
-            .then(function() {
-                done++;
-                next();
-            })
-            .catch(function(err) {
-                alert('Upload failed: ' + err.message);
-                done++;
-                next();
-            });
-    }
-    next();
+            document.getElementById('timeRemaining').textContent = 'Select files to retry';
+            alert('Upload failed: ' + err.message);
+        });
 }
 
 uploadZone.addEventListener('dragover', function(e) {
@@ -3664,6 +3692,7 @@ initPasteCliExamples();
             environ={
                 "REQUEST_METHOD": "POST",
                 "CONTENT_TYPE": self.headers["Content-Type"],
+                "CONTENT_LENGTH": self.headers.get("Content-Length", "0"),
             },
         )
 
