@@ -144,7 +144,7 @@ function mac { ssh mac-sparkuru }
 
 function hash { certutil -hashfile $args }
 function tree { & "$TREEPATH/tree.exe" -N -h $args }
-function monitor { & "$SCRCPYPATH/monitor.bat" }
+function monitor { & "$SCRCPYPATH/monitor.bat" $args }
 function geek { & "$bin_base_path/geek.exe" }
 function fscan { & "$bin_base_path/fscan.exe" $args }
 function env { Start-Process powershell "-Command & {rundll32 sysdm.cpl,EditEnvironmentVariables}" -Verb RunAs }

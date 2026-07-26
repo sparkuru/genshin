@@ -4,6 +4,7 @@
 
 *.iso
 
+.omo
 .opencode
 .claude
 .codex
