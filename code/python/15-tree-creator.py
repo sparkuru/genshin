@@ -1,444 +1,399 @@
 # -*- coding: utf-8 -*-
 
-import os
-import sys
-import json
 import argparse
-from typing import Dict, List, Union, Any
+import os
+import re
+import sys
+from dataclasses import dataclass, field
 
 if sys.platform == "win32":
     from colorama import init as colorama_init
+
     colorama_init(autoreset=True)
 
-# Global debug level
 DEBUG_MODE = False
-
-
-def debug(*args, file=None, append=True, **kwargs) -> None:
-    """
-    Print the arguments with their file and line number
-    ```python
-    debug(
-        'Hello',    # Parameter 1
-        'World',    # Parameter 2
-        file='debug.log',  # Output file path, default is None (output to console)
-        append=False,  # Whether to append to file, default is True
-        **kwargs  # Key-value parameters
-    )
-
-    return = None
-    ```
-    """
-    if not DEBUG_MODE:
-        return
-    
-    import inspect
-    frame = inspect.currentframe().f_back
-    filename = os.path.basename(frame.f_code.co_filename)
-    line_number = frame.f_lineno
-    
-    output = f"[{filename}:{line_number}]"
-    if args:
-        output += f" {' '.join(str(arg) for arg in args)}"
-    if kwargs:
-        output += f" {' '.join(f'{k}={v}' for k, v in kwargs.items())}"
-    
-    if file:
-        mode = 'a' if append else 'w'
-        with open(file, mode, encoding='utf-8') as f:
-            f.write(output + '\n')
-    else:
-        print(output)
+INDENT_SIZE = 2
 
 
 class CLIStyle:
-    """CLI tool unified style config"""
-    
+    """CLI tool unified style configuration."""
+
     COLORS = {
-        "TITLE": 7,     # Cyan - Main title
-        "SUB_TITLE": 2, # Red - Subtitle
-        "CONTENT": 3,   # Green - Normal content
-        "EXAMPLE": 7,   # Cyan - Example
-        "WARNING": 4,   # Yellow - Warning
-        "ERROR": 2,     # Red - Error
+        "TITLE": 7,
+        "SUB_TITLE": 2,
+        "CONTENT": 3,
+        "EXAMPLE": 7,
+        "WARNING": 4,
+        "ERROR": 2,
     }
-    
+
     @staticmethod
-    def color(text: str = "", color: int = None) -> str:
-        """Unified color processing function"""
-        if color is None:
-            color = CLIStyle.COLORS["CONTENT"]
-            
+    def color(text: str = "", color: int = COLORS["CONTENT"]) -> str:
+        """Apply a semantic terminal color to text."""
         color_table = {
-            0: "{}",  # No color
-            1: "\033[1;30m{}\033[0m",  # Black bold
-            2: "\033[1;31m{}\033[0m",  # Red bold
-            3: "\033[1;32m{}\033[0m",  # Green bold
-            4: "\033[1;33m{}\033[0m",  # Yellow bold
-            5: "\033[1;34m{}\033[0m",  # Blue bold
-            6: "\033[1;35m{}\033[0m",  # Purple bold
-            7: "\033[1;36m{}\033[0m",  # Cyan bold
-            8: "\033[1;37m{}\033[0m",  # White bold
+            0: "{}",
+            1: "\033[1;30m{}\033[0m",
+            2: "\033[1;31m{}\033[0m",
+            3: "\033[1;32m{}\033[0m",
+            4: "\033[1;33m{}\033[0m",
+            5: "\033[1;34m{}\033[0m",
+            6: "\033[1;35m{}\033[0m",
+            7: "\033[1;36m{}\033[0m",
+            8: "\033[1;37m{}\033[0m",
         }
         return color_table[color].format(text)
 
 
 class ColoredArgumentParser(argparse.ArgumentParser):
-    """Unified command line argument parser"""
+    """Argument parser with colored help output."""
 
-    def _format_action_invocation(self, action):
+    def _format_action_invocation(self, action: argparse.Action) -> str:
         if not action.option_strings:
-            (metavar,) = self._metavar_formatter(action, action.dest)(1)
-            return metavar
-        else:
-            parts = []
-            if action.nargs == 0:
-                parts.extend(
-                    map(
-                        lambda x: CLIStyle.color(x, CLIStyle.COLORS["SUB_TITLE"]),
-                        action.option_strings,
-                    )
-                )
-            else:
-                default = action.dest.upper()
-                args_string = self._format_args(action, default)
-                for option_string in action.option_strings:
-                    parts.append(
-                        CLIStyle.color(
-                            f"{option_string} {args_string}",
-                            CLIStyle.COLORS["SUB_TITLE"],
-                        )
-                    )
-            return ", ".join(parts)
+            metavar = self._format_args(action, action.dest.upper())
+            return CLIStyle.color(metavar, CLIStyle.COLORS["WARNING"])
 
-    def format_help(self):
-        formatter = self._get_formatter()
-
-        if self.description:
-            formatter.add_text(
-                CLIStyle.color(self.description, CLIStyle.COLORS["TITLE"])
+        if action.nargs == 0:
+            return ", ".join(
+                CLIStyle.color(option, CLIStyle.COLORS["SUB_TITLE"])
+                for option in action.option_strings
             )
 
-        formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
-
-        formatter.add_text(
-            CLIStyle.color("\nOptions:", CLIStyle.COLORS["TITLE"])
+        argument = self._format_args(action, action.dest.upper())
+        return ", ".join(
+            CLIStyle.color(
+                f"{option} {argument}", CLIStyle.COLORS["SUB_TITLE"]
+            )
+            for option in action.option_strings
         )
+
+    def format_help(self) -> str:
+        formatter = self._get_formatter()
+        if self.description:
+            formatter.add_text(CLIStyle.color(self.description, CLIStyle.COLORS["TITLE"]))
+        formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
+        formatter.add_text(CLIStyle.color("\nOptions:", CLIStyle.COLORS["TITLE"]))
         for action_group in self._action_groups:
             formatter.start_section(action_group.title)
             formatter.add_arguments(action_group._group_actions)
             formatter.end_section()
-
         if self.epilog:
             formatter.add_text(self.epilog)
-
         return formatter.format_help()
 
 
-def create_example_text(script_name: str, examples: List[tuple], notes: List[str] = None) -> str:
-    """Create unified example text"""
+def debug(message: str) -> None:
+    """Print a diagnostic message when debug logging is enabled."""
+    if DEBUG_MODE:
+        print(
+            CLIStyle.color(f"Debug: {message}", CLIStyle.COLORS["WARNING"]),
+            file=sys.stderr,
+        )
+
+
+def get_example_definition() -> str:
+    """Return the standard indentation-file example."""
+    return """my-project/
+  README.md
+  src/
+    main.py
+    utils/
+      format.py
+  tests/
+    test_main.py
+"""
+
+
+def create_example_text(script_name: str) -> str:
+    """Create colored command examples for the help text."""
+    examples = [
+        ("Render an indentation file", "project.tree"),
+        ("Create the default template", "--init"),
+        ("Create a named template", "--init docs.tree"),
+        ("Convert a rendered tree back to a definition", "--from-tree result.tree > project.tree"),
+        ("Print input rules", "--example"),
+    ]
     text = f"\n{CLIStyle.color('Examples:', CLIStyle.COLORS['SUB_TITLE'])}"
-
-    for desc, cmd in examples:
-        text += f"\n  {CLIStyle.color(f'# {desc}', CLIStyle.COLORS['EXAMPLE'])}"
-        text += f"\n  {CLIStyle.color(f'{script_name} {cmd}', CLIStyle.COLORS['CONTENT'])}"
-        text += "\n"
-
-    if notes:
-        text += f"\n{CLIStyle.color('Notes:', CLIStyle.COLORS['SUB_TITLE'])}"
-        for note in notes:
-            text += f"\n  {CLIStyle.color(f'- {note}', CLIStyle.COLORS['CONTENT'])}"
-
+    for description, command in examples:
+        text += f"\n  {CLIStyle.color(f'# {description}', CLIStyle.COLORS['EXAMPLE'])}"
+        text += f"\n  {CLIStyle.color(f'{script_name} {command}', CLIStyle.COLORS['CONTENT'])}\n"
+    text += f"\n{CLIStyle.color('Notes:', CLIStyle.COLORS['SUB_TITLE'])}"
+    text += f"\n  {CLIStyle.color('- Indentation files use spaces only, two spaces per level.', CLIStyle.COLORS['CONTENT'])}"
+    text += f"\n  {CLIStyle.color('- A trailing slash marks a directory.', CLIStyle.COLORS['CONTENT'])}"
+    text += f"\n  {CLIStyle.color('- A non-directory entry with children is a collapsed node.', CLIStyle.COLORS['CONTENT'])}"
+    text += f"\n\n{CLIStyle.color('Definition example:', CLIStyle.COLORS['SUB_TITLE'])}"
+    text += f"\n{CLIStyle.color(get_example_definition().rstrip(), CLIStyle.COLORS['EXAMPLE'])}"
     return text
 
 
+@dataclass
+class TreeNode:
+    """A file or directory entry in a tree."""
+
+    name: str
+    is_directory: bool
+    children: list["TreeNode"] = field(default_factory=list)
+
+
+class TreeParseError(ValueError):
+    """Raised when a tree definition is invalid."""
+
+
 class TreeGenerator:
-    """Tree structure generator from JSON data"""
-    
-    EXAMPLE_JSON = {
-        "root": [
-            {
-                "diy": [
-                    "readme.md",
-                    "unix-install-vim.sh",
-                    "windows-vimrc"
-                ]
-            },
-            "README.md",
-            {
-                "tutorials": [
-                    "ch00_read_this_first.md",
-                    "ch01_starting_vim.md",
-                    "ch24_vim_runtime.md",
-                    {
-                        "images": [
-                            "diffing-apples.png",
-                            "fugitive-git.png",
-                            "session-layout.png"
-                        ]
-                    },
-                    "LICENSE",
-                    "readme.md"
-                ]
-            },
-            {
-                "write": [
-                    "often.md",
-                    "readme.md",
-                    "tcpdump.py",
-                    "test.md"
-                ]
-            }
-        ]
-    }
-    
-    def __init__(self):
-        """Initialize tree generator"""
-        debug("TreeGenerator initialized")
-    
-    def print_tree(self, data: Union[Dict, List, str], indent: str = "", is_last: bool = True) -> None:
-        """
-        Recursively print tree structure
-        ```python
-        print_tree(
-            data,           # Tree data structure (dict, list, or string)
-            indent="",      # Current indentation string
-            is_last=True    # Whether this is the last item in current level
-        )
-        
-        return = None
-        ```
-        """
-        if isinstance(data, dict):
-            for idx, (key, value) in enumerate(data.items()):
-                connector = "└── " if is_last and idx == len(data) - 1 else "├── "
-                print(f"{indent}{connector}{key}")
-                next_indent = indent + (
-                    "    " if is_last and idx == len(data) - 1 else "│   "
+    """Render directory trees from indentation definitions."""
+
+    EXAMPLE_TEXT = get_example_definition()
+    ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+    def parse_indentation_text(self, content: str) -> TreeNode:
+        """Parse a two-space indentation tree definition."""
+        root: TreeNode | None = None
+        stack: list[TreeNode] = []
+
+        for line_number, raw_line in enumerate(content.splitlines(), start=1):
+            if not raw_line.strip():
+                continue
+            if "\t" in raw_line:
+                raise TreeParseError(f"Line {line_number}: tabs are not allowed; use spaces.")
+
+            indent = len(raw_line) - len(raw_line.lstrip(" "))
+            if indent % INDENT_SIZE:
+                raise TreeParseError(
+                    f"Line {line_number}: indentation must be a multiple of {INDENT_SIZE} spaces."
                 )
-                self.print_tree(value, next_indent, is_last=(idx == len(data) - 1))
-        elif isinstance(data, list):
-            for idx, item in enumerate(data):
-                self.print_tree(item, indent, is_last=(idx == len(data) - 1))
-        else:
-            connector = "└── " if is_last else "├── "
-            print(f"{indent}{connector}{data}")
-    
-    def generate_tree_from_json(self, json_data: Dict[str, Any]) -> None:
-        """
-        Process root node and print directory tree
-        ```python
-        generate_tree_from_json(
-            {"root": [...]}    # JSON data with root key
-        )
-        
-        return = None
-        ```
-        """
-        debug("Generating tree from JSON data", keys=list(json_data.keys()))
-        
-        if not json_data:
-            print(CLIStyle.color("Error: Empty JSON data", CLIStyle.COLORS["ERROR"]))
-            return
-            
-        root_key = list(json_data.keys())[0]
-        print(CLIStyle.color(root_key, CLIStyle.COLORS["TITLE"]))
-        self.print_tree(json_data[root_key], indent="")
-    
-    def create_example_file(self, filename: str = "tree-example.json") -> bool:
-        """
-        Create an example JSON file
-        ```python
-        create_example_file(
-            "example.json"    # Output filename
-        )
-        
-        return = True/False   # Success status
-        ```
-        """
-        try:
-            debug("Creating example file", filename=filename)
-            with open(filename, "w", encoding="utf-8") as f:
-                json.dump(self.EXAMPLE_JSON, f, indent=4, ensure_ascii=False)
-            print(CLIStyle.color(f"Example file created: {filename}", CLIStyle.COLORS["CONTENT"]))
-            return True
-        except Exception as e:
-            debug("Error creating example file", error=str(e))
-            print(CLIStyle.color(f"Error creating example file: {str(e)}", CLIStyle.COLORS["ERROR"]))
-            return False
-    
-    def load_json_file(self, filepath: str) -> Dict[str, Any]:
-        """
-        Load JSON data from file
-        ```python
-        load_json_file(
-            "data.json"       # Path to JSON file
-        )
-        
-        return = {...}        # Loaded JSON data or None on error
-        ```
-        """
-        try:
-            debug("Loading JSON file", filepath=filepath)
-            with open(filepath, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            debug("JSON file loaded successfully", keys=list(data.keys()) if isinstance(data, dict) else "not_dict")
-            return data
-        except FileNotFoundError:
-            print(CLIStyle.color(f"Error: File '{filepath}' not found", CLIStyle.COLORS["ERROR"]))
-            return None
-        except json.JSONDecodeError as e:
-            print(CLIStyle.color(f"Error: Invalid JSON format in '{filepath}': {str(e)}", CLIStyle.COLORS["ERROR"]))
-            return None
-        except Exception as e:
-            debug("Unexpected error loading JSON", error=str(e))
-            print(CLIStyle.color(f"Error loading file '{filepath}': {str(e)}", CLIStyle.COLORS["ERROR"]))
-            return None
+
+            level = indent // INDENT_SIZE
+            entry = raw_line[indent:].rstrip()
+            node = self._create_node(entry, line_number)
+            if root is None:
+                if level:
+                    raise TreeParseError(f"Line {line_number}: the root cannot be indented.")
+                if not node.is_directory:
+                    raise TreeParseError(f"Line {line_number}: the root must be a directory ending in '/'.")
+                root = node
+                stack = [node]
+                continue
+
+            if level == 0:
+                raise TreeParseError(f"Line {line_number}: only one root directory is allowed.")
+            if level > len(stack):
+                raise TreeParseError(f"Line {line_number}: indentation skips a directory level.")
+
+            stack = stack[:level]
+            parent = stack[-1]
+            parent.children.append(node)
+            stack.append(node)
+
+        if root is None:
+            raise TreeParseError("The tree definition is empty.")
+        return root
 
     @staticmethod
-    def get_usage_banner() -> str:
-        """Get usage banner with formatting examples"""
-        banner = f"""
-{CLIStyle.color('JSON Structure Rules:', CLIStyle.COLORS['SUB_TITLE'])}
-  {CLIStyle.color('1. Files and directories in same level:', CLIStyle.COLORS['CONTENT'])} [ file1, file2, dir1, dir2 ]
-  {CLIStyle.color('2. Subdirectories:', CLIStyle.COLORS['CONTENT'])} {{ "dir1": [] }}
-  {CLIStyle.color('3. Combined structure example:', CLIStyle.COLORS['CONTENT'])}
+    def _create_node(entry: str, line_number: int) -> TreeNode:
+        """Create a tree node from one non-indented entry."""
+        if not entry:
+            raise TreeParseError(f"Line {line_number}: entry name cannot be empty.")
+        is_directory = entry.endswith("/")
+        name = entry[:-1] if is_directory else entry
+        if not name:
+            raise TreeParseError(f"Line {line_number}: directory name cannot be empty.")
+        return TreeNode(name=name, is_directory=is_directory)
 
-{CLIStyle.color('Example JSON:', CLIStyle.COLORS['EXAMPLE'])}
-    {{
-        "root": [
-            {{
-                "diy": [
-                    "readme.md",
-                    "unix-install-vim.sh", 
-                    "windows-vimrc"
-                ]
-            }},
-            "README.md",
-            {{
-                "tutorials": [
-                    "ch00_read_this_first.md",
-                    {{
-                        "images": [
-                            "diffing-apples.png",
-                            "fugitive-git.png"
-                        ]
-                    }}
-                ]
-            }}
-        ]
-    }}
+    def load_tree_file(self, filepath: str) -> TreeNode:
+        """Load an indentation tree definition."""
+        content = self._read_file(filepath)
+        debug(f"Loading tree definition from {filepath}")
+        return self.parse_indentation_text(content)
 
-{CLIStyle.color('Generated Output:', CLIStyle.COLORS['EXAMPLE'])}
-    root
-    ├── diy
-    │   ├── readme.md
-    │   ├── unix-install-vim.sh
-    │   └── windows-vimrc
-    ├── README.md
-    └── tutorials
-        ├── ch00_read_this_first.md
-        └── images
-            ├── diffing-apples.png
-            └── fugitive-git.png
-        """
-        return banner
+    def parse_rendered_tree(self, content: str) -> TreeNode:
+        """Parse a tree rendered with standard branch characters."""
+        lines = self._clean_rendered_lines(content)
+        if not lines:
+            raise TreeParseError("The rendered tree is empty.")
+
+        root_line_number, root_text = lines[0]
+        if root_text.startswith(("├── ", "└── ")):
+            raise TreeParseError(f"Line {root_line_number}: the root must not have a branch prefix.")
+        root_name = root_text[:-1] if root_text.endswith("/") else root_text
+        if not root_name:
+            raise TreeParseError(f"Line {root_line_number}: root name cannot be empty.")
+
+        root = TreeNode(name=root_name, is_directory=True)
+        stack = [root]
+        for line_number, line in lines[1:]:
+            match = re.fullmatch(
+                r"(?P<prefix>(?:(?:│ {3})| {4})*)(?:├── |└── )(?P<entry>.+)",
+                line,
+            )
+            if not match:
+                raise TreeParseError(f"Line {line_number}: invalid tree branch format.")
+
+            level = 1 + len(match.group("prefix")) // 4
+            if level > len(stack):
+                raise TreeParseError(f"Line {line_number}: tree branch skips a directory level.")
+
+            stack = stack[:level]
+            node = self._create_node(match.group("entry"), line_number)
+            stack[-1].children.append(node)
+            stack.append(node)
+        return root
+
+    def load_rendered_tree_file(self, filepath: str) -> TreeNode:
+        """Load a previously rendered tree result."""
+        content = self._read_file(filepath)
+        debug(f"Loading rendered tree from {filepath}")
+        return self.parse_rendered_tree(content)
+
+    @staticmethod
+    def _read_file(filepath: str) -> str:
+        """Read a UTF-8 text file with user-friendly errors."""
+        try:
+            with open(filepath, encoding="utf-8") as file:
+                return file.read()
+        except FileNotFoundError as error:
+            raise TreeParseError(f"File '{filepath}' was not found.") from error
+        except OSError as error:
+            raise TreeParseError(f"Could not read '{filepath}': {error}.") from error
+
+    def _clean_rendered_lines(self, content: str) -> list[tuple[int, str]]:
+        """Remove ANSI colors and blank lines from rendered tree text."""
+        lines = []
+        for line_number, raw_line in enumerate(content.splitlines(), start=1):
+            line = self.ANSI_ESCAPE_PATTERN.sub("", raw_line).rstrip()
+            if line.strip():
+                lines.append((line_number, line))
+        return lines
+
+    def render(self, root: TreeNode) -> None:
+        """Print a tree using standard branch characters."""
+        print(CLIStyle.color(root.name, CLIStyle.COLORS["TITLE"]))
+        for index, node in enumerate(root.children):
+            self._render_node(node, "", index == len(root.children) - 1)
+
+    def _render_node(self, node: TreeNode, prefix: str, is_last: bool) -> None:
+        """Print one node and its descendants."""
+        connector = "└── " if is_last else "├── "
+        suffix = "/" if node.is_directory else ""
+        print(CLIStyle.color(f"{prefix}{connector}{node.name}{suffix}"))
+        if not node.is_directory:
+            return
+        child_prefix = prefix + ("    " if is_last else "│   ")
+        for index, child in enumerate(node.children):
+            self._render_node(child, child_prefix, index == len(node.children) - 1)
+
+    def to_indentation_text(self, root: TreeNode) -> str:
+        """Convert a tree into its plain indentation definition."""
+        lines: list[str] = []
+        self._append_indentation_lines(root, 0, lines)
+        return "\n".join(lines) + "\n"
+
+    def _append_indentation_lines(
+        self, node: TreeNode, level: int, lines: list[str]
+    ) -> None:
+        """Append one node and descendants in indentation syntax."""
+        suffix = "/" if node.is_directory else ""
+        lines.append(f"{' ' * INDENT_SIZE * level}{node.name}{suffix}")
+        for child in node.children:
+            self._append_indentation_lines(child, level + 1, lines)
+
+    def create_example_file(self, filepath: str) -> None:
+        """Write an editable indentation-file example."""
+        with open(filepath, "x", encoding="utf-8") as file:
+            file.write(self.EXAMPLE_TEXT)
+
+    @classmethod
+    def format_rules(cls) -> str:
+        """Return the input grammar and an example definition."""
+        return "\n".join(
+            [
+                CLIStyle.color("Indentation format:", CLIStyle.COLORS["SUB_TITLE"]),
+                CLIStyle.color("  1. Use spaces only; tabs are rejected.", CLIStyle.COLORS["CONTENT"]),
+                CLIStyle.color("  2. Each level is exactly two spaces deeper.", CLIStyle.COLORS["CONTENT"]),
+                CLIStyle.color("  3. Directories end with '/'; other entries are files.", CLIStyle.COLORS["CONTENT"]),
+                CLIStyle.color("  4. An entry without '/' that has children is rendered as collapsed.", CLIStyle.COLORS["CONTENT"]),
+                "",
+                CLIStyle.color("Example:", CLIStyle.COLORS["EXAMPLE"]),
+                cls.EXAMPLE_TEXT.rstrip(),
+            ]
+        )
 
 
 def main() -> int:
-    """Main program logic"""
+    """Parse arguments and render a tree definition."""
     script_name = os.path.basename(sys.argv[0])
-    
-    # Define examples and notes
-    examples = [
-        ("Generate tree from JSON file", "-f data.json"),
-        ("Show usage examples and format", "-e"),
-        ("Create example JSON file", "-m"),
-        ("Generate tree with debug info", "-f data.json --log")
-    ]
-    
-    notes = [
-        "JSON file must contain a single root key with array/object structure",
-        "Use -m to create a template file, then modify it for your directory structure",
-        "Files and directories are distinguished by their position in the JSON structure"
-    ]
-    
     parser = ColoredArgumentParser(
-        description="Generate tree structure visualization from JSON file format",
+        description="Render a directory tree from a simple indentation file.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=create_example_text(script_name, examples, notes)
-    )
-    
-    # Add command line arguments
-    parser.add_argument(
-        "-f", "--filepath",
-        default="tree-example.json",
-        type=str,
-        metavar=CLIStyle.color("PATH", CLIStyle.COLORS["WARNING"]),
-        help="Path to JSON file containing tree structure"
+        epilog=create_example_text(script_name),
     )
     parser.add_argument(
-        "-e", "--example", 
+        "source",
+        nargs="?",
+        metavar=CLIStyle.color("FILE", CLIStyle.COLORS["WARNING"]),
+        help=CLIStyle.color("Indentation file to render."),
+    )
+    action_group = parser.add_mutually_exclusive_group()
+    action_group.add_argument(
+        "--example",
         action="store_true",
-        help="Show JSON format examples and usage"
+        help=CLIStyle.color("Show indentation rules and an example."),
+    )
+    action_group.add_argument(
+        "--init",
+        nargs="?",
+        const="project.tree",
+        metavar=CLIStyle.color("FILE", CLIStyle.COLORS["WARNING"]),
+        help=CLIStyle.color("Create an editable example file; default: project.tree."),
     )
     parser.add_argument(
-        "-m", "--make-example", 
+        "--log",
         action="store_true",
-        help="Generate example JSON file (tree-example.json)"
+        help=CLIStyle.color("Enable diagnostic output."),
     )
     parser.add_argument(
-        "--log", 
-        action="store_true", 
-        help="Enable debug logging"
+        "--from-tree",
+        metavar=CLIStyle.color("FILE", CLIStyle.COLORS["WARNING"]),
+        help=CLIStyle.color("Convert a rendered tree file to indentation text."),
     )
-    
-    # Parse arguments
     args = parser.parse_args()
-    
-    # Set global debug mode
+
     global DEBUG_MODE
     DEBUG_MODE = args.log
-    
-    debug("Starting tree generator", args=vars(args))
-    
+    generator = TreeGenerator()
+
     try:
-        tree_gen = TreeGenerator()
-        
-        # Handle example display
         if args.example:
-            print(tree_gen.get_usage_banner())
+            print(generator.format_rules())
             return 0
-        
-        # Handle example file creation
-        if args.make_example:
-            success = tree_gen.create_example_file()
-            return 0 if success else 1
-        
-        # Handle tree generation
-        if not args.filepath:
-            print(CLIStyle.color(
-                f"Error: JSON file path required. Use '{script_name} -h' for help", 
-                CLIStyle.COLORS["ERROR"]
-            ))
-            return 1
-        
-        # Load and process JSON file
-        json_data = tree_gen.load_json_file(args.filepath)
-        if json_data is None:
-            return 1
-        
-        tree_gen.generate_tree_from_json(json_data)
+        if args.init:
+            generator.create_example_file(args.init)
+            print(CLIStyle.color(f"Example file created: {args.init}"))
+            return 0
+        if args.from_tree:
+            if args.source:
+                parser.error("FILE cannot be used with --from-tree.")
+            sys.stdout.write(
+                generator.to_indentation_text(
+                    generator.load_rendered_tree_file(args.from_tree)
+                )
+            )
+            return 0
+        if not args.source:
+            parser.print_help()
+            return 0
+
+        generator.render(generator.load_tree_file(args.source))
         return 0
-        
+    except FileExistsError:
+        print(CLIStyle.color(f"Error: '{args.init}' already exists.", CLIStyle.COLORS["ERROR"]))
+        return 1
+    except TreeParseError as error:
+        print(CLIStyle.color(f"Error: {error}", CLIStyle.COLORS["ERROR"]))
+        return 1
     except KeyboardInterrupt:
-        print(CLIStyle.color("\nOperation cancelled by user", CLIStyle.COLORS["WARNING"]))
+        print(CLIStyle.color("\nOperation cancelled.", CLIStyle.COLORS["WARNING"]))
         return 0
-    except Exception as e:
-        if DEBUG_MODE:
-            import traceback
-            traceback.print_exc()
-        print(CLIStyle.color(f"Unexpected error: {str(e)}", CLIStyle.COLORS["ERROR"]))
+    except Exception as error:
+        print(CLIStyle.color(f"Unexpected error: {error}", CLIStyle.COLORS["ERROR"]))
         return 1
 
 

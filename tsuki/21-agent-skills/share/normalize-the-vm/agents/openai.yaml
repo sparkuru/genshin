@@ -1,0 +1,4 @@
+interface:
+  display_name: "Normalize Lab Machine"
+  short_description: "Create faithful or convenient lab reproductions"
+  default_prompt: "Use $normalize-the-vm to classify /path/to/lab-machine and create the safest reproducible runtime."

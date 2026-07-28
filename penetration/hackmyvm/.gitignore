@@ -1,2 +1,4 @@
 
-**/archive
+**/archive/
+**/runtime/images/
+**/runtime/state/
