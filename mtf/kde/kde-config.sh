@@ -27,6 +27,31 @@ readonly -a LEGACY_CONFIG_FILES=(
 	"plasma-org.kde.plasma.desktop-appletsrc"
 )
 
+readonly -a LEGACY_KONSOLE_FILES=(
+	"Apu-s.colorscheme"
+	"Breeze.colorscheme"
+	"Dracula.colorscheme"
+	"Ghost Color Scheme.colorscheme"
+	"Moe.colorscheme"
+	"MoeDark.colorscheme"
+	"My.profile"
+	"Sweet-Ambar-Blue.colorscheme"
+	"Sweet-Mars.colorscheme"
+	"Sweet.colorscheme"
+)
+
+readonly -a LEGACY_COLOR_SCHEME_FILES=(
+	"154642-AmbianceISH.colors"
+	"MkosBigSurDark.colors"
+	"WinConceptOS.colors"
+)
+
+readonly -a LEGACY_PLASMA_DIRECTORIES=(
+	"desktoptheme/UnityAmbiance"
+	"look-and-feel/com.github.yeyushengfan258.WinConceptOS"
+	"plasmoids"
+)
+
 usage() {
 	printf 'Usage: %s <backup|capture|deploy|status>\n' "$(basename -- "$0")" >&2
 	printf '\n' >&2
@@ -163,6 +188,15 @@ prune_obsolete_links() {
 
 	for item in "${LEGACY_CONFIG_FILES[@]}"; do
 		remove_obsolete_link "$HOME/.config/$item"
+	done
+	for item in "${LEGACY_KONSOLE_FILES[@]}"; do
+		remove_obsolete_link "$HOME/.local/share/konsole/$item"
+	done
+	for item in "${LEGACY_COLOR_SCHEME_FILES[@]}"; do
+		remove_obsolete_link "$HOME/.local/share/color-schemes/$item"
+	done
+	for item in "${LEGACY_PLASMA_DIRECTORIES[@]}"; do
+		remove_obsolete_link "$HOME/.local/share/plasma/$item"
 	done
 }
 
