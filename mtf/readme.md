@@ -32,17 +32,6 @@
 7.   KDE Plasma 6
 
      ```bash
-     GITHUB_ENDPOINT="https://raw.githubusercontent.com/sparkuru/genshin/main"
-     mkdir -p "$HOME/.local/share/kde-deploy"
-     curl -fsSLo "$HOME/.local/share/kde-deploy/kde-config.sh" $GITHUB_ENDPOINT/mtf/kde/kde-config.sh
-     bash "$HOME/.local/share/kde-deploy/kde-config.sh" deploy
-     ```
-
-     此配置包仅管理通用外观与单击行为；不会收集文件路径、最近记录、快捷键、屏幕布局、会话或窗口状态。
-
-     备份当前 KDE 配置到本仓库：
-
-     ```bash
-     ./kde/kde-config.sh backup
-     git add kde && git commit -m 'backup KDE configuration'
+     ./sync-kde.sh -u USERNAME --host HOST    # preview the change
+     ./sync-kde.sh --apply -u USERNAME --host HOST # confirm sync
      ```

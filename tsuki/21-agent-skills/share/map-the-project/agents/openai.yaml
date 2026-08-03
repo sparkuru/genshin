@@ -1,0 +1,4 @@
+interface:
+  display_name: "Map the Project"
+  short_description: "Map complex projects into decision-ready briefs"
+  default_prompt: "Use $map-the-project to map this project and assess its goals, structure, current state, and next decisions."
