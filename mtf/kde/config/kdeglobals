@@ -1,0 +1,6 @@
+[General]
+ColorScheme=BreezeDark
+widgetStyle=Breeze
+
+[KDE]
+SingleClick=false

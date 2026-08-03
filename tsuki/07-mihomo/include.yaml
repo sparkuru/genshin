@@ -4,7 +4,7 @@ mode: rule
 log-level: info
 ipv6: false
 external-controller: 0.0.0.0:1081
-secret: "ityWgXJcRIMjXNn2"
+secret: "8VOgkNDTtBaG9osq"
 unified-delay: true
 sniffer:
   sniff:
@@ -149,54 +149,63 @@ dns:
   - https://doh.pub/dns-query#DIRECT
   - https://dns.alidns.com/dns-query#DIRECT
 proxies:
-- { name: "test", server: test.test.com, port: 1234, type: trojan, password: testpassword, sni: test.test.com, skip-cert-verify: false, udp: true }
+  - {
+      name: "test",
+      server: test.test.com,
+      port: 1234,
+      type: trojan,
+      password: testpassword,
+      sni: test.test.com,
+      skip-cert-verify: true,
+      udp: true,
+    }
 proxy-groups:
-- name: outside
-  type: select
-  proxies:
-  - DIRECT
-  - test
-- name: inside
-  type: select
-  proxies:
-  - DIRECT
-  - outside
-  - reject
-- name: other
-  type: select
-  proxies:
-  - DIRECT
-  - outside
-- name: bilibili
-  type: select
-  proxies:
-  - DIRECT
-  - outside
-  - inside
-- name: apple
-  type: select
-  proxies:
-  - DIRECT
-  - outside
-  - inside
-- name: steam
-  type: select
-  proxies:
-  - DIRECT
-  - outside
-  - inside
-- name: llm
-  type: select
-  proxies:
-  - DIRECT
-  - outside
-  - test
-- name: reject
-  type: select
-  proxies:
-  - outside
-  - DIRECT
-  - REJECT
+  - name: outside
+    type: select
+    proxies:
+      - DIRECT
+      - test
+  - name: inside
+    type: select
+    proxies:
+      - DIRECT
+      - outside
+      - reject
+  - name: other
+    type: select
+    proxies:
+      - DIRECT
+      - outside
+  - name: bilibili
+    type: select
+    proxies:
+      - DIRECT
+      - outside
+      - inside
+  - name: apple
+    type: select
+    proxies:
+      - DIRECT
+      - outside
+      - inside
+  - name: steam
+    type: select
+    proxies:
+      - DIRECT
+      - outside
+      - inside
+  - name: llm
+    type: select
+    proxies:
+      - DIRECT
+      - outside
+      - test
+  - name: reject
+    type: select
+    proxies:
+      - outside
+      - DIRECT
+      - REJECT
 rules:
 - DOMAIN-SUFFIX,docker.io,outside
 - DOMAIN-SUFFIX,chatgpt.com,llm
@@ -226,6 +235,8 @@ rules:
 - DOMAIN-SUFFIX,grok.com,llm
 - DOMAIN-SUFFIX,x.ai,llm
 - DOMAIN,juicyads.com,reject
+- DOMAIN-SUFFIX,mayzaent.com,reject
+- DOMAIN-SUFFIX,stripchat.com,reject
 - DOMAIN,iida.ro,DIRECT
 - DOMAIN,4.ipw.cn,DIRECT
 - DOMAIN,ip.3322.net,DIRECT
