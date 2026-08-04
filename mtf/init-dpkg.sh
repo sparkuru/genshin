@@ -157,6 +157,7 @@ to_install_list=(
 	v4l-utils v4l2loopback-dkms v4l2loopback-utils
 	rsync nginx net-tools dnsutils whois
 	freecad
+	tesseract-ocr tesseract-ocr-chi-* libtesseract-dev
 )
 
 progress "Updating package index and installing system packages"

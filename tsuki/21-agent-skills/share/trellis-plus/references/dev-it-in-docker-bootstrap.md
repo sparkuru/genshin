@@ -74,6 +74,26 @@ prefix_rule(pattern=["./hako"], decision="allow")
 
 If a project keeps Codex rules in another project-level rules file, use that existing file and report the path. Do not add broad `docker`, `bash`, `sh`, or package-manager allow rules for this enhancement; `hako` is the approval boundary.
 
+### Docker Socket Escalation
+
+The wrapper rule is also the correct response when a Docker-backed command is blocked because access to the Docker socket would leave the sandbox. Keep the rule scoped to the wrapper actually used by the project, for example:
+
+```python
+prefix_rule(
+    pattern=["./hako"],
+    decision="allow",
+    justification="Run project development commands through the Docker wrapper.",
+)
+```
+
+Never replace this with an `allow` rule for raw `docker`: Docker commands can mount arbitrary host paths or start privileged containers. Project-local Codex rules load only for trusted projects and after a Codex restart. Verify the rule before relying on it:
+
+```bash
+codex execpolicy check --pretty --rules .codex/rules/<rule-file>.rules -- ./hako <command>
+```
+
+Rules allow an eligible sandbox escape; they do not override a higher-precedence managed policy or grant a running session new permissions retroactively.
+
 Optional hook target:
 
 ```text
