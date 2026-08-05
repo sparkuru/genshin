@@ -12,6 +12,7 @@ install_dir=''
 force=false
 uninstall=false
 tmp_dir=''
+platform=''
 
 usage() {
 	printf 'Usage:\n' >&2
@@ -52,6 +53,31 @@ die() {
 
 require_command() {
 	command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
+
+detect_platform() {
+	local system architecture
+
+	system=$(uname -s)
+	architecture=$(uname -m)
+
+	case "$system/$architecture" in
+	Darwin/arm64 | Darwin/aarch64)
+		platform='macos/aarch64'
+		;;
+	Darwin/x86_64 | Darwin/amd64)
+		platform='macos/x86_64'
+		;;
+	Linux/arm64 | Linux/aarch64)
+		platform='linux/aarch64'
+		;;
+	Linux/x86_64 | Linux/amd64)
+		platform='linux/x86_64'
+		;;
+	*)
+		die "unsupported system architecture: $system/$architecture"
+		;;
+	esac
 }
 
 cleanup() {
@@ -105,6 +131,7 @@ assert_replaceable() {
 
 	if [[ -e "$path" || -L "$path" ]]; then
 		[[ "$force" == true ]] || die "path already exists: $path (pass --force to replace it)"
+		[[ ! -d "$path" || -L "$path" ]] || die "refusing to replace directory: $path"
 	fi
 }
 
@@ -113,6 +140,23 @@ is_managed_link() {
 	local executable=$2
 
 	[[ -L "$bin_link" ]] && [[ "$(readlink -- "$bin_link")" == "$executable" ]]
+}
+
+create_command_link() {
+	local executable=$1
+	local bin_link=$2
+
+	case "$platform" in
+	macos/*)
+		ln -sfn -- "$executable" "$bin_link"
+		;;
+	linux/*)
+		ln -sfnT -- "$executable" "$bin_link"
+		;;
+	*)
+		die "unsupported platform: $platform"
+		;;
+	esac
 }
 
 install_herdr() {
@@ -133,7 +177,7 @@ install_herdr() {
 	HERDR_INSTALL_DIR="$install_dir" sh "$installer_path"
 	[[ -x "$executable" ]] || die "installer did not create an executable: $executable"
 
-	ln -sfnT -- "$executable" "$bin_link"
+	create_command_link "$executable" "$bin_link"
 
 	info 'herdr installation complete'
 	printf '  Binary:  %s\n' "$executable"
@@ -183,7 +227,11 @@ main() {
 	require_command mktemp
 	require_command sh
 	require_command ln
+	require_command uname
+	detect_platform
 	install_herdr "$bin_dir" "$bin_link"
 }
 
-main "$@"
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+	main "$@"
+fi
