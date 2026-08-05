@@ -1254,6 +1254,20 @@ t2i() {
     python3 $text_render_path "$@" 
 }
 
+encoder() {
+    DESCRIPTION="python script: encode, decode, and calculate hashes"
+    local this_script_path="code/python/26-ez-encoder.py"
+    if [[ -f "$local_repo_path/$this_script_path" ]]; then
+        encoder_path="$local_repo_path/$this_script_path"
+    else
+        encoder_path="$HOME/.genshin/ez-encoder.py"
+        if [[ ! -f "$encoder_path" ]]; then
+            _curl "$encoder_path" "$github_url_base/$this_script_path" || return $?
+        fi
+    fi
+    python3 "$encoder_path" "$@"
+}
+
 ## end_custom_function
 
 # export
