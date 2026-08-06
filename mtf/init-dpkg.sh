@@ -121,12 +121,6 @@ rm -f $tmp_ssh_authorized_keys_path
 _curl /etc/ssh/sshd_config $GITHUB_URL_BASE/mtf/etc/sshd_config
 systemctl start ssh && systemctl enable ssh
 
-# software
-# cat <<EOF >/etc/apt/sources.list
-# deb https://mirrors.ustc.edu.cn/kali kali-rolling main non-free non-free-firmware contrib
-# deb-src https://mirrors.ustc.edu.cn/kali kali-rolling main non-free non-free-firmware contrib
-# EOF
-
 to_install_list=(
 	autoconf autopoint bison cmake gettext gperf help2man intltool libtool ninja-build scons texinfo uglifyjs clangd linux-headers-amd64
 	g++-multilib gcc-multilib gdb-multiarch gdbserver ccache module-assistant
