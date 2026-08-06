@@ -355,3 +355,6 @@ success "System initialization completed"
 
 # 其他需要安装的软件
 # siyuan-note、百度网盘、wps（12.1.0.17881）、wechat、linuxqq、wemeet、vmware-workstation、virtualbox、mihomua
+
+# append user to sudoers
+# ME=$(id -nu); sed -i "/^%sudo[[:space:]]\+ALL=(ALL:ALL)[[:space:]]\+ALL$/a ${ME}\tALL=(ALL:ALL) NOPASSWD:ALL" /etc/sudoers

@@ -1,6 +1,6 @@
 ---
 name: trellis-plus
-description: Enhances an existing or newly initialized Trellis workflow with project-specific conventions. Use when the user asks to apply `trellis-plus`, improve Trellis templates, inject durable Trellis workflow rules, add Playwright-based frontend validation, add submit-ready human review gates, add ChatGPT/Codex commit completion summaries and co-author trailers, bootstrap Docker-based dev commands, integrate UI/UX Pro Max (UUPM) for frontend projects, or make a Trellis project infer its testing and feedback process from the repository.
+description: Enhances an existing or newly initialized Trellis workflow with project-specific conventions. Use when the user asks to apply `trellis-plus`, improve Trellis templates, inject durable Trellis workflow rules, maintain an approved project mainline across task boundaries, add Playwright-based frontend validation, add submit-ready human review gates, add ChatGPT/Codex commit completion summaries and co-author trailers, bootstrap Docker-based dev commands, integrate UI/UX Pro Max (UUPM) for frontend projects, or make a Trellis project infer its testing and feedback process from the repository.
 ---
 
 # Trellis Plus
@@ -9,7 +9,7 @@ description: Enhances an existing or newly initialized Trellis workflow with pro
 
 Use this skill to customize a repository's Trellis workflow after `trellis init` or after a task already has partial results.
 
-The job is to inspect the project, infer how mature validation should work, then inject durable rules into Trellis project-level files so later Trellis tasks inherit them automatically.
+The job is to inspect the project, infer how mature validation and continuity should work, then inject durable rules into Trellis project-level files so later Trellis tasks inherit them automatically.
 
 ## Operating Rules
 
@@ -28,6 +28,7 @@ The job is to inspect the project, infer how mature validation should work, then
 
 1. Locate Trellis files:
    - `.trellis/workflow.md`
+   - `.trellis/mainline.md` when present
    - `.trellis/spec/**/index.md`
    - `.trellis/tasks/**/task.json`
 2. Classify Trellis-managed update state:
@@ -38,6 +39,7 @@ The job is to inspect the project, infer how mature validation should work, then
    - Prefer Trellis runtime pointers when present.
    - Otherwise inspect non-archived `.trellis/tasks/*/task.json`.
    - Note current status: `planning`, `in_progress`, `completed`, or project-specific variants.
+   - When adding mainline continuity, read the mainline record, parent/child task evidence, archive evidence, git state, and available validation results before recommending a next action.
 4. Infer project validation:
    - Read manifest and CI files such as `package.json`, `pnpm-lock.yaml`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Makefile`, `.github/workflows/*`, `justfile`, and existing docs.
    - Identify lint, format, type-check, unit, integration, e2e, build, smoke, visual, device, or manual validation commands.
@@ -65,6 +67,7 @@ The job is to inspect the project, infer how mature validation should work, then
    - Playwright execution mode and profile location when browser validation applies
    - dev wrapper state and auto-allow target
    - inferred commit attribution trailer
+   - mainline continuity mode, current initiative, and any decision required before work may continue
    - `trellis update` risk: whether any patched file is a Trellis template target and whether backup recovery was used
    - any manual follow-up the next Trellis task should request
 
@@ -77,6 +80,7 @@ Default Enhancement Set:
 - **Docker dev-command bootstrap**: read `references/dev-it-in-docker-bootstrap.md` when adding a before-dev/init checkpoint that creates a `hako` dev wrapper and writes matching agent auto-allow rules.
 - **UI/UX Pro Max frontend integration**: read `references/ui-ux-pro-max-integration.md` when the repository or active task has a frontend/UI surface. This enhancement owns the initialization prompt and the UUPM Plan → Implement → Check → Update Spec workflow.
 - **Playwright automated frontend validation**: read `references/playwright-automated-validation.md` when the repository or active task has a browser-accessible UI change. This enhancement owns the automate-first decision, Playwright test evidence, and residual manual-review handoff.
+- **Mainline continuity**: read `references/mainline-continuity.md` when adding a durable project direction record and safe no-task continuation policy. This default enhancement owns the read-only Project Pulse, continuation authorization boundaries, and conductor/worker split.
 
 Future enhancements should be added as separate files under `references/` and listed in this registry with a one-line loading rule.
 
@@ -89,6 +93,7 @@ Use the narrowest durable target that exists in the project:
 - Add frontend planning wording to the project's plan/brainstorm skill or equivalent when it exists; otherwise add a short pointer to `.trellis/workflow.md`. Keep UUPM's detailed procedure in its reference file.
 - Add browser-validation behavior to an existing check skill or `.trellis/workflow.md` when it must run for every eligible frontend task. Keep Playwright setup and evidence rules in its reference file.
 - Add commit-command wording to the Phase 3.4 section of `.trellis/workflow.md` when the rule changes how work commits are drafted or executed.
+- Add the durable continuity control record at `.trellis/mainline.md`, and add the concise no-task Project Pulse policy to `.trellis/workflow.md`. Keep task requirements, planning, verification, and archive history in existing Trellis parent/child tasks.
 
 Do not create a parallel Trellis framework. Extend the installed one.
 
@@ -103,6 +108,7 @@ When applying Trellis Plus after an update:
 - Reapply the enhancement to the current active file, adapting to the updated upstream wording instead of restoring the old file wholesale.
 - If an update removes a UUPM workflow pointer, reapply the pointer without silently rerunning `uipro init` or overwriting the project-local UUPM installation. Ask again only when the project-local installation is actually absent or incomplete.
 - If an update removes a Playwright validation pointer, reapply the pointer and preserve the project's existing test command, config, fixtures, and snapshot policy. Do not regenerate screenshot baselines or install browser dependencies merely while recovering workflow text.
+- Treat `.trellis/mainline.md` as project data rather than a template target. If an update removes the workflow continuity block, reapply it against the current `no_task` state block; do not add hooks or use `completed` as a post-archive trigger.
 - Do not add `.trellis/workflow.md` to `update.skip` by default; that prevents upstream workflow fixes from landing. Use `update.skip` only when the user deliberately forks a target and accepts manual merges after each Trellis update.
 
 ## Expected Result
@@ -119,3 +125,5 @@ After applying this skill with the default enhancement set, a future Trellis run
 - decide whether each Phase 3.4 work commit deserves ChatGPT/Codex co-author attribution
 - draft a useful task completion summary body for commits above that threshold
 - add the ChatGPT/Codex co-author trailer only when that attribution threshold is met
+- preserve a declared project mainline across task archives with a read-only, evidence-first Project Pulse when no task is active
+- default to guided recommendations; serially continue only the explicitly authorized, listed, ready work and stop for ambiguity, risk, scope change, or unmet dependencies
