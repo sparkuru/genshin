@@ -152,6 +152,7 @@ to_install_list=(
 	rsync nginx net-tools dnsutils whois
 	freecad
 	tesseract-ocr tesseract-ocr-chi-* libtesseract-dev
+	krita xournalpp
 )
 
 progress "Updating package index and installing system packages"

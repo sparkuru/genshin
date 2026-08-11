@@ -703,7 +703,32 @@ clean_docker() {
 
 _curl() {
 	DESCRIPTION="download a file from a url"
-    curl --create-dirs -fLo $1 $2
+    local info_style='' success_style='' stdout_reset=''
+    local usage_style='' error_style='' stderr_reset=''
+
+    if [[ -z "${NO_COLOR:-}" && -t 1 ]]; then
+        info_style=$CYAN
+        success_style=$GREEN
+        stdout_reset=$NC
+    fi
+    if [[ -z "${NO_COLOR:-}" && -t 2 ]]; then
+        usage_style=$YELLOW
+        error_style=$RED
+        stderr_reset=$NC
+    fi
+
+    if (( $# != 2 )); then
+        printf '%bUsage:%b _curl <output_path> <url>\n' "$usage_style" "$stderr_reset" >&2
+        return 2
+    fi
+
+    printf '%bDownloading%b %s -> %s\n' "$info_style" "$stdout_reset" "$2" "$1"
+    if curl --create-dirs -fL -o "$1" -- "$2"; then
+        printf '%bSaved to%b %s\n' "$success_style" "$stdout_reset" "$1"
+    else
+        printf '%bDownload failed:%b %s\n' "$error_style" "$stderr_reset" "$2" >&2
+        return 1
+    fi
 }
 
 w2u() {
@@ -736,9 +761,7 @@ w2u() {
 update_zshrc() {
 	DESCRIPTION="update .zshrc from github"
     zshrc_path="$HOME/.zshrc"
-    if [[ ! -f $zshrc_path ]]; then
-        _curl $zshrc_path $github_url_base/mtf/.zshrc
-    fi
+    _curl $zshrc_path $github_url_base/mtf/.zshrc
 }
 
 fp() {
@@ -981,8 +1004,12 @@ ggit() {
 				local ignore_line="${ignore_details%%:*}"
 				local ignore_rule="${ignore_details#*:}"
 				ignore_rule="${ignore_rule%%$'\t'*}"
+				local ignored_state="yes"
+				if [[ "$ignore_rule" == '!'* ]]; then
+					ignored_state="no"
+				fi
 
-				echo "ignored: yes"
+				echo "ignored: $ignored_state"
 				echo "rule file: $ignore_source (line $ignore_line)"
 				echo "rule: $ignore_rule"
 			else
@@ -1349,9 +1376,9 @@ esac
 export PATH=$export_path
 
 ## agent cli env
-if [[ -f "$HOME/.config/agent-cli-env" ]]; then
-    source $HOME/.config/agent-cli-env
-fi
+# if [[ -f "$HOME/.config/agent-cli-env" ]]; then
+#     source $HOME/.config/agent-cli-env
+# fi
 
 # alias
 ## condition alias
