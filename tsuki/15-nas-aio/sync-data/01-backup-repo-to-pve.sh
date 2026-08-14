@@ -48,6 +48,7 @@ main() {
 		--acls
 		--xattrs
 		--delete-delay
+		--exclude='*.sock'
 		--human-readable
 		'--info=progress2,stats2'
 	)

@@ -1,0 +1,24 @@
+model = "gpt-5.6-sol"
+model_reasoning_effort = "medium"
+service_tier = "default"
+personality = "pragmatic"
+approvals_reviewer = "auto_review"
+
+[agents.small_fast]
+description = "Bounded low-risk worker for explicit small tasks that benefit from exhaustive checking and fast completion."
+config_file = "agents/small_fast.toml"
+
+[features]
+hooks = true
+fast_mode = false
+multi_agent = true
+
+[hooks.state]
+
+[hooks.state."/home/wkyuu/.codex/hooks.json:session_start:0:0"]
+trusted_hash = "sha256:68ae78cc417f211f7e770ee854b625bd8178f8ed6285787c421484ce5da2ec95"
+
+# projects' trusted config
+
+[projects."/tmp/tmp"]
+trust_level = "trusted"

@@ -1,6 +1,7 @@
 .DS_Store
 *.gdb_history
 *.pdf
+.private
 
 *.iso
 
@@ -20,6 +21,9 @@
 *.tgz
 *.gz
 *.bz2
+
+# office / wps
+.~*.xlsx
 
 # ai agent
 .agents

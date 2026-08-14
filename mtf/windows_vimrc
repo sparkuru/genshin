@@ -1,126 +1,118 @@
-" Vim with all enhancements
-source $VIMRUNTIME/vimrc_example.vim
+source $VIMRUNTIME/defaults.vim
 
-" 01. 配置基础路径
-" 修改 windows 下备份、撤销、临时文件的目录
-set backupdir=d:/bin/vim/tmp
-set undodir=d:/bin/vim/tmp
-set directory=d:/bin/vim/tmp
+let mapleader = ','
+let maplocalleader = ','
 
-let $configs_dir = "d:/bin/vim/configs"
-let $vim_base_dir = "d:/bin/vim"
-let $vim_runtime_dir = "d:/bin/vim/vim90"
+let s:vim_base_dir = 'd:/bin/vim'
+let s:vim_state_root = s:vim_base_dir . '/state'
+for s:state_name in ['backup', 'swap', 'undo']
+  call mkdir(s:vim_state_root . '/' . s:state_name, 'p', 0700)
+endfor
+let &backupdir = s:vim_state_root . '/backup//'
+let &directory = s:vim_state_root . '/swap//'
+let &undodir = s:vim_state_root . '/undo//'
+set backup undofile
 
-let $VIM = $vim_base_dir
-let $HOME = $configs_dir
-let $VIMRUNTIME = $vim_runtime_dir
+function! s:DeleteExpiredFiles(dir, max_age_days) abort
+  if !isdirectory(a:dir)
+    return
+  endif
 
-" 02. 基础配置
-set shortmess=atI	" 启动不显示乌干达那个
-behave mswin
-winpos 50 50	" 启动位置
-set lines=40 columns=210	" 启动大小
+  let l:cutoff = localtime() - a:max_age_days * 24 * 60 * 60
+  for l:name in readdir(a:dir)
+    let l:path = a:dir . '/' . l:name
+    if getftype(l:path) !=# 'file'
+      continue
+    endif
 
-set encoding=UTF-8	" Encoding
-set nocompatible	" Don't try to be vi compatible
-filetype off	" Helps force plugins to load correctly when it is turned back on below
-syntax on	" Turn on syntax highlighting
-filetype plugin indent on	" For plugins to load correctly
+    let l:mtime = getftime(l:path)
+    if l:mtime >= 0 && l:mtime < l:cutoff
+      call delete(l:path)
+    endif
+  endfor
+endfunction
 
-set modelines=0	" Security
-set number	" Show line numbers
-" set relativenumber " 相对行号
-set ruler	" Show file stats
-" set visualbell	" a1 高闪
-set guicursor=a:hor20-Cursor/lCursor
+function! s:CleanupVimState() abort
+  call s:DeleteExpiredFiles(s:vim_state_root . '/backup', 7)
+  call s:DeleteExpiredFiles(s:vim_state_root . '/undo', 14)
+endfunction
+
+augroup vim_state_cleanup
+  autocmd!
+  autocmd VimEnter * call <SID>CleanupVimState()
+augroup END
+
+set shortmess+=I
+set nomodeline
+set number
+set guicursor=n-v-c:block-Cursor,i-ci-ve:hor20-Cursor/lCursor,r-cr:hor20-Cursor,o:hor50-Cursor
 set guifont=Consolas:h12
+behave mswin
 
-" Whitespace
 set wrap
-set textwidth=1000
-set formatoptions=tcqrn1
-set tabstop=2
-set shiftwidth=2
-set softtabstop=2
-set expandtab
-set noshiftround
+set textwidth=0
+set tabstop=2 shiftwidth=2 softtabstop=2 expandtab noshiftround
 
-" Cursor motion
-set scrolloff=3
-set backspace=indent,eol,start
-set matchpairs+=<:> " use % to jump between pairs
-runtime! macros/matchit.vim
+set scrolloff=8 sidescrolloff=8
+set matchpairs+=<:>
+packadd! matchit
 
-" Move up/down editor lines
-nnoremap j gj
-nnoremap k gk
-
-set hidden	" Allow hidden buffers
-set ttyfast	" Rendering
-set laststatus=2	" Status bar
-
-" Last line
-set showmode
-set showcmd
-
-" Searching
-nnoremap / /\v
-vnoremap / /\v
-set hlsearch
-set incsearch
-set ignorecase
-set smartcase
-set showmatch
-map <leader><space> :let @/=''<cr> " clear search
-
-" Remap help key.
-inoremap <F1> <ESC>:set invfullscreen<CR>a
-nnoremap <F1> :set invfullscreen<CR>
-vnoremap <F1> :set invfullscreen<CR>
-
-" Textmate holdouts
-
-map <leader>q gqip	" Formatting
-
-" Visualize tabs and newlines
+set hidden
+set laststatus=2
+set ignorecase smartcase hlsearch incsearch showmatch
 set listchars=tab:▸\ ,eol:¬
-" Uncomment this to enable by default:
-" set list " To enable by default
-" Or use your leader key + l to toggle on/off
-map <leader>l :set list!<CR> " Toggle tabs and EOL
 
-" Color scheme (terminal)
-set t_Co=256
-set background=dark
-colorscheme gruvbox " 相近的 retrobox
+if has('termguicolors') && $COLORTERM =~? 'truecolor\|24bit'
+  set termguicolors
+endif
+colorscheme zellner
 
-
-" 03. plugins
-call plug#begin('d:/bin/vim/plugins')
-Plug 'junegunn/fzf.vim'	" fzf 联动
-Plug 'junegunn/fzf', {'do': { -> fzf#install() }}	" fzf core
-Plug 'frazrepo/vim-rainbow'	" 括号高亮
+call plug#begin(s:vim_base_dir . '/plugins')
+Plug 'junegunn/fzf.vim'
+Plug 'junegunn/fzf', {'do': { -> fzf#install() }}
+Plug 'frazrepo/vim-rainbow'
 call plug#end()
 
-let g:rainbow_active = 1	" 括号高亮控制
+let g:rainbow_active = 1
 
-" 04. diy 键盘映射
-" leader 键
-let mapleader=","
-" 使用 ctrl + s 保存, windows only
-nnoremap <silent> <C-S> :w!<CR>
-" 使用 fzf 文件查看器
+nnoremap <expr> j v:count ? 'j' : 'gj'
+nnoremap <expr> k v:count ? 'k' : 'gk'
+nnoremap / /\v
+vnoremap / /\v
+cnoremap <expr> <CR> getcmdtype() =~# '[/?]' ? "\<CR>zz" : "\<CR>"
+nnoremap <silent> n nzzzv
+nnoremap <silent> N Nzzzv
+nnoremap <silent> * *zzzv
+nnoremap <silent> # #zzzv
+nnoremap <silent> <leader><space> :nohlsearch<CR>
+nnoremap <leader>q gqip
+nnoremap <silent> <leader>l :set list!<CR>
+nnoremap <leader>w :write<CR>
+nnoremap <silent> <C-S> :write<CR>
+inoremap <silent> <C-S> <C-O>:write<CR>
+xnoremap <silent> <Tab> >gv
+xnoremap <silent> <S-Tab> <gv
+
 nnoremap <silent> <C-f> :Files<CR>
-" 使用 ripgrep 查找
-nnoremap <silent> <Leader>f :Rg<CR>
-set grepprg=rg\ --vimgrep\ --smart-case\ --follow
-" 按 ,, 通过输入内容查找所有行
+nnoremap <silent> <leader>f :Rg<CR>
 nnoremap <silent> <leader>, :BLines<CR>
-" 按 ,bd 清空所有 buffer 然后重新打开当前文件
-nnoremap <silent> <leader>bd :bufdo bd\|e#<CR>
-" 按 ,h 选择历史文件
+nnoremap <silent> <leader>b :Buffers<CR>
 nnoremap <silent> <leader>h :History<CR>
-" 按 ,c 选择历史指令
 nnoremap <silent> <leader>c :History:<CR>
-" 按 ,r 选择历史正则表达式
 nnoremap <silent> <leader>r :History/<CR>
+
+set grepprg=rg\ --vimgrep\ --smart-case\ --follow
+set grepformat=%f:%l:%c:%m
+
+augroup filetype_indentation
+  autocmd!
+  autocmd FileType python setlocal tabstop=4 shiftwidth=4 softtabstop=4 expandtab
+  autocmd FileType make setlocal tabstop=8 shiftwidth=8 softtabstop=0 noexpandtab
+augroup END
+
+set cursorline cursorcolumn
+set cursorlineopt=both
+highlight CursorLine cterm=underline gui=underline
+highlight CursorColumn ctermbg=153 guibg=#afd7ff
+highlight CursorLineNr cterm=bold gui=bold
+highlight CurSearch cterm=bold ctermfg=16 ctermbg=226 gui=bold guifg=#000000 guibg=#ffff00

@@ -46,6 +46,7 @@ main() {
 		--archive
 		--hard-links
 		--delete-after
+		--exclude='*.sock'
 		--human-readable
 		--progress
 		--stats

@@ -37,16 +37,11 @@
 		"editor.defaultFormatter": "vscode.html-language-features"
 	},
 	"editor.accessibilitySupport": "off",
-	"editor.fontFamily": "'MonoLisa-Medium', '文泉驿等宽微米黑'",
-	"nginx-conf-hint.format.align": true,
+	"editor.fontFamily": "'MonoLisa', '文泉驿等宽微米黑', monospace",
 	"editor.find.addExtraSpaceOnTop": false,
 	"terminal.explorerKind": "external",
 	"breadcrumbs.icons": false,
 	"breadcrumbs.enabled": false,
-	"cursor.cpp.disabledLanguages": [
-		"plaintext",
-		"csv (pipe)"
-	],
 	"workbench.activityBar.orientation": "vertical",
 	"python.createEnvironment.trigger": "off",
 	"editor.minimap.renderCharacters": false,
@@ -64,7 +59,6 @@
 	"git.openRepositoryInParentFolders": "never",
 	"editor.minimap.enabled": true,
 	"editor.insertSpaces": false,
-	"cursorpyright.analysis.disableWorkspaceSymbol": true,
 	"files.associations": {
 		"*.pmt": "markdown",
 		"*.tldr": "toml",
@@ -130,5 +124,6 @@
 		"**/*": "${documentDirName}/assets/${unixTime}.${fileExtName}"
 	},
 	"workbench.browser.showInTitleBar": false,
-	"chatgpt.commentCodeLensEnabled": false
+	"chatgpt.commentCodeLensEnabled": false,
+	"chatgpt.reviewDelivery": "detached"
 }
