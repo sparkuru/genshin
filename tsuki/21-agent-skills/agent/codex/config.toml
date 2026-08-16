@@ -10,7 +10,7 @@ config_file = "agents/small_fast.toml"
 
 [features]
 hooks = true
-fast_mode = false
+fast_mode = true
 multi_agent = true
 
 [hooks.state]

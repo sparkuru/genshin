@@ -3,7 +3,19 @@ source $VIMRUNTIME/defaults.vim
 let mapleader = ','
 let maplocalleader = ','
 
-let s:vim_base_dir = 'd:/bin/vim'
+if has('win32') || has('win64')
+  let s:vim_base_dir = expand('$VIM')
+  if empty(s:vim_base_dir) || !isdirectory(s:vim_base_dir)
+    let s:vim_runtime_dir = expand('$VIMRUNTIME')
+    if !empty(s:vim_runtime_dir) && isdirectory(s:vim_runtime_dir)
+      let s:vim_base_dir = fnamemodify(s:vim_runtime_dir, ':h')
+    else
+      let s:vim_base_dir = expand('~/.vim')
+    endif
+  endif
+else
+  let s:vim_base_dir = expand('~/.vim')
+endif
 let s:vim_state_root = s:vim_base_dir . '/state'
 for s:state_name in ['backup', 'swap', 'undo']
   call mkdir(s:vim_state_root . '/' . s:state_name, 'p', 0700)
@@ -59,6 +71,8 @@ packadd! matchit
 
 set hidden
 set laststatus=2
+set signcolumn=yes
+set updatetime=100
 set ignorecase smartcase hlsearch incsearch showmatch
 set listchars=tab:▸\ ,eol:¬
 
@@ -67,9 +81,24 @@ if has('termguicolors') && $COLORTERM =~? 'truecolor\|24bit'
 endif
 colorscheme zellner
 
+let g:gitgutter_enabled = 1
+let g:gitgutter_signs = 1
+let g:gitgutter_set_sign_backgrounds = 1
+let g:gitgutter_highlight_lines = 1
+let g:gitgutter_sign_added = '▎'
+let g:gitgutter_sign_modified = '▎'
+let g:gitgutter_sign_removed = '▁'
+let g:gitgutter_sign_removed_first_line = '▔'
+let g:gitgutter_sign_removed_above_and_below = '▔'
+let g:gitgutter_sign_modified_removed = '▎'
+if has('patch-8.2.3874') || has('nvim-0.3.2')
+  let g:gitgutter_highlight_linenrs = 1
+endif
+
 call plug#begin(s:vim_base_dir . '/plugins')
 Plug 'junegunn/fzf.vim'
 Plug 'junegunn/fzf', {'do': { -> fzf#install() }}
+Plug 'airblade/vim-gitgutter'
 Plug 'frazrepo/vim-rainbow'
 call plug#end()
 

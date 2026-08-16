@@ -109,7 +109,7 @@
         call plug#end()
         ```
 
-6. 快速配置：`curl -fLo d:/bin/vim/vimrc https://raw.githubusercontent.com/shi9uma/vim/main/diy/windows-vimrc`
+6. 快速配置：`curl -fLo d:/bin/vim/vimrc https://raw.githubusercontent.com/sparkuru/genshin/refs/heads/main/mtf/windows_vimrc`
 
    1.   其中，在 terminal 下的 vim 的光标显示方法，[参考](https://rollingstarky.github.io/2021/06/08/change-vim-cursor-shape-and-color-in-xterm-or-windows-terminal/)
 
@@ -121,7 +121,7 @@
 
 sudo apt install vim fzf ripgrep
 
-curl -fLo /tmp/unix-install-vim.sh https://raw.githubusercontent.com/shi9uma/vim/main/diy/unix-install-vim.sh
+curl -fLo /tmp/unix-install-vim.sh https://raw.githubusercontent.com/sparkuru/genshin/refs/heads/main/mtf/unix-install-vim.sh
 chmod +x /tmp/unix-install-vim.sh
 /tmp/unix-install-vim.sh
 ```

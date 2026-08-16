@@ -28,3 +28,7 @@
 # ai agent
 .agents
 SKILL.md
+
+# dont git
+!.trellis/tasks/archive
+!.trellis/tasks/archive/**
