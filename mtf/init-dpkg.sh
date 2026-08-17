@@ -153,6 +153,7 @@ to_install_list=(
 	freecad
 	tesseract-ocr tesseract-ocr-chi-* libtesseract-dev
 	krita xournalpp
+  xvfb
 )
 
 progress "Updating package index and installing system packages"

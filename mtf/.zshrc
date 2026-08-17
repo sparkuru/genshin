@@ -885,8 +885,24 @@ ggit() {
 	DESCRIPTION="git wrapper"
     # commit_comment="u1x:wq"
     commit_comment="Co-Authored-By: Cluade Mythøs (1B context) <norep1y@anthrop!c.com>"
-    case "$1" in
-		status)
+	case "${1:-}" in
+		-h|--help)
+			printf '%s\n' \
+				"Usage: ggit [command]" \
+				"" \
+				"Commands:" \
+				"  status                         Show repository status (default)" \
+				"  push                           Pull and push changes" \
+				"  commit [commit_msg]            Commit all changes" \
+				"  auto [commit_msg]              Commit and push changes" \
+				"  root                           Change to repository root" \
+				"  path <file_path>               Print raw GitHub URL" \
+				"  ignore <file_or_dir_path>      Inspect Git ignore rules" \
+				"  init                           Initialize a Git repository" \
+				"  -h, --help                     Show this help message"
+			return 0
+			;;
+		''|status)
 			git status
 			;;
         push)
@@ -1027,7 +1043,7 @@ ggit() {
 			git init
 			;;
         *)
-            echo "usage: ggit {status | push | commit [commit_msg] | auto [commit_msg] | root | path <file_path> | ignore <file_or_dir_path> | init}"
+            printf 'unknown ggit command: %s\n' "$1" >&2
             return 1
             ;;
     esac
