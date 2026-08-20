@@ -10,13 +10,16 @@ Sub-commands:
 """
 
 import argparse
+import colorsys
 import inspect
 import re
 import sys
 import traceback
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any, Protocol
+from xml.etree import ElementTree
 
 try:
     from openpyxl import load_workbook
@@ -42,7 +45,6 @@ else:
 DEBUG_MODE = False
 
 DPI_SCALE = 96 / 72
-DEFAULT_FONT_SIZE = 18
 CELL_PADDING_X = 8
 CELL_PADDING_Y = 5
 MIN_COLUMN_WIDTH = 36
@@ -53,6 +55,19 @@ DEFAULT_GRID_COLOR = "#b7b7b7"
 DEFAULT_TEXT_COLOR = "#1f1f1f"
 DEFAULT_BAND_COLORS = ("#ffffff", "#f5f9fc")
 DEFAULT_THEME_HEADER_TEXT = "\u4e3b\u9898"
+DEFAULT_FONT_SIZE = 11
+MIN_RENDER_FONT_SIZE = 18
+FONT_FAMILY_PATHS = {
+    "\u5b8b\u4f53": (
+        "/home/wkyuu/.local/share/fonts/STSONG.TTF",
+        "/home/wkyuu/.local/share/fonts/msyh.ttc",
+    ),
+    "SimSun": ("/home/wkyuu/.local/share/fonts/STSONG.TTF",),
+    "STSong": ("/home/wkyuu/.local/share/fonts/STSONG.TTF",),
+    "\u534e\u6587\u5b8b\u4f53": ("/home/wkyuu/.local/share/fonts/STSONG.TTF",),
+    "Carlito": ("/home/wkyuu/.local/share/fonts/calibri.ttf",),
+    "Calibri": ("/home/wkyuu/.local/share/fonts/calibri.ttf",),
+}
 DEFAULT_FONT_PATHS = (
     "/home/wkyuu/.local/share/fonts/msyh.ttc",
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
@@ -156,6 +171,7 @@ class ImageRenderOptions:
     text_color: str
     theme_header_text: str
     use_theme_bands: bool
+    theme_colors: dict[int, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -232,18 +248,19 @@ def ensure_office_dependencies() -> None:
         ) from OFFICE_IMPORT_ERROR
 
 
-def find_font_path(font_paths: tuple[str, ...] = DEFAULT_FONT_PATHS) -> str | None:
-    """Return the first available font path."""
+def find_font_path(font_name: str | None = None) -> str | None:
+    """Return the first available path for a worksheet font."""
+    font_paths = FONT_FAMILY_PATHS.get(font_name or "", ()) + DEFAULT_FONT_PATHS
     for font_path in font_paths:
         if Path(font_path).exists():
             return font_path
     return None
 
 
-def load_render_font(size: int, bold: bool = False) -> Any:
+def load_render_font(size: int, font_name: str | None = None) -> Any:
     """Load a font for worksheet rendering."""
     ensure_office_dependencies()
-    font_path = find_font_path()
+    font_path = find_font_path(font_name)
     if font_path is None:
         return ImageFont.load_default()
     return ImageFont.truetype(font_path, size=size, index=0)
@@ -270,41 +287,133 @@ def column_width_to_pixels(width: float | None) -> int:
     return max(MIN_COLUMN_WIDTH, int(round((width * 7 + 8) * WIDTH_FACTOR)))
 
 
-def get_color(value: Any) -> str | None:
-    """Convert an openpyxl color value to hex."""
+def parse_theme_colors(theme_xml: bytes | None) -> dict[int, str]:
+    """Parse theme color scheme entries into indexed RGB colors."""
+    if not theme_xml:
+        return {}
+
+    try:
+        root = ElementTree.fromstring(theme_xml)
+    except (ElementTree.ParseError, TypeError):
+        return {}
+
+    color_scheme = next(
+        (
+            element
+            for element in root.iter()
+            if element.tag.rsplit("}", 1)[-1] == "clrScheme"
+        ),
+        None,
+    )
+    if color_scheme is None:
+        return {}
+
+    theme_colors = {}
+    for index, scheme_color in enumerate(color_scheme):
+        color_node = next(iter(scheme_color), None)
+        if color_node is None:
+            continue
+
+        color_type = color_node.tag.rsplit("}", 1)[-1]
+        raw_color = color_node.attrib.get("val")
+        if color_type == "sysClr":
+            raw_color = color_node.attrib.get("lastClr", raw_color)
+        if raw_color is None or not re.fullmatch(r"[0-9a-fA-F]{6,8}", raw_color):
+            continue
+        theme_colors[index] = f"#{raw_color[-6:]}".upper()
+
+    return theme_colors
+
+
+def apply_excel_tint(rgb: str, tint: float) -> str:
+    """Apply Excel's HLS tint transformation to an RGB color."""
+    red = int(rgb[1:3], 16) / 255
+    green = int(rgb[3:5], 16) / 255
+    blue = int(rgb[5:7], 16) / 255
+    hue, lightness, saturation = colorsys.rgb_to_hls(red, green, blue)
+
+    if tint < 0:
+        lightness *= 1 + tint
+    else:
+        lightness = lightness * (1 - tint) + tint
+
+    lightness = max(0.0, min(1.0, lightness))
+    red, green, blue = colorsys.hls_to_rgb(hue, lightness, saturation)
+    return "#%02X%02X%02X" % (
+        round(red * 255),
+        round(green * 255),
+        round(blue * 255),
+    )
+
+
+def get_color(value: Any, theme_colors: dict[int, str] | None = None) -> str | None:
+    """Convert an openpyxl color value, including theme colors, to hex."""
     if value is None or value.type is None:
         return None
 
     if value.type == "rgb" and value.rgb:
         rgb = value.rgb[-6:]
-        return f"#{rgb}"
+        return f"#{rgb}".upper()
 
     if value.type == "indexed" and value.indexed is not None:
         index = int(value.indexed)
         if 0 <= index < len(COLOR_INDEX):
-            return f"#{COLOR_INDEX[index][-6:]}"
+            return f"#{COLOR_INDEX[index][-6:]}".upper()
+
+    if value.type == "theme" and value.theme is not None and theme_colors:
+        theme_color = theme_colors.get(int(value.theme))
+        if theme_color is not None:
+            return apply_excel_tint(theme_color, float(value.tint or 0))
 
     return None
 
 
-def cell_value_to_text(value: Any) -> str:
+def cell_value_to_text(value: Any, number_format: str = "General") -> str:
     """Convert a worksheet cell value to display text."""
     if value is None:
         return ""
-    if isinstance(value, float) and value.is_integer():
-        return str(int(value))
+
+    if isinstance(value, datetime):
+        return value.isoformat(sep=" ")
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, time):
+        return value.isoformat()
+    if isinstance(value, float):
+        if number_format in {"", "General"}:
+            if value.is_integer():
+                return str(int(value))
+            return format(value, ".12g")
+
+        if "%" in number_format:
+            decimal_match = re.search(r"\.([0#]+)", number_format)
+            decimals = len(decimal_match.group(1)) if decimal_match else 0
+            return f"{value * 100:.{decimals}f}%"
+
+        decimal_match = re.search(r"\.([0#]+)", number_format)
+        if decimal_match:
+            decimals = len(decimal_match.group(1))
+            grouping = "," if "," in number_format else ""
+            return f"{value:{grouping}.{decimals}f}"
+        if value.is_integer():
+            return str(int(value))
+
     return str(value)
 
 
-def measure_text(draw: Any, text: str, font: Any) -> tuple[int, int]:
+def measure_text(
+    draw: Any, text: str, font: Any, stroke_width: int = 0
+) -> tuple[int, int]:
     """Measure text in pixels."""
     if text == "":
         return 0, 0
-    bbox = draw.textbbox((0, 0), text, font=font)
+    bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
     return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
 
-def wrap_line(draw: Any, line: str, font: Any, max_width: int) -> list[str]:
+def wrap_line(
+    draw: Any, line: str, font: Any, max_width: int, stroke_width: int = 0
+) -> list[str]:
     """Wrap a single text line to fit the target width."""
     if line == "":
         return [""]
@@ -313,7 +422,7 @@ def wrap_line(draw: Any, line: str, font: Any, max_width: int) -> list[str]:
     current = ""
     for char in line:
         candidate = current + char
-        text_width, _ = measure_text(draw, candidate, font)
+        text_width, _ = measure_text(draw, candidate, font, stroke_width)
         if current and text_width > max_width:
             wrapped_lines.append(current)
             current = char
@@ -325,11 +434,13 @@ def wrap_line(draw: Any, line: str, font: Any, max_width: int) -> list[str]:
     return wrapped_lines
 
 
-def wrap_text(draw: Any, text: str, font: Any, max_width: int) -> list[str]:
+def wrap_text(
+    draw: Any, text: str, font: Any, max_width: int, stroke_width: int = 0
+) -> list[str]:
     """Wrap multiline text to fit a cell."""
     lines = []
     for raw_line in text.splitlines() or [""]:
-        lines.extend(wrap_line(draw, raw_line, font, max_width))
+        lines.extend(wrap_line(draw, raw_line, font, max_width, stroke_width))
     return lines
 
 
@@ -452,7 +563,8 @@ class WorksheetImageRenderer:
 
         header_rows = []
         for row_index in range(1, max_row + 1):
-            text = cell_value_to_text(worksheet.cell(row_index, 1).value).strip()
+            cell = worksheet.cell(row_index, 1)
+            text = cell_value_to_text(cell.value, cell.number_format).strip()
             if text == self.options.theme_header_text:
                 header_rows.append(row_index)
         return header_rows
@@ -462,7 +574,8 @@ class WorksheetImageRenderer:
     ) -> bool:
         """Return whether a row has content outside the first column."""
         for col_index in range(2, max_col + 1):
-            if cell_value_to_text(worksheet.cell(row_index, col_index).value).strip():
+            cell = worksheet.cell(row_index, col_index)
+            if cell_value_to_text(cell.value, cell.number_format).strip():
                 return True
         return False
 
@@ -505,7 +618,8 @@ class WorksheetImageRenderer:
         row_index = start_row
 
         while row_index <= end_row:
-            text = cell_value_to_text(worksheet.cell(row_index, 1).value).strip()
+            cell = worksheet.cell(row_index, 1)
+            text = cell_value_to_text(cell.value, cell.number_format).strip()
             has_data = self.row_has_content_after_first_column(
                 worksheet, row_index, max_col
             )
@@ -538,7 +652,8 @@ class WorksheetImageRenderer:
         group_end = start_row
 
         while row_index <= end_row:
-            next_text = cell_value_to_text(worksheet.cell(row_index, 1).value).strip()
+            cell = worksheet.cell(row_index, 1)
+            next_text = cell_value_to_text(cell.value, cell.number_format).strip()
             has_data = self.row_has_content_after_first_column(
                 worksheet, row_index, max_col
             )
@@ -578,10 +693,15 @@ class WorksheetImageRenderer:
 
     def get_cell_font(self, cell: Any) -> Any:
         """Return a font sized from the cell style."""
-        size = int(cell.font.sz or DEFAULT_FONT_SIZE)
-        if size < 14:
-            size = DEFAULT_FONT_SIZE
-        return load_render_font(size=size, bold=bool(cell.font.b))
+        size = max(
+            MIN_RENDER_FONT_SIZE,
+            int(round(cell.font.sz or DEFAULT_FONT_SIZE)),
+        )
+        return load_render_font(size=size, font_name=cell.font.name)
+
+    def get_text_stroke_width(self, cell: Any) -> int:
+        """Return a small stroke used to reproduce bold worksheet text."""
+        return 1 if cell.font.b else 0
 
     def expand_rows_for_wrapped_text(
         self,
@@ -611,7 +731,7 @@ class WorksheetImageRenderer:
         merged_lookup: dict[tuple[int, int], tuple[int, int, int, int]],
     ) -> None:
         """Increase one row height when a cell wraps beyond current room."""
-        text = cell_value_to_text(cell.value)
+        text = cell_value_to_text(cell.value, cell.number_format)
         if not text:
             return
 
@@ -625,10 +745,11 @@ class WorksheetImageRenderer:
             return
 
         font = self.get_cell_font(cell)
+        stroke_width = self.get_text_stroke_width(cell)
         cell_width = get_span_size(min_col, max_col, col_widths)
         available_width = max(12, cell_width - CELL_PADDING_X * 2)
-        lines = wrap_text(draw, text, font, available_width)
-        _, line_height = measure_text(draw, "Ag", font)
+        lines = wrap_text(draw, text, font, available_width, stroke_width)
+        _, line_height = measure_text(draw, "Ag", font, stroke_width)
         required_height = max(
             MIN_ROW_HEIGHT, len(lines) * (line_height + 5) + CELL_PADDING_Y * 2
         )
@@ -706,16 +827,15 @@ class WorksheetImageRenderer:
         fill = cell.fill
         if fill is None or fill.fill_type is None:
             return self.options.background
-        return get_color(fill.fgColor) or self.options.background
+        return (
+            get_color(fill.fgColor, self.options.theme_colors)
+            or self.options.background
+        )
 
     def get_render_fill_color(self, cell: Any, band_color: str | None) -> str:
         """Return the cell fill color, using band color for plain cells."""
         fill_color = self.get_fill_color(cell).lower()
-        if band_color is None:
-            return fill_color
-        if fill_color in {"#ffffff", "#000000"} and cell.fill.fill_type is None:
-            return band_color
-        if fill_color == "#ffffff":
+        if band_color is not None and cell.fill.fill_type is None:
             return band_color
         return fill_color
 
@@ -733,7 +853,7 @@ class WorksheetImageRenderer:
 
         for side, line in sides:
             color = (
-                get_color(side.color)
+                get_color(side.color, self.options.theme_colors)
                 if side and side.style
                 else self.options.grid_color
             )
@@ -744,23 +864,42 @@ class WorksheetImageRenderer:
         self, draw: Any, cell: Any, rectangle: tuple[int, int, int, int]
     ) -> None:
         """Draw a cell value."""
-        text = cell_value_to_text(cell.value)
+        text = cell_value_to_text(cell.value, cell.number_format)
         if text == "":
             return
 
         x1, y1, x2, y2 = rectangle
         font = self.get_cell_font(cell)
+        stroke_width = self.get_text_stroke_width(cell)
         width = x2 - x1
         height = y2 - y1
-        lines = wrap_text(draw, text, font, max(12, width - CELL_PADDING_X * 2))
-        _, line_height = measure_text(draw, "Ag", font)
+        lines = wrap_text(
+            draw,
+            text,
+            font,
+            max(12, width - CELL_PADDING_X * 2),
+            stroke_width,
+        )
+        _, line_height = measure_text(draw, "Ag", font, stroke_width)
         text_height = len(lines) * (line_height + 5) - 5
         text_y = self.get_text_y(cell, y1, y2, height, text_height)
 
-        color = get_color(cell.font.color) or self.options.text_color
+        color = (
+            get_color(cell.font.color, self.options.theme_colors)
+            or self.options.text_color
+        )
         for line in lines:
-            text_x = self.get_text_x(cell, line, draw, font, x1, x2, width)
-            draw.text((text_x, text_y), line, fill=color, font=font)
+            text_x = self.get_text_x(
+                cell, line, draw, font, x1, x2, width, stroke_width
+            )
+            draw.text(
+                (text_x, text_y),
+                line,
+                fill=color,
+                font=font,
+                stroke_width=stroke_width,
+                stroke_fill=color,
+            )
             text_y += line_height + 5
 
     def get_text_y(
@@ -783,10 +922,11 @@ class WorksheetImageRenderer:
         x1: int,
         x2: int,
         width: int,
+        stroke_width: int = 0,
     ) -> int:
         """Return the x coordinate for one cell text line."""
         horizontal = cell.alignment.horizontal or "left"
-        text_width, _ = measure_text(draw, line, font)
+        text_width, _ = measure_text(draw, line, font, stroke_width)
         if horizontal == "center":
             return x1 + max(CELL_PADDING_X, (width - text_width) // 2)
         if horizontal == "right":
@@ -809,6 +949,7 @@ class ExcelImageConverter:
             text_color=DEFAULT_TEXT_COLOR,
             theme_header_text=request.theme_header_text,
             use_theme_bands=request.use_theme_bands,
+            theme_colors=parse_theme_colors(workbook.loaded_theme),
         )
         renderer = WorksheetImageRenderer(options)
         worksheets = self.select_worksheets(workbook, request.selected_sheets)

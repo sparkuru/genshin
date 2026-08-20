@@ -125,5 +125,6 @@
 	},
 	"workbench.browser.showInTitleBar": false,
 	"chatgpt.commentCodeLensEnabled": false,
-	"chatgpt.reviewDelivery": "detached"
+	"chatgpt.reviewDelivery": "detached",
+	"prometheus.chat.enabled": true
 }

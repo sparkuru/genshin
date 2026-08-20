@@ -112,5 +112,6 @@
   "effortLevel": "high",
   "awaySummaryEnabled": false,
   "theme": "auto",
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "hooks": {"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"bash '/home/wkyuu/.claude/hooks/herdr-agent-state.sh' session","timeout":10}]}]}
 }

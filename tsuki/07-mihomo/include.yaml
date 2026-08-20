@@ -4,7 +4,7 @@ mode: rule
 log-level: info
 ipv6: false
 external-controller: 0.0.0.0:1081
-secret: "8VOgkNDTtBaG9osq"
+secret: "Sdu4jRE8J_cGS1s_"
 unified-delay: true
 sniffer:
   sniff:
@@ -207,6 +207,9 @@ proxy-groups:
       - DIRECT
       - REJECT
 rules:
+- DOMAIN-SUFFIX,wd-purple.com,DIRECT
+- DOMAIN-SUFFIX,wd-gold.net,DIRECT
+- DOMAIN-SUFFIX,toshiba-nvme.com,DIRECT
 - DOMAIN-SUFFIX,docker.io,outside
 - DOMAIN-SUFFIX,chatgpt.com,llm
 - DOMAIN-SUFFIX,chat.com,llm
@@ -218,6 +221,8 @@ rules:
 - DOMAIN-SUFFIX,claude.ai,llm
 - DOMAIN-SUFFIX,claude.com,llm
 - DOMAIN-SUFFIX,claudeusercontent.com,llm
+- DOMAIN-SUFFIX,meta.ai,llm
+- DOMAIN-SUFFIX,ai.meta.com,llm
 - DOMAIN-SUFFIX,openrouter.ai,llm
 - DOMAIN-SUFFIX,opencode.ai,llm
 - DOMAIN-SUFFIX,githubcopilot.com,llm

@@ -1,4 +1,4 @@
-<p align = "center" style="font-size: 34px;" > <strong>「只要不失去你的崇高，整個世界都會爲你敞開」</strong> </p>
+<p align = "center" style="font-size: 34px;" > <strong style="border-bottom: 2px solid currentColor; padding-bottom: 4px;">「只要不失去你的崇高，整個世界都會爲你敞開」</strong> </p>
 
 <p align = "right"> 個人 Genshin Impact 游玩記錄 </p>
 
