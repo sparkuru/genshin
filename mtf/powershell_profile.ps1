@@ -128,7 +128,7 @@ function reboot { Restart-Computer }
 
 $project_genshin_path = "$repo_base_path/04-flyMe2theStar/03-genshin"
 function password { python $project_genshin_path/code/python/08-password-generator.py $args }
-function rename { python $project_genshin_path/code/python/14-interact-rename.py $args}
+function rename { python $project_genshin_path/code/python/14-rename.py $args}
 function encrypt { python $project_genshin_path/code/python/02-ez-encrypt.py $args }
 function cx { python $project_genshin_path/code/python/09-ip-status.py $args }
 function hftp { python $project_genshin_path/code/python/16-hftp.py $args }

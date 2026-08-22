@@ -1,0 +1,105 @@
+server {
+    listen                80;
+
+    server_name           majo.im;
+    server_name           www.majo.im;
+
+    if ($host = 'majo.im') {
+        return            301 https://www.$host$request_uri;
+    }
+
+    return                301 https://$host$request_uri;
+}
+
+ ssl_certificate          /home/wkyuu/.acme.sh/majo.im_ecc/fullchain.cer;
+ ssl_certificate_key      /home/wkyuu/.acme.sh/majo.im_ecc/majo.im.key;
+
+
+map $cookie_eva $landing_redirect {
+    default               1;
+    "true"                0;
+}
+
+server {
+    listen                443 ssl;
+
+    root                  /opt/www/typecho;
+    server_name           majo.im;
+    server_name           www.majo.im;
+
+    if ($host = 'majo.im') {
+        return            301 https://www.$host$request_uri;
+    }
+
+    location /majo {
+        alias             /opt/www/majo;
+        index             index.html;
+    }
+
+    location /ftp {
+        alias             /opt/www/ftp;
+        autoindex         on;
+    }
+
+    location /tmp {
+        alias             /tmp/tmp/nginx;
+        autoindex         on;
+    }
+
+    location = /landing.html {
+        alias             /opt/www/kyoka-suigetsu/dist/landing.html;
+        add_header        Set-Cookie "eva=true; Path=/; Max-Age=7200; HttpOnly; SameSite=Strict";
+    }
+
+    location ^~ /_astro/ {
+        alias             /opt/www/kyoka-suigetsu/dist/_astro/;
+        expires           2h;
+        add_header        Cache-Control "public, immutable";
+    }
+
+    location / {
+        add_header        'Access-Control-Allow-Origin' '*';
+        add_header        'Access-Control-Allow-Credentials' 'true';
+        add_header        'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+        add_header        'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+
+        try_files         $uri $uri/ = 404;
+        index             index.php index.html;
+
+        if ($http_user_agent ~* "Googlebot|bingbot|Baiduspider|Yandex|DuckDuckBot") {
+            rewrite       ^ /index.html last;
+        }
+
+        if ($landing_redirect = 1) {
+            rewrite       ^ /landing.html last;
+        }
+
+        if (-f $request_filename/index.html) {
+            rewrite       (.*) $1/index.html break;
+        }
+
+        if (-f $request_filename/index.php) {
+            rewrite       (.*) $1/index.php;
+        }
+
+        if (!-f $request_filename) {
+            rewrite       (.*) /index.php;
+        }
+    }
+
+    client_max_body_size  64m;
+    error_page            404 /404.php;
+    error_page            500 502 503 504 /50x.html;
+    location /50x.html {
+        root              /usr/share/nginx/html;
+    }
+    location = /admin {
+        return            301 $scheme://$host$request_uri/;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass      unix:/run/php/php-fpm.sock;
+        fastcgi_param     SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include           fastcgi_params;
+    }
+}

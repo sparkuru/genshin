@@ -1,40 +1,68 @@
 # -*- coding: utf-8 -*-
-# pip install shodan rich mmh3 bs4
+# pip install shodan rich mmh3 requests beautifulsoup4 colorama
 
-import os
-import sys
-import json
 import argparse
-import shodan
-from datetime import datetime, timezone, timedelta
-from rich.console import Console
-from rich.table import Table
-from rich import box
+import base64
+import hashlib
+import inspect
+import json
+import os
+import re
+import sys
+import tempfile
 import threading
 import time
-import hashlib
-import re
-import base64
+import traceback
+import urllib.parse
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from getpass import getpass
+from pathlib import Path
+from typing import Any, TextIO
+
 import mmh3
 import requests
-import urllib.parse
-from bs4 import BeautifulSoup
+import shodan
+
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None
+from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
 if sys.platform == "win32":
     from colorama import init as colorama_init
+
     colorama_init(autoreset=True)
 
-# Global debug level
 DEBUG_MODE = False
+MAX_FAVICON_SIZE = 2 * 1024 * 1024
+RAW_FIELD_ORDER = (
+    "index",
+    "ip",
+    "port",
+    "hostnames",
+    "product",
+    "version",
+    "transport",
+    "organization",
+    "city",
+    "country",
+    "last_seen",
+)
 
 
-def clean_path(path):
-    """Clean path, keep only filename"""
+def clean_path(path: str) -> str:
+    """Return only the filename component of a path."""
     return os.path.basename(path)
 
 
-def color(text, color_code=0):
-    """Add color to debug info"""
+def color(text: Any, color_code: int = 0) -> str:
+    """Apply a terminal color to debug text."""
     color_table = {
         0: "{}",  # No color
         1: "\033[1;30m{}\033[0m",  # Black bold
@@ -49,7 +77,12 @@ def color(text, color_code=0):
     return color_table[color_code].format(text)
 
 
-def debug(*args, file=None, append=True, **kwargs):
+def debug(
+    *args: Any,
+    file: str | os.PathLike[str] | None = None,
+    append: bool = True,
+    **kwargs: Any,
+) -> None:
     """
     Print the arguments with their file and line number
     ```python
@@ -67,10 +100,11 @@ def debug(*args, file=None, append=True, **kwargs):
     if not DEBUG_MODE:
         return
 
-    import inspect
-
-    frame = inspect.currentframe().f_back
-    info = inspect.getframeinfo(frame)
+    frame = inspect.currentframe()
+    caller = frame.f_back if frame else None
+    info = inspect.getframeinfo(caller) if caller else None
+    if info is None:
+        return
 
     output = f"{color(clean_path(info.filename), 3)}: {color(info.lineno, 4)} {color('|', 7)} "
 
@@ -85,11 +119,11 @@ def debug(*args, file=None, append=True, **kwargs):
 
     if file:
         mode = "a" if append else "w"
-        with open(file, mode) as f:
+        with open(file, mode, encoding="utf-8") as f:
             clean_output = re.sub(r"\033\[\d+;\d+m|\033\[0m", "", output)
             f.write(clean_output)
     else:
-        print(output, end="")
+        print(output, end="", file=sys.stderr)
 
 
 # CLI help style template
@@ -97,12 +131,12 @@ class CLIStyle:
     """CLI tool unified style config"""
 
     COLORS = {
-        "TITLE": 7,     # Cyan - Main title
-        "SUB_TITLE": 2, # Red - Subtitle
-        "CONTENT": 3,   # Green - Normal content
-        "EXAMPLE": 7,   # Cyan - Example
-        "WARNING": 4,   # Yellow - Warning
-        "ERROR": 2,     # Red - Error
+        "TITLE": 7,  # Cyan - Main title
+        "SUB_TITLE": 2,  # Red - Subtitle
+        "CONTENT": 3,  # Green - Normal content
+        "EXAMPLE": 7,  # Cyan - Example
+        "WARNING": 4,  # Yellow - Warning
+        "ERROR": 2,  # Red - Error
     }
 
     @staticmethod
@@ -125,7 +159,7 @@ class CLIStyle:
 class ColoredArgumentParser(argparse.ArgumentParser):
     """Unified command line argument parser"""
 
-    def _format_action_invocation(self, action):
+    def _format_action_invocation(self, action: argparse.Action) -> str:
         if not action.option_strings:
             (metavar,) = self._metavar_formatter(action, action.dest)(1)
             return metavar
@@ -150,7 +184,7 @@ class ColoredArgumentParser(argparse.ArgumentParser):
                     )
             return ", ".join(parts)
 
-    def format_help(self):
+    def format_help(self) -> str:
         formatter = self._get_formatter()
 
         # Add description
@@ -178,7 +212,11 @@ class ColoredArgumentParser(argparse.ArgumentParser):
         return formatter.format_help()
 
 
-def create_example_text(script_name: str, examples: list, notes: list = None) -> str:
+def create_example_text(
+    script_name: str,
+    examples: list[tuple[str, str]],
+    notes: list[str] | None = None,
+) -> str:
     """Create unified example text"""
     text = f"\n{CLIStyle.color('Examples:', CLIStyle.COLORS['SUB_TITLE'])}"
 
@@ -197,685 +235,753 @@ def create_example_text(script_name: str, examples: list, notes: list = None) ->
     return text
 
 
-# Global variable definitions
-shodan_dir_name = ".shodan"
-shodan_dir_path = os.path.expanduser(f"~/{shodan_dir_name}")
-shodan_config_name = "config.json"
-shodan_config_path = os.path.join(shodan_dir_path, shodan_config_name)
-shodan_result_dir = os.path.join(shodan_dir_path, "result")
+@dataclass(frozen=True)
+class AppPaths:
+    """Filesystem locations used by the tool."""
 
-# Global variables
-is_searching = False
+    root: Path
+
+    @classmethod
+    def default(cls: type["AppPaths"]) -> "AppPaths":
+        """Return the default per-user storage locations."""
+        return cls(Path.home() / ".shodan")
+
+    @property
+    def config_file(self) -> Path:
+        """Return the custom configuration path."""
+        return self.root / "config.json"
+
+    @property
+    def result_dir(self) -> Path:
+        """Return the search result cache directory."""
+        return self.root / "result"
+
+    @property
+    def index_file(self) -> Path:
+        """Return the search index path."""
+        return self.root / "search-result.json"
+
+    @property
+    def shodan_cli_config(self) -> Path:
+        """Return the Shodan CLI API key path."""
+        return Path.home() / ".config" / "shodan" / "api_key"
 
 
-def show_loading_animation():
-    """Display loading animation"""
+def show_loading_animation(stop_event: threading.Event, stream: TextIO) -> None:
+    """Display a cancellable loading animation on the status stream."""
     animation = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     i = 0
-    global is_searching
     start_time = time.time()
-    while is_searching:
+    while not stop_event.is_set():
         elapsed = time.time() - start_time
-        sys.stdout.write(
+        stream.write(
             f"\r{CLIStyle.color(f'{animation[i]} Pending... ({elapsed:.1f}s)', 6)}"
         )
-        sys.stdout.flush()
-        time.sleep(0.1)
+        stream.flush()
+        stop_event.wait(0.1)
         i = (i + 1) % len(animation)
-    sys.stdout.write("\r" + " " * 50 + "\r")
-    sys.stdout.flush()
+    stream.write("\r" + " " * 50 + "\r")
+    stream.flush()
 
 
-def truncate(text, width):
-    """Truncate text and add ellipsis"""
+def truncate(text: str, width: int) -> str:
+    """Truncate text and add an ellipsis when it exceeds the width."""
+    if width <= 3:
+        return text[:width]
     if len(text) > width:
         return text[: width - 3] + "..."
     return text
 
 
 class ShodanClient:
-    def __init__(self):
-        self.api_key = None
-        self.client = None
-        self.is_paid = False  # Default value
-        self.load_config()
+    def __init__(
+        self,
+        paths: AppPaths | None = None,
+        quiet: bool = False,
+    ) -> None:
+        self.paths = paths or AppPaths.default()
+        self.quiet = quiet
+        self.api_key: str | None = None
+        self.client: shodan.Shodan | None = None
+        self.is_paid = False
+        self._config_loaded = False
+        self.last_search_page = 1
 
-    def load_config(self):
-        """Load config file, prioritize custom config, fallback to shodan cli config if not exists"""
-        # First try to load custom config
-        if os.path.exists(shodan_config_path):
+    def _emit(self, message: str = "", color_code: int = 0, *, end: str = "\n") -> None:
+        """Write status text without contaminating machine-readable output."""
+        stream = sys.stderr if self.quiet else sys.stdout
+        print(CLIStyle.color(message, color_code), end=end, file=stream)
+
+    def _write_json_atomic(self, path: Path, data: dict[str, Any]) -> None:
+        """Write JSON through a same-directory temporary file and replace."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        file_descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            dir=path.parent,
+        )
+        temporary_path = Path(temporary_name)
+        try:
+            with os.fdopen(file_descriptor, "w", encoding="utf-8") as output_file:
+                json.dump(data, output_file, indent=2, ensure_ascii=False)
+                output_file.write("\n")
+            os.chmod(temporary_path, 0o600)
+            os.replace(temporary_path, path)
+        finally:
+            temporary_path.unlink(missing_ok=True)
+
+    def _ensure_loaded(self) -> None:
+        """Load credentials only when a Shodan operation needs them."""
+        if not self._config_loaded:
+            self.load_config()
+
+    def load_config(self) -> None:
+        """Load the custom config, then fall back to the Shodan CLI config."""
+        self._config_loaded = True
+
+        if self.paths.config_file.is_file():
             try:
-                with open(shodan_config_path, "r") as f:
-                    config = json.load(f)
-                    self.api_key = config.get("api_key")
-                    self.is_paid = config.get(
-                        "is_paid", False
-                    )  # Load is_paid status from config file
-                    if self.api_key:
+                with self.paths.config_file.open("r", encoding="utf-8") as config_file:
+                    config = json.load(config_file)
+                if isinstance(config, dict):
+                    api_key = config.get("api_key")
+                    if isinstance(api_key, str) and api_key.strip():
+                        self.api_key = api_key.strip()
+                        self.is_paid = bool(config.get("is_paid", False))
                         self.client = shodan.Shodan(self.api_key)
                         return
-            except Exception as e:
-                print(CLIStyle.color(f"Error loading config: {str(e)}", 2))
+            except (OSError, json.JSONDecodeError) as error:
+                self._emit(f"Error loading config: {error}", CLIStyle.COLORS["ERROR"])
 
-        # If custom config doesn't exist or is invalid, try loading shodan cli config
-        shodan_cli_config = os.path.expanduser("~/.config/shodan/api_key")
-        if os.path.exists(shodan_cli_config):
-            try:
-                with open(shodan_cli_config, "r") as f:
-                    self.api_key = f.read().strip()
-                    if self.api_key:
-                        self.client = shodan.Shodan(self.api_key)
-                        # Sync shodan cli config to custom config
-                        self.sync_from_cli_config()
-                        print(CLIStyle.color("Using API key from Shodan CLI config", 7))
-            except Exception as e:
-                print(CLIStyle.color(f"Error loading Shodan CLI config: {str(e)}", 2))
+        environment_key = os.environ.get("SHODAN_API_KEY", "").strip()
+        if environment_key:
+            self.api_key = environment_key
+            self.client = shodan.Shodan(environment_key)
+            return
 
-    def sync_from_cli_config(self):
-        """Sync shodan cli config to custom config file"""
+        if not self.paths.shodan_cli_config.is_file():
+            return
+
         try:
-            # Test API key and get plan info
-            test_client = shodan.Shodan(self.api_key)
-            info = test_client.info()
-            is_paid = info.get("plan", "").lower() != "dev" and info.get(
-                "unlocked", False
+            api_key = self.paths.shodan_cli_config.read_text(encoding="utf-8").strip()
+            if not api_key:
+                return
+            self.api_key = api_key
+            self.client = shodan.Shodan(api_key)
+            self._emit("Using API key from Shodan CLI config", CLIStyle.COLORS["TITLE"])
+        except OSError as error:
+            self._emit(
+                f"Error loading Shodan CLI config: {error}",
+                CLIStyle.COLORS["ERROR"],
             )
 
-            os.makedirs(shodan_dir_path, exist_ok=True)
+    def sync_from_cli_config(self) -> None:
+        """Validate a CLI credential and save its plan metadata locally."""
+        if not self.client or not self.api_key:
+            return
+        try:
+            info = self.client.info()
+            is_paid = self._is_paid_plan(info)
             config = {
                 "api_key": self.api_key,
                 "is_paid": is_paid,
                 "plan": info.get("plan", "unknown"),
             }
-            with open(shodan_config_path, "w") as f:
-                json.dump(config, f, indent=4)
-            print(CLIStyle.color(f"Synced API key to: {shodan_config_path}", 7))
-            print(
-                CLIStyle.color(
-                    f"Plan type: {info.get('plan', 'unknown')} ({'Paid' if is_paid else 'Free'})",
-                    7,
-                )
+            self._write_json_atomic(self.paths.config_file, config)
+            self._emit(
+                f"Synced API key to: {self.paths.config_file}",
+                CLIStyle.COLORS["TITLE"],
             )
-
-            # Update instance attributes
             self.is_paid = is_paid
+            self._emit(
+                f"Plan type: {info.get('plan', 'unknown')} ({'Paid' if is_paid else 'Free'})",
+                CLIStyle.COLORS["TITLE"],
+            )
+        except Exception as error:
+            self._emit(f"Error syncing config: {error}", CLIStyle.COLORS["ERROR"])
 
-        except Exception as e:
-            print(CLIStyle.color(f"Error syncing config: {str(e)}", 2))
+    @staticmethod
+    def _is_paid_plan(info: dict[str, Any]) -> bool:
+        """Return whether Shodan reports an unlocked non-dev plan."""
+        return str(info.get("plan", "")).lower() != "dev" and bool(
+            info.get("unlocked", False)
+        )
 
-    def init_api_key(self, api_key):
-        """Initialize API key"""
+    def _refresh_plan(self) -> bool:
+        """Refresh plan metadata only when pagination needs it."""
+        if not self.client:
+            return False
         try:
-            # Test if API key is valid
+            info = self.client.info()
+            self.is_paid = self._is_paid_plan(info)
+        except Exception as error:
+            debug("Plan lookup failed", error=str(error))
+            self._emit(
+                f"Warning: Could not determine API plan: {error}",
+                CLIStyle.COLORS["WARNING"],
+            )
+        return self.is_paid
+
+    def init_api_key(self, api_key: str) -> bool:
+        """Validate and persist an API key."""
+        api_key = api_key.strip()
+        if not api_key.strip():
+            self._emit("Error: API key cannot be empty", CLIStyle.COLORS["ERROR"])
+            return False
+        try:
             test_client = shodan.Shodan(api_key)
             info = test_client.info()
-
-            # Check if this is a paid plan
-            is_paid = info.get("plan", "").lower() != "dev" and info.get(
-                "unlocked", False
-            )
-
-            # Ensure directory exists
-            os.makedirs(shodan_dir_path, exist_ok=True)
-
-            # Save configuration
+            is_paid = self._is_paid_plan(info)
             config = {
                 "api_key": api_key,
                 "is_paid": is_paid,
                 "plan": info.get("plan", "unknown"),
             }
-            with open(shodan_config_path, "w") as f:
-                json.dump(config, f, indent=4)
+            self._write_json_atomic(self.paths.config_file, config)
 
-            print(CLIStyle.color("API key successfully initialized!", 3))
-            print(CLIStyle.color(f"Config saved to: {shodan_config_path}", 7))
-            print(
-                CLIStyle.color(
-                    f"Plan type: {info.get('plan', 'unknown')} ({'Paid' if is_paid else 'Free'})",
-                    7,
-                )
+            self._emit("API key successfully initialized!", CLIStyle.COLORS["CONTENT"])
+            self._emit(
+                f"Config saved to: {self.paths.config_file}",
+                CLIStyle.COLORS["TITLE"],
             )
-
-            self.api_key = api_key
+            self._emit(
+                f"Plan type: {info.get('plan', 'unknown')} ({'Paid' if is_paid else 'Free'})",
+                CLIStyle.COLORS["TITLE"],
+            )
+            self.api_key = api_key.strip()
             self.client = test_client
             self.is_paid = is_paid  # Update instance attribute
+            self._config_loaded = True
+            return True
+        except Exception as error:
+            self._emit("Error initializing API key:", CLIStyle.COLORS["ERROR"])
+            self._emit(str(error), CLIStyle.COLORS["ERROR"])
+            return False
 
-        except Exception as e:
-            print(CLIStyle.color("Error initializing API key:", 2))
-            print(CLIStyle.color(str(e), 2))
-            sys.exit(1)
+    def _get_cache_filename(
+        self,
+        query: str,
+        page: int = 1,
+        ipv4_only: bool = False,
+    ) -> Path:
+        """Generate a stable cache filename from the query and page."""
+        cache_key = json.dumps(
+            {
+                "ipv4_only": ipv4_only,
+                "page": page,
+                "query": " ".join(query.split()),
+                "version": 2,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        query_hash = hashlib.sha256(cache_key.encode("utf-8")).hexdigest()[:16]
+        return self.paths.result_dir / f"result_{query_hash}.json"
 
-    def _get_cache_filename(self, query, page=1):
-        """Generate cache filename based on query and page number"""
-
-        # Normalize query string, handle spaces within quotes
-        def normalize_query(q):
-            # Protect quoted content
-            protected = []
-
-            def protect(match):
-                protected.append(match.group(0))
-                return f"__PROTECTED_{len(protected) - 1}__"
-
-            # Protect content in double and single quotes
-            q = re.sub(r'"[^"]*"', protect, q)
-            q = re.sub(r"'[^']*'", protect, q)
-
-            # Normalize spaces
-            q = q.replace(" ", "_")
-
-            # Restore protected content
-            for i, p in enumerate(protected):
-                q = q.replace(f"__PROTECTED_{i}__", p.strip("\"'"))
-
-            return q
-
-        # Normalize query string and include page number
-        normalized_query = normalize_query(query)
-        # Generate hash from normalized query and page number
-        query_hash = hashlib.md5(f"{normalized_query}_page{page}".encode()).hexdigest()[
-            :12
-        ]
-        return os.path.join(shodan_result_dir, f"result_{query_hash}.json")
-
-    def _update_search_index(self, query, cache_file, results, page=1):
-        """Update search index"""
-        index_file = os.path.join(shodan_dir_path, "search-result.json")
+    def _update_search_index(
+        self,
+        query: str,
+        cache_file: Path,
+        results: dict[str, Any],
+        page: int = 1,
+        ipv4_only: bool = False,
+    ) -> None:
+        """Update the cache index and remove entries for deleted cache files."""
+        index_file = self.paths.index_file
         try:
-            # Read existing index
-            index_data = {}
-            if os.path.exists(index_file):
-                with open(index_file, "r") as f:
-                    index_data = json.load(f)
+            index_data: dict[str, Any] = {}
+            if index_file.is_file():
+                with index_file.open("r", encoding="utf-8") as index_handle:
+                    loaded_index = json.load(index_handle)
+                if isinstance(loaded_index, dict):
+                    index_data = loaded_index
 
-            if "searches" not in index_data:
-                index_data["searches"] = []
-
-            # Clean up records of non-existent cache files
+            searches = index_data.get("searches", [])
+            if not isinstance(searches, list):
+                searches = []
             index_data["searches"] = [
                 search
-                for search in index_data["searches"]
-                if os.path.exists(
-                    os.path.join(shodan_result_dir, search.get("result_file", ""))
-                )
+                for search in searches
+                if isinstance(search, dict)
+                and (
+                    self.paths.result_dir
+                    / Path(str(search.get("result_file", ""))).name
+                ).is_file()
             ]
 
-            # Check if query and page combination already exists
-            search_key = f"{query}_page{page}"
+            search_key = f"{query}_page{page}_ipv4={ipv4_only}"
             for search in index_data["searches"]:
                 if search.get("search_key") == search_key:
-                    # Update existing record
+                    now = datetime.now(timezone.utc).isoformat()
                     search.update(
                         {
-                            "last_updated": datetime.now().isoformat(),
+                            "last_updated": now,
                             "total_results": results.get("total", 0),
                             "matches_count": len(results.get("matches", [])),
                         }
                     )
                     break
             else:
-                # If query doesn't exist, add new record
+                now = datetime.now(timezone.utc).isoformat()
                 search_record = {
                     "query": query,
                     "search_key": search_key,
                     "page": page,
-                    "created_at": datetime.now().isoformat(),
-                    "last_updated": datetime.now().isoformat(),
-                    "result_file": os.path.basename(cache_file),
+                    "created_at": now,
+                    "last_updated": now,
+                    "result_file": cache_file.name,
                     "total_results": results.get("total", 0),
                     "matches_count": len(results.get("matches", [])),
                 }
                 index_data["searches"].insert(0, search_record)
 
-            # Write index file
-            with open(index_file, "w") as f:
-                json.dump(index_data, f, indent=2)
-
-        except Exception as e:
-            print(
-                CLIStyle.color(f"Warning: Failed to update search index: {str(e)}", 4)
+            self._write_json_atomic(index_file, index_data)
+        except (OSError, json.JSONDecodeError, TypeError) as error:
+            self._emit(
+                f"Warning: Failed to update search index: {error}",
+                CLIStyle.COLORS["WARNING"],
             )
 
-    def search(self, query, page=1, no_cache=False, delete_cache=False):
-        """Execute search and handle caching"""
+    def _fetch_with_spinner(
+        self,
+        query: str,
+        page: int,
+        ipv4_only: bool = False,
+    ) -> dict[str, Any] | None:
+        """Fetch one page while keeping the spinner isolated from output."""
+        stop_event = threading.Event()
+        loading_thread = threading.Thread(
+            target=show_loading_animation,
+            args=(stop_event, sys.stderr),
+            daemon=True,
+        )
+        loading_thread.start()
+        try:
+            return self._do_search(query, page, ipv4_only)
+        finally:
+            stop_event.set()
+            loading_thread.join()
+
+    def _save_cache(
+        self,
+        query: str,
+        cache_file: Path,
+        results: dict[str, Any],
+        page: int,
+        ipv4_only: bool,
+    ) -> None:
+        """Persist results and update the search index."""
+        try:
+            self._write_json_atomic(cache_file, results)
+            self._update_search_index(query, cache_file, results, page, ipv4_only)
+        except (OSError, TypeError) as error:
+            self._emit(f"Error saving cache: {error}", CLIStyle.COLORS["ERROR"])
+
+    def search(
+        self,
+        query: str,
+        page: int = 1,
+        no_cache: bool = False,
+        delete_cache: bool = False,
+        ipv4_only: bool = False,
+    ) -> dict[str, Any] | None:
+        """Execute a search, using a validated local cache when allowed."""
+        self._ensure_loaded()
         if not self.client:
             debug("API key not configured")
-            print(
-                CLIStyle.color(
-                    "Error: API key not configured. Use 'init' command first.", 2
-                )
+            self._emit(
+                "Error: API key not configured. Use 'init' command first.",
+                CLIStyle.COLORS["ERROR"],
             )
             return None
+        if page < 1:
+            self._emit("Error: page must be at least 1", CLIStyle.COLORS["ERROR"])
+            return None
 
-        # Check paid API access for pagination
+        if page > 1 and not self.is_paid:
+            self._refresh_plan()
         if page > 1 and not self.is_paid:
             debug("Free API pagination limit", page=page, is_paid=self.is_paid)
-            print(
-                CLIStyle.color(
-                    "Warning: Free API can only access the first page of results (max 100)",
-                    4,
-                )
+            self._emit(
+                "Warning: Free API can only access the first page of results (max 100)",
+                CLIStyle.COLORS["WARNING"],
             )
             page = 1
+        self.last_search_page = page
 
-        global is_searching
-        results = None
+        cache_file = self._get_cache_filename(query, page, ipv4_only)
+        debug("Cache file", cache_file=cache_file)
 
-        try:
-            # Check cache - now includes page number
-            cache_file = self._get_cache_filename(query, page)
-            debug("Cache file", cache_file=cache_file)
-
-            # If delete_cache is specified and cache exists, delete it
-            if delete_cache and os.path.exists(cache_file):
-                try:
-                    os.remove(cache_file)
-                    print(CLIStyle.color("Deleted existing cache.", 7))
-                except Exception as e:
-                    print(CLIStyle.color(f"Error deleting cache: {str(e)}", 2))
-
-            # Check if we need to perform a new search
-            need_new_search = no_cache or delete_cache or not os.path.exists(cache_file)
-
-            # For pages > 1, also check if previous page exists
-            if page > 1 and not need_new_search:
-                prev_cache_file = self._get_cache_filename(query, page - 1)
-                if not os.path.exists(prev_cache_file):
-                    print(
-                        CLIStyle.color(
-                            f"Previous page {page - 1} not found, performing new search...",
-                            7,
-                        )
-                    )
-                    need_new_search = True
-
-            if need_new_search:
-                # Print search information first
-                offset = (page - 1) * 100
-                print(
-                    f"\nSearching with query: {CLIStyle.color(query, 7)}, page: {CLIStyle.color(str(page), 7)}, offset: {CLIStyle.color(str(offset), 7)}"
-                )
-                print()  # Add empty line
-
-                # Start loading animation
-                is_searching = True
-                loading_thread = threading.Thread(target=show_loading_animation)
-                loading_thread.daemon = True
-                loading_thread.start()
-
-                results = self._do_search(query, page)
-                debug(
-                    "Search results",
-                    total=results.get("total") if results else None,
-                    matches_count=len(results.get("matches", []))
-                    if results and "matches" in results
-                    else 0,
-                )
-                is_searching = False
-                loading_thread.join()
-
-                # Save results if search was successful
-                if results and not no_cache:
-                    try:
-                        os.makedirs(shodan_result_dir, exist_ok=True)
-                        with open(cache_file, "w") as f:
-                            json.dump(results, f, indent=2)
-                        self._update_search_index(query, cache_file, results, page)
-                    except Exception as e:
-                        print(CLIStyle.color(f"Error saving cache: {str(e)}", 2))
-            else:
-                # Use cached results
-                try:
-                    with open(cache_file, "r") as f:
-                        results = json.load(f)
-                        debug("Loaded from cache", cache_file=cache_file)
-                        print(CLIStyle.color("Using cached results...", 7), end="")
-                except Exception as e:
-                    debug("Cache read error", error=str(e))
-                    print(CLIStyle.color(f"Error reading cache: {str(e)}", 2))
-                    # If cache read fails, perform new search
-                    is_searching = True
-                    loading_thread = threading.Thread(target=show_loading_animation)
-                    loading_thread.daemon = True
-                    loading_thread.start()
-                    results = self._do_search(query, page)
-                    is_searching = False
-                    loading_thread.join()
-
-            # Add stricter validation before processing results
-            if not results or not isinstance(results, dict):
-                debug("Invalid results format", results=results)
-                print(
-                    CLIStyle.color("Search returned invalid result format", CLIStyle.COLORS["ERROR"])
-                )
-                return None
-
-            matches = results.get("matches", [])
-            if not isinstance(matches, list):
-                debug("Invalid matches format", matches=matches)
-                print(
-                    CLIStyle.color(
-                        "Search returned invalid matches format", CLIStyle.COLORS["ERROR"]
-                    )
-                )
-                return None
-
-            # Ensure total field exists and is valid
-            total = results.get("total", 0)
-            if not isinstance(total, (int, float)):
-                total = len(matches)
-
-            return results
-
-        except Exception as e:
-            is_searching = False
-            debug("Search error", error=str(e))
-            print(
-                CLIStyle.color(
-                    f"\nError occurred during search: {str(e)}", CLIStyle.COLORS["ERROR"]
-                )
-            )
-            return None
-
-    def _do_search(self, query, page=1):
-        """Execute actual search operation against Shodan API"""
-        try:
+        if delete_cache and cache_file.exists():
             try:
-                debug("Executing Shodan API search", query=query, page=page)
-                # Use page parameter for pagination
-                response = self.client.search(query, page=page)
+                cache_file.unlink()
+                self._emit("Deleted existing cache.", CLIStyle.COLORS["TITLE"])
+            except OSError as error:
+                self._emit(f"Error deleting cache: {error}", CLIStyle.COLORS["ERROR"])
 
-                if response and "matches" in response:
-                    debug(
-                        "Raw response",
-                        total=response.get("total"),
-                        matches_count=len(response.get("matches", [])),
-                    )
-                    response["matches"] = [
-                        match
-                        for match in response["matches"]
-                        if match.get("ip_str", "").count(":")
-                        == 0  # IPv6 addresses contain multiple colons
-                    ]
-                    response["total"] = len(response["matches"])
-                    debug(
-                        "Filtered response",
-                        total=response.get("total"),
-                        matches_count=len(response.get("matches", [])),
-                    )
+        need_new_search = no_cache or delete_cache or not cache_file.is_file()
+        results: dict[str, Any] | None = None
 
-                if not response or "matches" not in response:
-                    debug("Invalid response", response=response)
-                    print(CLIStyle.color("No results found or invalid response", 2))
-                    return None
-
-                print(
-                    CLIStyle.color(
-                        f"\nGot {len(response.get('matches', []))} results", 7
-                    )
-                )
-                return response
-
-            except shodan.APIError as e:
-                debug("Shodan API error", error=str(e))
-                if "Search cursor timed out" in str(e):
-                    print(CLIStyle.color("\nError: Search cursor timed out.", 2))
-                    print(
-                        CLIStyle.color(
-                            "Note: Shodan API may timeout when accessing higher page numbers directly.",
-                            4,
-                        )
-                    )
-                    print(
-                        CLIStyle.color(
-                            "Suggestion: Start from page 1 or try a lower page number.",
-                            4,
-                        )
-                    )
-                    return None
+        if need_new_search:
+            offset = (page - 1) * 100
+            self._emit(f"Searching with query: {query}, page: {page}, offset: {offset}")
+            results = self._fetch_with_spinner(query, page, ipv4_only)
+            if results and not no_cache:
+                self._save_cache(query, cache_file, results, page, ipv4_only)
+        else:
+            try:
+                with cache_file.open("r", encoding="utf-8") as cache_handle:
+                    loaded_results = json.load(cache_handle)
+                if isinstance(loaded_results, dict):
+                    results = loaded_results
+                    debug("Loaded from cache", cache_file=cache_file)
+                    self._emit("Using cached results...", CLIStyle.COLORS["TITLE"])
                 else:
-                    raise e
+                    raise ValueError("cache root must be an object")
+            except (OSError, json.JSONDecodeError, ValueError) as error:
+                debug("Cache read error", error=str(error))
+                self._emit(f"Error reading cache: {error}", CLIStyle.COLORS["ERROR"])
+                results = self._fetch_with_spinner(query, page, ipv4_only)
+                if results and not no_cache:
+                    self._save_cache(query, cache_file, results, page, ipv4_only)
 
-        except Exception as e:
-            debug("Search execution error", error=str(e))
-            print(CLIStyle.color("Search error:", 2))
-            print(CLIStyle.color(str(e), 2))
+        if not isinstance(results, dict):
+            debug("Invalid results format", results=results)
+            self._emit(
+                "Search returned invalid result format",
+                CLIStyle.COLORS["ERROR"],
+            )
             return None
 
-    def show_info(self):
-        """Display Shodan API information and configuration"""
-        if not self.client:
-            print(
-                CLIStyle.color(
-                    "Error: API key not configured. Use 'init' command first.", 2
-                )
+        matches = results.get("matches", [])
+        if not isinstance(matches, list):
+            debug("Invalid matches format", matches=matches)
+            self._emit(
+                "Search returned invalid matches format",
+                CLIStyle.COLORS["ERROR"],
             )
-            return
+            return None
+
+        if not isinstance(results.get("total"), (int, float)):
+            results["total"] = len(matches)
+        return results
+
+    def _do_search(
+        self,
+        query: str,
+        page: int = 1,
+        ipv4_only: bool = False,
+    ) -> dict[str, Any] | None:
+        """Execute one Shodan API search and preserve the API total."""
+        if not self.client:
+            return None
+        try:
+            debug("Executing Shodan API search", query=query, page=page)
+            response = self.client.search(query, page=page)
+            if not isinstance(response, dict) or not isinstance(
+                response.get("matches"), list
+            ):
+                debug("Invalid response", response=response)
+                self._emit(
+                    "No results found or invalid response",
+                    CLIStyle.COLORS["ERROR"],
+                )
+                return None
+
+            raw_matches = response["matches"]
+            valid_matches = [match for match in raw_matches if isinstance(match, dict)]
+            if ipv4_only:
+                valid_matches = [
+                    match
+                    for match in valid_matches
+                    if ":" not in str(match.get("ip_str", ""))
+                ]
+            response["matches"] = valid_matches
+            if not isinstance(response.get("total"), (int, float)):
+                response["total"] = len(raw_matches)
+            debug(
+                "Search results",
+                api_total=response.get("total"),
+                matches_count=len(valid_matches),
+                ipv4_only=ipv4_only,
+            )
+            self._emit(
+                f"Got {len(valid_matches)} results",
+                CLIStyle.COLORS["TITLE"],
+            )
+            return response
+        except shodan.APIError as error:
+            debug("Shodan API error", error=str(error))
+            if "Search cursor timed out" in str(error):
+                self._emit("Error: Search cursor timed out.", CLIStyle.COLORS["ERROR"])
+                self._emit(
+                    "Try page 1 or a lower page number.",
+                    CLIStyle.COLORS["WARNING"],
+                )
+            else:
+                self._emit(f"Search error: {error}", CLIStyle.COLORS["ERROR"])
+            return None
+        except Exception as error:
+            debug("Search execution error", error=str(error))
+            self._emit(f"Search error: {error}", CLIStyle.COLORS["ERROR"])
+            return None
+
+    def show_info(self) -> bool:
+        """Display Shodan API information and local configuration."""
+        self._ensure_loaded()
+        if not self.client:
+            self._emit(
+                "Error: API key not configured. Use 'init' command first.",
+                CLIStyle.COLORS["ERROR"],
+            )
+            return False
 
         try:
             info = self.client.info()
-            if not info:
-                print(CLIStyle.color("Error: Could not retrieve Shodan info", 2))
-                return
+            if not isinstance(info, dict) or not info:
+                self._emit(
+                    "Error: Could not retrieve Shodan info",
+                    CLIStyle.COLORS["ERROR"],
+                )
+                return False
 
             console = Console()
-
-            # Display API information
             api_table = Table(
                 title="Shodan API Information",
                 box=box.ROUNDED,
                 header_style="bold cyan",
                 border_style="cyan",
             )
-
             api_table.add_column("Property", style="bold green")
-            api_table.add_column("Value", style="yellow")
-
+            api_table.add_column("Value", style="yellow", overflow="fold")
             for key, value in info.items():
-                api_table.add_row(str(key), str(value))
+                api_table.add_row(Text(str(key)), Text(str(value)))
 
-            console.print()
-            console.print(api_table)
-
-            # Display configuration information
             config_table = Table(
                 title="Configuration",
                 box=box.ROUNDED,
                 header_style="bold cyan",
                 border_style="cyan",
             )
-
             config_table.add_column("Item", style="bold green")
-            config_table.add_column("Value", style="yellow")
+            config_table.add_column("Value", style="yellow", overflow="fold")
+            config_table.add_row("Config Directory", Text(str(self.paths.root)))
+            config_table.add_row("Config File", Text(str(self.paths.config_file)))
+            config_table.add_row("Results Directory", Text(str(self.paths.result_dir)))
+            config_table.add_row("Search Index File", Text(str(self.paths.index_file)))
 
-            config_table.add_row("Config Directory", shodan_dir_path)
-            config_table.add_row("Config File", shodan_config_path)
-            config_table.add_row("Results Directory", shodan_result_dir)
-            config_table.add_row(
-                "Search Index File", os.path.join(shodan_dir_path, "search-result.json")
-            )
-
-            console.print()
+            console.print(api_table)
             console.print(config_table)
-            console.print()
+            return True
+        except Exception as error:
+            self._emit(f"Error getting info: {error}", CLIStyle.COLORS["ERROR"])
+            return False
 
-        except Exception as e:
-            print(CLIStyle.color("Error getting info:", 2))
-            print(CLIStyle.color(str(e), 2))
-            return
+    @staticmethod
+    def _endpoint_text(match: dict[str, Any]) -> Text:
+        """Build a readable endpoint cell."""
+        ip = str(match.get("ip_str") or match.get("ip") or "N/A")
+        port = match.get("port")
+        if port is None:
+            endpoint = ip
+        elif ":" in ip and not ip.startswith("["):
+            endpoint = f"[{ip}]:{port}"
+        else:
+            endpoint = f"{ip}:{port}"
 
-    def get_terminal_width(self):
-        """Get terminal width"""
+        endpoint_text = Text(endpoint, style="bold cyan")
+        hostnames = match.get("hostnames", [])
+        if isinstance(hostnames, list):
+            names = [str(name) for name in hostnames if name]
+            if names:
+                endpoint_text.append("\n" + ", ".join(names[:2]), style="dim")
+        return endpoint_text
+
+    @staticmethod
+    def _service_text(match: dict[str, Any]) -> Text:
+        """Build a service and transport cell."""
+        service_parts = [
+            str(match.get("product")) if match.get("product") else "",
+            str(match.get("version")) if match.get("version") else "",
+        ]
+        service = " ".join(part for part in service_parts if part)
+        shodan_data = match.get("_shodan", {})
+        if not service and isinstance(shodan_data, dict):
+            service = str(shodan_data.get("module", ""))
+        transport = str(match.get("transport", ""))
+        if transport:
+            service = f"{service or 'Unknown'} / {transport}"
+        return Text(service or "Unknown")
+
+    @staticmethod
+    def _location_text(match: dict[str, Any]) -> Text:
+        """Build a country and city cell."""
+        location = match.get("location", {})
+        if not isinstance(location, dict):
+            return Text("N/A")
+        city = str(location.get("city") or "")
+        country = str(
+            location.get("country_name") or location.get("country_code") or ""
+        )
+        value = ", ".join(part for part in (city, country) if part)
+        return Text(value or "N/A")
+
+    @staticmethod
+    def _timestamp_text(match: dict[str, Any]) -> Text:
+        """Format a Shodan timestamp in an unambiguous UTC representation."""
+        timestamp = match.get("timestamp")
+        if not timestamp:
+            return Text("N/A")
         try:
-            import shutil
+            parsed = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            value = parsed.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        except ValueError:
+            value = truncate(str(timestamp), 20)
+        return Text(value)
 
-            return shutil.get_terminal_size().columns
-        except:
-            return 80  # Default width
+    @classmethod
+    def _details_text(cls, match: dict[str, Any]) -> Text:
+        """Build the compact service, organization, and timestamp cell."""
+        details = cls._service_text(match)
+        organization = str(match.get("org") or match.get("isp") or "N/A")
+        details.append("\n" + organization, style="dim")
+        details.append("\n" + cls._timestamp_text(match).plain, style="dim")
+        return details
 
-    def truncate(self, text, width):
-        """Truncate text and add ellipsis"""
-        if len(text) > width:
-            return text[: width - 3] + "..."
-        return text
+    @staticmethod
+    def _raw_field(value: Any) -> str:
+        """Convert a value into one TSV-safe field."""
+        if value is None:
+            return ""
+        return str(value).replace("\t", " ").replace("\r", " ").replace("\n", " ")
 
-    def display_raw_results(self, matches):
-        """Display results in raw format, one IP:Port per line"""
-        debug("Displaying raw results", matches_count=len(matches) if matches else 0)
-        
-        if not matches:
-            print(CLIStyle.color("No matching results found", CLIStyle.COLORS["ERROR"]))
-            return
-        
-        for match in matches:
-            if not isinstance(match, dict):
-                continue
-                
-            ip = match.get("ip_str", "")
-            port = match.get("port", "")
-            
-            if not ip or not port:
-                continue
-                
-            hostnames = match.get("hostnames", [])
-            hostname_str = " ".join(hostnames) if hostnames else ""
-            
-            output = f"{ip} {port}"
-            if hostname_str:
-                output += f" {hostname_str}"
-                
-            print(output)
+    @classmethod
+    def _raw_hostnames(cls, match: dict[str, Any]) -> str:
+        """Convert hostnames into one comma-separated TSV field."""
+        hostnames = match.get("hostnames")
+        if isinstance(hostnames, list):
+            hostnames = ",".join(cls._raw_field(hostname) for hostname in hostnames)
+        return cls._raw_field(hostnames)
 
-    def display_results(self, matches, total, limit=None):
-        """Display results dynamically based on terminal width"""
+    def display_raw_results(self, matches: list[dict[str, Any]]) -> None:
+        """Display headerless, fixed-order TSV records for shell pipelines."""
+        debug("Displaying raw results", matches_count=len(matches))
+        for index, match in enumerate(matches, start=1):
+            location = match.get("location")
+            if not isinstance(location, dict):
+                location = {}
+
+            last_seen = match.get("last_seen")
+            if last_seen is None:
+                last_seen = match.get("timestamp")
+
+            ip = match.get("ip_str") or match.get("ip")
+            fields = [
+                self._raw_field(index),
+                self._raw_field(ip),
+                self._raw_field(match.get("port")),
+                self._raw_hostnames(match),
+                self._raw_field(match.get("product")),
+                self._raw_field(match.get("version")),
+                self._raw_field(match.get("transport")),
+                self._raw_field(match.get("org") or match.get("isp")),
+                self._raw_field(location.get("city")),
+                self._raw_field(
+                    location.get("country_name") or location.get("country_code")
+                ),
+                self._raw_field(last_seen),
+            ]
+            print("\t".join(fields))
+
+    def display_results(
+        self,
+        matches: list[dict[str, Any]],
+        total: int | float,
+        limit: int | None = None,
+        query: str = "",
+        page: int = 1,
+        retrieved_count: int | None = None,
+    ) -> None:
+        """Display a summary panel and a compact, human-readable result table."""
         debug(
             "Displaying results",
-            matches_count=len(matches) if matches else 0,
+            matches_count=len(matches),
             total=total,
             limit=limit,
         )
-
-        # Add input validation
         if not matches:
-            print(CLIStyle.color("No matching results found", CLIStyle.COLORS["ERROR"]))
+            self._emit("No matching results found", CLIStyle.COLORS["ERROR"])
             return
 
+        retrieved = retrieved_count if retrieved_count is not None else len(matches)
         console = Console()
-        console.print()
-
-        # Calculate terminal width
-        term_width = self.get_terminal_width()
-        debug("Terminal width", width=term_width)
-
-        # Define column configurations
-        # (column name, min width, priority[smaller number = higher priority])
-        columns = [
-            ("IP", 15, 1),
-            ("Port", 6, 1),
-            ("URL", 30, 1),
-            ("Organization", 30, 2),
-            ("Location", 25, 3),
-            ("Timestamp (UTC+8)", 19, 4),
-        ]
-
-        # Create table
-        results_table = Table(
-            box=box.ROUNDED,
-            header_style="bold cyan",
-            border_style="cyan",
-            show_lines=True,
-            padding=(0, 1),
-        )
-
-        # Calculate basic border and padding width
-        border_width = 4  # Left and right borders 2 characters each
-        padding_width = len(columns) * 2  # Each column has left and right padding of 1 character
-        available_width = term_width - border_width - padding_width
-
-        # Decide which columns to display based on available width
-        current_width = 0
-        added_columns = []
-
-        # Add columns by priority
-        for priority in range(1, 5):
-            for col_name, min_width, col_priority in columns:
-                if col_priority == priority:
-                    if current_width + min_width <= available_width:
-                        results_table.add_column(
-                            col_name, style="bold green", width=min_width
-                        )
-                        current_width += min_width
-                        added_columns.append(col_name)
-
-        # Add data rows
-        for match in matches:
-            if not isinstance(match, dict):
-                continue
-
-            row_data = []
-            for col_name, min_width, _ in columns:
-                if col_name not in added_columns:
-                    continue
-
-                if col_name == "IP":
-                    row_data.append(match.get("ip_str", "N/A"))
-                elif col_name == "Port":
-                    row_data.append(str(match.get("port", "N/A")))
-                elif col_name == "URL":
-                    ip = match.get("ip_str", "N/A")
-                    port = match.get("port", "N/A")
-                    protocol = "https" if port in ["443", "8443"] else "http"
-                    row_data.append(f"{protocol}://{ip}:{port}")
-                elif col_name == "Organization":
-                    org = match.get("org")
-                    # Ensure org is not None
-                    if org is None:
-                        row_data.append("N/A")
-                    else:
-                        org = self.truncate(str(org), 27)
-                        row_data.append(org)
-                elif col_name == "Location":
-                    location_data = match.get("location", {})
-                    country = location_data.get("country_name", "N/A")
-                    city = location_data.get("city", "N/A")
-                    longitude = location_data.get("longitude", "N/A")
-                    latitude = location_data.get("latitude", "N/A")
-                    location = f"{country}, {city}\n({latitude}°N, {longitude}°E)"
-                    row_data.append(location)
-                elif col_name == "Timestamp (UTC+8)":
-                    timestamp = match.get("timestamp")
-                    if timestamp:
-                        try:
-                            ts = datetime.fromisoformat(
-                                timestamp.replace("Z", "+00:00")
-                            )
-                            ts = ts.astimezone(timezone(timedelta(hours=8)))
-                            row_data.append(ts.strftime("%Y-%m-%d %H:%M:%S"))
-                        except:
-                            row_data.append("N/A")
-                    else:
-                        row_data.append("N/A")
-
-            results_table.add_row(*row_data)
-
-        # Display table and statistics
-        console.print(results_table)
-        console.print()
-
-        # Display query info and statistics
-        total_matches = len(matches)
-        if limit and limit > 0:
-            console.print(
-                f"[grey]Total Results: {total} | Retrieved: {total_matches} | Displayed: {len(matches)} (limited by --limit)[/grey]"
+        summary = Text()
+        summary.append("Query: ", style="bold cyan")
+        summary.append(query or "(not specified)")
+        summary.append(f"\nPage: {page}    API total: {total}")
+        if limit and retrieved > len(matches):
+            summary.append(
+                f"\nShowing: {len(matches)} of {retrieved} retrieved (--limit {limit})"
             )
         else:
-            console.print(
-                f"[grey]Total Results: {total} | Matches Retrieved: {total_matches}[/grey]"
+            summary.append(f"\nShowing: {len(matches)} retrieved")
+        console.print(Panel(summary, title="Search Summary", border_style="cyan"))
+
+        results_table = Table(
+            title="Results",
+            box=box.ROUNDED,
+            show_lines=True,
+            header_style="bold cyan",
+            border_style="cyan",
+            expand=True,
+            padding=(0, 1),
+        )
+        results_table.add_column("#", width=4, justify="right", style="dim")
+        results_table.add_column("Endpoint", ratio=2, min_width=18, overflow="fold")
+        if console.width < 110:
+            results_table.add_column("Details", ratio=3, min_width=24, overflow="fold")
+            results_table.add_column("Location", ratio=2, min_width=14, overflow="fold")
+        else:
+            results_table.add_column("Service", ratio=2, min_width=14, overflow="fold")
+            results_table.add_column(
+                "Organization", ratio=2, min_width=16, overflow="fold"
             )
-        console.print()
+            results_table.add_column("Location", ratio=2, min_width=14, overflow="fold")
+            results_table.add_column("Last Seen", width=20, no_wrap=True)
+
+        for index, match in enumerate(matches, start=1):
+            row = [str(index), self._endpoint_text(match)]
+            if console.width < 110:
+                row.extend([self._details_text(match), self._location_text(match)])
+            else:
+                organization = str(match.get("org") or match.get("isp") or "N/A")
+                row.extend(
+                    [
+                        self._service_text(match),
+                        Text(organization),
+                        self._location_text(match),
+                        self._timestamp_text(match),
+                    ]
+                )
+            results_table.add_row(*row)
+        console.print(results_table)
 
 
-def main():
+def positive_int(value: str) -> int:
+    """Parse a strictly positive integer for CLI options."""
+    try:
+        number = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be an integer") from error
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return number
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the command-line interface and return a process status code."""
     script_name = os.path.basename(sys.argv[0])
 
     # Define examples and notes
@@ -887,7 +993,13 @@ def main():
             "Complex query",
             'search \'http.favicon.hash:"-620522584" country:"cn"\' --delete-cache',
         ),
-        ("Raw output format", 'search "apache" --raw'),
+        (
+            "Pipe to awk",
+            'search \'http.favicon.hash:"-620522584" country:"cn"\' --raw | awk {\'print "http://"$2":"$3\'}',
+        ),
+        ("Readable table output", 'search "apache" --format table'),
+        ("JSON output", 'search "apache" --format json'),
+        ("Raw TSV output for automation", 'search "apache" --raw'),
         ("Show API info", "info"),
         ("Calculate favicon hash", "hash /path/to/favicon.ico"),
         ("Calculate favicon hash from URL", "hash https://example.com/favicon.ico"),
@@ -895,18 +1007,23 @@ def main():
     ]
 
     notes = [
+        "SHODAN_API_KEY can provide a key without storing it in shell history",
         "Will automatically use API key from ~/.config/shodan/api_key if available",
         "Custom config is stored in ~/.shodan/config.json",
         "Search results are cached in ~/.shodan/result/",
         "Use --no-cache to skip cache, --delete-cache to refresh cache",
-        "Use --raw for simple 'ip port' output format",
+        "Default output is a summary panel plus a compact result table",
+        f"--raw writes headerless TSV with fields: {', '.join(RAW_FIELD_ORDER)}",
+        "Raw hostnames are comma-separated; missing fields remain empty",
+        "Use --format json for structured JSON output",
+        "Use --ipv4-only to exclude IPv6 results explicitly",
         "For complex searches, enclose the entire query in quotes",
         "Use 'hash' command to calculate favicon hash for Shodan searches",
         "Use --log to enable debug mode for troubleshooting",
     ]
 
     parser = ColoredArgumentParser(
-        description=CLIStyle.color("Shodan CLI Tool", CLIStyle.COLORS["TITLE"]),
+        description="Shodan CLI Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=create_example_text(script_name, examples, notes),
     )
@@ -918,15 +1035,17 @@ def main():
 
     # init command
     init_parser = subparsers.add_parser("init", help="Initialize API key")
-    init_parser.add_argument("api_key", help="Shodan API key")
+    init_parser.add_argument(
+        "api_key",
+        nargs="?",
+        help="Shodan API key; omit to use SHODAN_API_KEY or a secure prompt",
+    )
 
     # search command
     search_parser = subparsers.add_parser(
         "search",
         help="Search Shodan",
-        description=CLIStyle.color(
-            "Search Shodan for specific terms", CLIStyle.COLORS["TITLE"]
-        ),
+        description="Search Shodan for specific terms",
         epilog=f"""
 {CLIStyle.color("Examples:", CLIStyle.COLORS["SUB_TITLE"])}
   {CLIStyle.color("# Basic search", CLIStyle.COLORS["EXAMPLE"])}
@@ -947,8 +1066,16 @@ def main():
   {CLIStyle.color("# Limit results", CLIStyle.COLORS["EXAMPLE"])}
   {script_name} search "nginx" --limit 10
   
-  {CLIStyle.color("# Raw output format", CLIStyle.COLORS["EXAMPLE"])}
+  {CLIStyle.color("# Headerless TSV for automation", CLIStyle.COLORS["EXAMPLE"])}
   {script_name} search "apache" --raw
+  {CLIStyle.color("# Fields: index, ip, port, hostnames, product, version, transport,", CLIStyle.COLORS["CONTENT"])}
+  {CLIStyle.color("#         organization, city, country, last_seen", CLIStyle.COLORS["CONTENT"])}
+
+  {CLIStyle.color("# JSON output for scripts", CLIStyle.COLORS["EXAMPLE"])}
+  {script_name} search "apache" --format json
+
+  {CLIStyle.color("# IPv4-only search", CLIStyle.COLORS["EXAMPLE"])}
+  {script_name} search "apache" --ipv4-only
 """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -956,7 +1083,10 @@ def main():
         "query", nargs="+", help="Search query (use quotes for complex queries)"
     )
     search_parser.add_argument(
-        "--page", type=int, default=1, help="Page number (Paid API only, default: 1)"
+        "--page",
+        type=positive_int,
+        default=1,
+        help="Page number (Paid API only, default: 1)",
     )
     search_parser.add_argument(
         "--no-cache", action="store_true", help="Do not use or save cache"
@@ -965,10 +1095,36 @@ def main():
         "--delete-cache", action="store_true", help="Delete and refresh cache"
     )
     search_parser.add_argument(
-        "--limit", type=int, help="Limit the number of results to display"
+        "--limit",
+        type=positive_int,
+        help="Limit the number of results to display",
+    )
+    output_group = search_parser.add_mutually_exclusive_group()
+    output_group.add_argument(
+        "--format",
+        choices=("table", "json"),
+        default="table",
+        help="Output format when --raw is not selected (default: table)",
+    )
+    output_group.add_argument(
+        "--raw",
+        action="store_true",
+        help=(
+            "Write headerless TSV to stdout with fields: "
+            + ", ".join(RAW_FIELD_ORDER)
+            + "; hostnames are comma-separated"
+        ),
     )
     search_parser.add_argument(
-        "--raw", action="store_true", help="Display results in raw format (IP Port)"
+        "--ipv4-only",
+        action="store_true",
+        help="Exclude IPv6 results from the response",
+    )
+    search_parser.add_argument(
+        "--log",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Enable debug logging",
     )
 
     # info command
@@ -978,9 +1134,7 @@ def main():
     hash_parser = subparsers.add_parser(
         "hash",
         help="Calculate favicon hash for Shodan searches",
-        description=CLIStyle.color(
-            "Calculate favicon hash for Shodan searches", CLIStyle.COLORS["TITLE"]
-        ),
+        description="Calculate favicon hash for Shodan searches",
         epilog=f"""
 {CLIStyle.color("Examples:", CLIStyle.COLORS["SUB_TITLE"])}
   {CLIStyle.color("# Calculate hash from local file", CLIStyle.COLORS["EXAMPLE"])}
@@ -1003,25 +1157,35 @@ def main():
         "path_or_url", help="Path to local favicon file or URL (can be website URL)"
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
-    # Set global debug mode
     global DEBUG_MODE
     DEBUG_MODE = args.log
 
     if DEBUG_MODE:
-        print(CLIStyle.color("Debug mode enabled", CLIStyle.COLORS["CONTENT"]))
+        print(
+            CLIStyle.color("Debug mode enabled", CLIStyle.COLORS["CONTENT"]),
+            file=sys.stderr,
+        )
 
     if not args.command:
         parser.print_help()
-        return
-
-    client = ShodanClient()
+        return 0
 
     if args.command == "init":
-        client.init_api_key(args.api_key)
+        client = ShodanClient()
+        api_key = args.api_key or os.environ.get("SHODAN_API_KEY")
+        if not api_key:
+            try:
+                api_key = getpass("Shodan API key: ")
+            except (EOFError, KeyboardInterrupt):
+                print("API key input cancelled", file=sys.stderr)
+                return 1
+        return 0 if client.init_api_key(api_key) else 1
 
-    elif args.command == "search":
+    if args.command == "search":
+        raw_output = args.raw
+        client = ShodanClient(quiet=raw_output or args.format == "json")
         query = " ".join(args.query)
         debug(
             "Search query",
@@ -1029,71 +1193,63 @@ def main():
             page=args.page,
             no_cache=args.no_cache,
             delete_cache=args.delete_cache,
-            raw=args.raw,
+            output_format=args.format,
+            raw_output=raw_output,
+            ipv4_only=args.ipv4_only,
         )
-
         results = client.search(
             query,
             page=args.page,
             no_cache=args.no_cache,
             delete_cache=args.delete_cache,
+            ipv4_only=args.ipv4_only,
         )
-
-        # Strict result validation
         if not results:
             debug("No results found", results=results)
-            print(CLIStyle.color("No results found", CLIStyle.COLORS["ERROR"]))
-            return
+            return 1
 
-        matches = results.get("matches", [])
-        debug("Matches count", count=len(matches) if matches else 0)
+        matches = [
+            match for match in results.get("matches", []) if isinstance(match, dict)
+        ]
+        debug("Matches count", count=len(matches))
+        display_matches = matches[: args.limit] if args.limit else matches
 
-        if not matches:
-            print(CLIStyle.color("No matches found", CLIStyle.COLORS["ERROR"]))
-            return
-
-        # Apply limit if specified
-        total_matches = len(matches)
-        if args.limit and args.limit > 0:
-            matches = matches[: args.limit]
-
-        # Use raw format or table format to display results
-        if args.raw:
-            client.display_raw_results(matches)
+        if raw_output:
+            client.display_raw_results(display_matches)
+        elif args.format == "json":
+            output = dict(results)
+            output["matches"] = display_matches
+            json.dump(output, sys.stdout, indent=2, ensure_ascii=False)
+            print()
         else:
-            client.display_results(matches, results.get("total", 0), args.limit)
-
-    elif args.command == "info":
-        try:
-            client.show_info()
-        except Exception as e:
-            print(
-                CLIStyle.color(
-                    f"Error displaying info: {str(e)}", CLIStyle.COLORS["ERROR"]
-                )
+            client.display_results(
+                display_matches,
+                results.get("total", 0),
+                args.limit,
+                query,
+                client.last_search_page,
+                len(matches),
             )
-            return
+        return 0
 
-    elif args.command == "hash":
-        try:
-            calculate_favicon_hash(args.path_or_url)
-        except Exception as e:
-            print(
-                CLIStyle.color(
-                    f"Error calculating favicon hash: {str(e)}",
-                    CLIStyle.COLORS["ERROR"],
-                )
-            )
-            return
+    if args.command == "info":
+        return 0 if ShodanClient().show_info() else 1
+
+    if args.command == "hash":
+        return 0 if calculate_favicon_hash(args.path_or_url) else 1
+
+    return 2
 
 
-def calculate_favicon_hash(path_or_url):
-    """Calculate Shodan favicon hash from file path or URL"""
+def calculate_favicon_hash(path_or_url: str) -> bool:
+    """Calculate and display the Shodan favicon hash for a file or URL."""
     try:
         debug("Calculating favicon hash", path_or_url=path_or_url)
         # Determine if input is a URL or file path
         is_url = path_or_url.lower().startswith(("http://", "https://"))
-        favicon_source = path_or_url  # Default to using input path as source
+        favicon_source = path_or_url
+        session = requests.Session()
+        session.headers.update({"User-Agent": "shodan-cli/2.0"})
 
         if is_url:
             print(
@@ -1103,7 +1259,7 @@ def calculate_favicon_hash(path_or_url):
             )
             try:
                 # First check if the URL directly points to a favicon
-                response = requests.get(path_or_url, timeout=10)
+                response = session.get(path_or_url, timeout=10)
                 if response.status_code != 200:
                     debug("HTTP error", status_code=response.status_code)
                     print(
@@ -1112,11 +1268,11 @@ def calculate_favicon_hash(path_or_url):
                             CLIStyle.COLORS["ERROR"],
                         )
                     )
-                    return
+                    return False
 
                 # Check if the content is a valid favicon
                 content_type = response.headers.get("Content-Type", "").lower()
-                content = response.content
+                content = _read_response_content(response)
                 is_favicon = _is_valid_favicon_content(content_type, content)
                 debug(
                     "Content validation",
@@ -1127,7 +1283,7 @@ def calculate_favicon_hash(path_or_url):
 
                 # If not a direct favicon URL, try to find favicon at the website
                 if not is_favicon:
-                    base_url = _get_base_url(path_or_url)
+                    base_url = _get_base_url(response.url)
                     print(
                         CLIStyle.color(
                             f"URL is not a direct favicon. Trying to find favicon at: {base_url}",
@@ -1154,18 +1310,23 @@ def calculate_favicon_hash(path_or_url):
                                     f"Trying: {favicon_url}", CLIStyle.COLORS["CONTENT"]
                                 )
                             )
-                            favicon_response = requests.get(favicon_url, timeout=10)
+                            favicon_response = session.get(favicon_url, timeout=10)
 
                             if favicon_response.status_code == 200:
                                 favicon_content_type = favicon_response.headers.get(
                                     "Content-Type", ""
                                 ).lower()
+                                favicon_content = _read_response_content(
+                                    favicon_response
+                                )
                                 if _is_valid_favicon_content(
-                                    favicon_content_type, favicon_response.content
+                                    favicon_content_type, favicon_content
                                 ):
-                                    content = favicon_response.content
+                                    content = favicon_content
                                     favicon_found = True
-                                    favicon_source = favicon_url  # Update favicon source
+                                    favicon_source = (
+                                        favicon_url  # Update favicon source
+                                    )
                                     print(
                                         CLIStyle.color(
                                             f"Found valid favicon at: {favicon_url}",
@@ -1191,6 +1352,8 @@ def calculate_favicon_hash(path_or_url):
                                     CLIStyle.COLORS["CONTENT"],
                                 )
                             )
+                            if BeautifulSoup is None:
+                                raise ImportError("beautifulsoup4 is not installed")
                             soup = BeautifulSoup(response.content, "html.parser")
 
                             # Look for favicon in link tags
@@ -1220,7 +1383,7 @@ def calculate_favicon_hash(path_or_url):
                                             CLIStyle.COLORS["CONTENT"],
                                         )
                                     )
-                                    favicon_response = requests.get(href, timeout=10)
+                                    favicon_response = session.get(href, timeout=10)
 
                                     if favicon_response.status_code == 200:
                                         favicon_content_type = (
@@ -1228,13 +1391,18 @@ def calculate_favicon_hash(path_or_url):
                                                 "Content-Type", ""
                                             ).lower()
                                         )
+                                        favicon_content = _read_response_content(
+                                            favicon_response
+                                        )
                                         if _is_valid_favicon_content(
                                             favicon_content_type,
-                                            favicon_response.content,
+                                            favicon_content,
                                         ):
-                                            content = favicon_response.content
+                                            content = favicon_content
                                             favicon_found = True
-                                            favicon_source = href  # Update favicon source
+                                            favicon_source = (
+                                                href  # Update favicon source
+                                            )
                                             print(
                                                 CLIStyle.color(
                                                     f"Found valid favicon at: {href}",
@@ -1278,14 +1446,14 @@ def calculate_favicon_hash(path_or_url):
                                 CLIStyle.COLORS["ERROR"],
                             )
                         )
-                        return
+                        return False
             except Exception as e:
                 print(
                     CLIStyle.color(
                         f"Error downloading favicon: {str(e)}", CLIStyle.COLORS["ERROR"]
                     )
                 )
-                return
+                return False
         else:
             # Local file
             if not os.path.exists(path_or_url):
@@ -1295,7 +1463,7 @@ def calculate_favicon_hash(path_or_url):
                         CLIStyle.COLORS["ERROR"],
                     )
                 )
-                return
+                return False
 
             print(
                 CLIStyle.color(
@@ -1305,6 +1473,15 @@ def calculate_favicon_hash(path_or_url):
             )
             with open(path_or_url, "rb") as f:
                 content = f.read()
+
+            if len(content) > MAX_FAVICON_SIZE:
+                print(
+                    CLIStyle.color(
+                        "Error: Favicon file is too large",
+                        CLIStyle.COLORS["ERROR"],
+                    )
+                )
+                return False
 
             # Check if the file is a valid favicon
             if not _is_valid_favicon_file(path_or_url, content):
@@ -1320,7 +1497,7 @@ def calculate_favicon_hash(path_or_url):
                         CLIStyle.COLORS["ERROR"],
                     )
                 )
-                return
+                return False
 
         # Display favicon source before calculating hash
         print(
@@ -1344,6 +1521,7 @@ def calculate_favicon_hash(path_or_url):
             "[bold cyan]Example Shodan search query:[/bold cyan]",
             f'[yellow]http.favicon.hash:"{hash_value}"[/yellow]',
         )
+        return True
 
     except Exception as e:
         debug("Error in calculate_favicon_hash", error=str(e))
@@ -1352,64 +1530,64 @@ def calculate_favicon_hash(path_or_url):
                 f"Error calculating hash: {str(e)}", CLIStyle.COLORS["ERROR"]
             )
         )
-        return
+        return False
 
 
-def _is_valid_favicon_content(content_type, content):
-    """Check if content appears to be a valid favicon"""
-    # Check content type
-    valid_types = ["image/x-icon", "image/vnd.microsoft.icon", "image/png", "image/ico"]
-    content_type_valid = any(valid_type in content_type for valid_type in valid_types)
-
-    # Check file signatures
-    is_ico = content.startswith(b"\x00\x00\x01\x00")  # ICO file signature
-    is_png = content.startswith(b"\x89PNG\r\n\x1a\n")  # PNG file signature
-
-    # A valid favicon should have either a correct content type or a valid file signature
-    # Also check minimum size to avoid empty files
-    if (content_type_valid or is_ico or is_png) and len(content) > 16:
-        return True
-
-    return False
+def _read_response_content(response: requests.Response) -> bytes:
+    """Read a response while enforcing a favicon size limit."""
+    content_length = response.headers.get("Content-Length")
+    if content_length and int(content_length) > MAX_FAVICON_SIZE:
+        raise ValueError("favicon response is too large")
+    content = response.content
+    if len(content) > MAX_FAVICON_SIZE:
+        raise ValueError("favicon response is too large")
+    return content
 
 
-def _is_valid_favicon_file(file_path, content):
-    """Check if file appears to be a valid favicon"""
-    # Check file extension
-    valid_extensions = [".ico", ".png"]
-    has_valid_extension = any(
-        file_path.lower().endswith(ext) for ext in valid_extensions
-    )
-
-    # Check file signatures
-    is_ico = content.startswith(b"\x00\x00\x01\x00")  # ICO file signature
-    is_png = content.startswith(b"\x89PNG\r\n\x1a\n")  # PNG file signature
-
-    # A valid favicon file should have both a valid extension and a valid file signature
-    # Also check minimum size to avoid empty files
-    if has_valid_extension and (is_ico or is_png) and len(content) > 16:
-        return True
-
-    return False
+def _is_valid_favicon_content(content_type: str, content: bytes) -> bool:
+    """Return whether remote content has a supported favicon signature."""
+    content_type = content_type.split(";", 1)[0].strip().lower()
+    supported_type = content_type in {
+        "",
+        "application/octet-stream",
+        "image/ico",
+        "image/png",
+        "image/vnd.microsoft.icon",
+        "image/x-icon",
+    }
+    has_signature = content.startswith((b"\x00\x00\x01\x00", b"\x89PNG\r\n\x1a\n"))
+    return len(content) > 16 and supported_type and has_signature
 
 
-def _get_base_url(url):
-    """Extract base URL from a given URL"""
+def _is_valid_favicon_file(file_path: str, content: bytes) -> bool:
+    """Return whether a local file has a supported extension and signature."""
+    valid_extension = Path(file_path).suffix.lower() in {".ico", ".png"}
+    has_signature = content.startswith((b"\x00\x00\x01\x00", b"\x89PNG\r\n\x1a\n"))
+    return valid_extension and len(content) > 16 and has_signature
+
+
+def _get_base_url(url: str) -> str:
+    """Extract and validate the origin from a URL."""
     parsed = urllib.parse.urlparse(url)
-    base_url = f"{parsed.scheme}://{parsed.netloc}"
-    return base_url
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("URL must include an http or https origin")
+    return f"{parsed.scheme}://{parsed.netloc}"
 
 
 if __name__ == "__main__":
     try:
-        main()
+        sys.exit(main())
     except KeyboardInterrupt:
-        print(CLIStyle.color("\nOperation cancelled by user", CLIStyle.COLORS["ERROR"]))
-        sys.exit(0)
-    except Exception as e:
+        print(
+            CLIStyle.color("\nOperation cancelled by user", CLIStyle.COLORS["ERROR"]),
+            file=sys.stderr,
+        )
+        sys.exit(130)
+    except Exception as error:
         if DEBUG_MODE:
-            import traceback
-
             traceback.print_exc()
-        print(CLIStyle.color(f"\nError: {str(e)}", CLIStyle.COLORS["ERROR"]))
+        print(
+            CLIStyle.color(f"\nError: {error}", CLIStyle.COLORS["ERROR"]),
+            file=sys.stderr,
+        )
         sys.exit(1)

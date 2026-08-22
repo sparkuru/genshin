@@ -511,11 +511,11 @@ lcd() {
 }
 
 rename() {
-    this_script_path="code/python/14-interact-rename.py"
+    this_script_path="code/python/14-rename.py"
     if [[ -f "$local_repo_path/$this_script_path" ]]; then
         rename_path="$local_repo_path/$this_script_path"
     else
-        rename_path="$HOME/.genshin/interact-rename.py"
+        rename_path="$HOME/.genshin/14-rename.py"
         if [[ ! -f $rename_path ]]; then
             _curl $rename_path $github_url_base/$this_script_path
         fi

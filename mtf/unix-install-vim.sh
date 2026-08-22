@@ -7,64 +7,74 @@ GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
+SCRIPT_NAME="$(basename "$0")"
+readonly SCRIPT_NAME
 
 ACTION=""
 TARGET_SCOPE="all"
 FORCE=0
 PROXY_URL="${VIM_INSTALL_PROXY:-${all_proxy:-${ALL_PROXY:-${https_proxy:-${HTTPS_PROXY:-}}}}}"
 
+log_message() {
+    local style="$1"
+    local stream="$2"
+    local message
+
+    shift 2
+    message="$*"
+
+    if [[ "$stream" == "stderr" ]]; then
+        if [[ -n "${NO_COLOR:-}" || ! -t 2 ]]; then
+            printf '%s\n' "$message" >&2
+        else
+            printf '%b%s%b\n' "$style" "$message" "$NC" >&2
+        fi
+    elif [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+        printf '%s\n' "$message"
+    else
+        printf '%b%s%b\n' "$style" "$message" "$NC"
+    fi
+}
+
 log_info() {
-    printf "%b\n" "${CYAN}$1${NC}"
+    log_message "$CYAN" stdout "$*"
 }
 
 log_warn() {
-    printf "%b\n" "${YELLOW}$1${NC}"
+    log_message "$YELLOW" stderr "$*"
 }
 
 log_ok() {
-    printf "%b\n" "${GREEN}$1${NC}"
+    log_message "$GREEN" stdout "$*"
 }
 
 log_error() {
-    printf "%b\n" "${RED}$1${NC}"
+    log_message "$RED" stderr "$*"
 }
 
 usage() {
     cat <<USAGE
-usage: $0 <install|remove> [--user-only|--root-only] [--force] [--proxy URL]
+Usage: $SCRIPT_NAME <install|remove> [options]
 
-options:
-  --user-only   apply only to the primary login user
-  --root-only   apply only to root user
-  --force       overwrite existing files / relink conflicting paths
-  --proxy URL   use this proxy for downloads and PlugInstall
+Options:
+  -h, --help     show this help message
+  --user-only    apply only to the primary login user
+  --root-only    apply only to root user
+  --force        overwrite existing files / relink conflicting paths
+  --proxy URL    use this proxy for downloads and PlugInstall
 USAGE
 }
 
 parse_args() {
-    if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-        usage
-        exit 0
-    fi
-
-    if [[ $# -lt 1 ]]; then
-        usage
-        exit 1
-    fi
-
-    ACTION="$1"
-    shift
-
-    case "$ACTION" in
-        install|remove) ;;
-        *)
-            usage
-            exit 1
-            ;;
-    esac
-
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            install|remove)
+                if [[ -n "$ACTION" ]]; then
+                    log_error "only one action may be specified"
+                    exit 1
+                fi
+                ACTION="$1"
+                ;;
             --user-only)
                 if [[ "$TARGET_SCOPE" == "root" ]]; then
                     log_error "--user-only and --root-only cannot be used together"
@@ -102,6 +112,11 @@ parse_args() {
         esac
         shift
     done
+
+    if [[ -z "$ACTION" ]]; then
+        usage
+        exit 1
+    fi
 }
 
 configure_proxy() {
@@ -123,7 +138,32 @@ configure_proxy() {
 }
 
 resolve_home() {
-    eval echo "~$1"
+    local user="$1"
+    local home=""
+
+    if [[ "$user" == "$(id -un)" && -n "${HOME:-}" ]]; then
+        printf '%s\n' "$HOME"
+        return 0
+    fi
+
+    if command -v getent >/dev/null 2>&1; then
+        if ! home="$(getent passwd "$user" | cut -d: -f6)"; then
+            home=""
+        fi
+    fi
+
+    if [[ -z "$home" && "$system_name" == "Darwin" ]] && command -v dscl >/dev/null 2>&1; then
+        if ! home="$(dscl . -read "/Users/$user" NFSHomeDirectory 2>/dev/null | awk '{print $2}')"; then
+            home=""
+        fi
+    fi
+
+    if [[ -z "$home" ]]; then
+        log_error "cannot resolve home directory for user: $user"
+        return 1
+    fi
+
+    printf '%s\n' "$home"
 }
 
 stat_owner() {
@@ -172,14 +212,19 @@ run_privileged() {
 remove_path() {
     local path="$1"
 
+    if [[ -z "$path" || "$path" == "/" ]]; then
+        log_error "refuse to remove unsafe path: $path"
+        return 1
+    fi
+
     if [[ ! -e "$path" && ! -L "$path" ]]; then
         return 0
     fi
 
     if path_needs_sudo "$path" || [[ "$(id -u)" -eq 0 ]]; then
-        run_privileged rm -rf "$path"
+        run_privileged rm -rf -- "$path"
     else
-        rm -rf "$path"
+        rm -rf -- "$path"
     fi
 }
 
@@ -215,6 +260,10 @@ ensure_local_runtime_dir() {
     local group="$3"
 
     if [[ -L "$dir" ]]; then
+        if [[ "$FORCE" -eq 0 ]]; then
+            log_error "portable mode requires a real directory, existing symlink kept: $dir (use --force to replace)"
+            return 1
+        fi
         log_warn "portable mode requires a real directory, replace symlink: $dir -> $(readlink "$dir")"
         remove_path "$dir"
     fi
@@ -228,8 +277,19 @@ install_file() {
     local owner="$3"
     local group="$4"
 
-    if [[ "$FORCE" -eq 1 && ( -e "$dest" || -L "$dest" ) ]]; then
-        remove_path "$dest"
+    if [[ -e "$dest" || -L "$dest" ]]; then
+        if [[ "$FORCE" -eq 0 ]]; then
+            log_error "target exists and will not be overwritten: $dest (use --force to replace)"
+            return 1
+        fi
+        if [[ -d "$dest" && ! -L "$dest" ]]; then
+            log_error "refuse to overwrite directory: $dest"
+            return 1
+        fi
+        log_warn "replace existing target: $dest"
+        if [[ -L "$dest" ]]; then
+            remove_path "$dest"
+        fi
     fi
 
     if path_needs_sudo "$dest" || [[ "$(id -u)" -eq 0 ]]; then
@@ -255,16 +315,16 @@ create_symlink() {
             log_warn "replace symlink: $link_path -> $target_path"
             remove_path "$link_path"
         else
-            log_warn "existing symlink differs, keep it: $link_path"
-            return 0
+            log_error "existing symlink differs, keep it: $link_path (use --force to replace)"
+            return 1
         fi
     elif [[ -e "$link_path" ]]; then
         if [[ "$FORCE" -eq 1 ]]; then
             log_warn "replace existing path with symlink: $link_path"
             remove_path "$link_path"
         else
-            log_warn "existing path is not a symlink, keep it: $link_path"
-            return 0
+            log_error "existing path is not a symlink, keep it: $link_path (use --force to replace)"
+            return 1
         fi
     fi
 
@@ -272,7 +332,9 @@ create_symlink() {
 
     if path_needs_sudo "$link_path" || [[ "$(id -u)" -eq 0 ]]; then
         run_privileged ln -sfn "$target_path" "$link_path"
-        run_privileged chown -h "$owner:$group" "$link_path" 2>/dev/null || true
+        if ! run_privileged chown -h "$owner:$group" "$link_path" 2>/dev/null; then
+            log_warn "could not set symlink ownership: $link_path"
+        fi
     else
         ln -sfn "$target_path" "$link_path"
     fi
@@ -284,9 +346,13 @@ download_file() {
     local owner="$3"
     local group="$4"
 
-    if [[ "$FORCE" -eq 0 && -f "$target" ]]; then
-        log_info "skip existing file: $target"
-        return 0
+    if [[ "$FORCE" -eq 0 && ( -e "$target" || -L "$target" ) ]]; then
+        if [[ -f "$target" ]]; then
+            log_info "skip existing file: $target"
+            return 0
+        fi
+        log_error "target exists and is not a regular file: $target (use --force to replace)"
+        return 1
     fi
 
     ensure_dir "$(dirname "$target")" "$owner" "$group"
@@ -335,11 +401,12 @@ should_handle_root() {
 }
 
 detect_vim_root() {
-    local root=""
+	local root=""
+	local vim_fallback_pattern='s/.*: "\(.*\)"/\1/p'
 
-    if [[ -n "$preferred_vim_bin" ]]; then
-        root="$($preferred_vim_bin --version 2>/dev/null | sed -n 's/.*fall-back for \$VIM: "\(.*\)"/\1/p' | head -n 1)"
-    fi
+	if [[ -n "$preferred_vim_bin" ]]; then
+		root="$("$preferred_vim_bin" --version 2>/dev/null | sed -n "$vim_fallback_pattern" | head -n 1)"
+	fi
 
     if [[ -z "$root" ]]; then
         root="/usr/share/vim"
@@ -405,7 +472,7 @@ resolve_context() {
     runtime_owner="root"
     runtime_group="$root_group"
 
-    if [[ "$install_mode" == "traditional" ]]; then
+    if [[ "$ACTION" == "install" && "$install_mode" == "traditional" ]]; then
         traditional_runtime_root="$(detect_vim_root)"
         traditional_runtime_dir="$(detect_vim_runtime_dir "$traditional_runtime_root")"
 
@@ -617,9 +684,6 @@ remove_vim() {
         fi
     fi
 
-    if [[ "$install_mode" == "traditional" ]]; then
-        log_info "traditional shared runtime files are kept untouched: $traditional_runtime_dir"
-    fi
 }
 
 parse_args "$@"

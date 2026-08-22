@@ -27,7 +27,8 @@ color_text() {
 
 usage() {
     printf '%s\n' "$(color_text "$STYLE_TITLE" "Usage:")" >&2
-    printf '  %s %s\n' "$SCRIPT_NAME" "$(color_text "$STYLE_CONTENT" "<file_path>")" >&2
+    printf '  %s %s %s\n' "$SCRIPT_NAME" "$(color_text "$STYLE_CONTENT" "[--offline]")" "$(color_text "$STYLE_CONTENT" "<file_path>")" >&2
+    printf '  %s %s\n' "$SCRIPT_NAME" "$(color_text "$STYLE_CONTENT" "-h | --help")" >&2
 }
 
 info() {
@@ -75,13 +76,14 @@ extract_firmware() {
     local file_name=$2
     local input_dir=$3
     local output_dir=$4
+    local pull_policy=$5
 
     mkdir -p -- "$input_dir" "$output_dir"
     cp -- "$file_path" "$input_dir/$file_name"
 
     docker run \
         --rm \
-        --pull always \
+        --pull "$pull_policy" \
         -u "$(id -u):$(id -g)" \
         -v "$output_dir:/data/output" \
         -v "$input_dir:/data/input:ro" \
@@ -89,6 +91,28 @@ extract_firmware() {
 }
 
 main() {
+    local pull_policy=always
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+        -h | --help)
+            usage
+            return 0
+            ;;
+        --offline)
+            pull_policy=never
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            break
+            ;;
+        esac
+    done
+
     if [[ $# -ne 1 ]]; then
         usage
         return 1
@@ -117,7 +141,7 @@ main() {
 
     local input_dir="$tmp_dir/input"
     local output_dir="$tmp_dir/output"
-    extract_firmware "$file_path" "$file_name" "$input_dir" "$output_dir"
+    extract_firmware "$file_path" "$file_name" "$input_dir" "$output_dir" "$pull_policy"
 
     local extract_dir="$output_dir/${file_name}_extract"
     [[ -d "$extract_dir" ]] || die "unblob did not produce expected output: $extract_dir"
