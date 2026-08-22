@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import inspect
+import json
 import os
 import re
 import signal
@@ -33,6 +34,11 @@ if sys.platform == "win32":
 
 DEBUG_MODE = False
 VERSION = "1.2.0"
+TRANSACTION_JOURNAL_NAME = ".rename-transaction.json"
+TRANSACTION_JOURNAL_TEMP_NAME = f"{TRANSACTION_JOURNAL_NAME}.tmp"
+RENAME_TEMP_PREFIX = ".rename-tmp-"
+TRANSACTION_VERSION = 1
+TRANSACTION_STATES = frozenset({"staging", "committing", "committed", "rolled_back"})
 
 VIDEO_EXTENSIONS = (
     ".mp4",
@@ -73,6 +79,8 @@ IGNORED_NAMES = frozenset(
         ".gitattributes",
         ".vscode",
         "__pycache__",
+        TRANSACTION_JOURNAL_NAME,
+        TRANSACTION_JOURNAL_TEMP_NAME,
         "rename.py",
         "tools.py",
         "interact-rename.py",
@@ -193,6 +201,39 @@ class RenameChange:
     new_name: str
 
 
+@dataclass(frozen=True, slots=True)
+class TransactionEntry:
+    """Persisted mapping for one file in an interrupted rename."""
+
+    old_name: str
+    new_name: str
+    temporary_name: str
+
+    def to_dict(self) -> dict[str, str]:
+        """Serialize the entry for the transaction journal."""
+        return {
+            "old_name": self.old_name,
+            "new_name": self.new_name,
+            "temporary_name": self.temporary_name,
+        }
+
+
+@dataclass(slots=True)
+class TransactionJournal:
+    """Describe a rename transaction that can be recovered after interruption."""
+
+    state: str
+    entries: list[TransactionEntry]
+
+    def to_dict(self) -> dict[str, object]:
+        """Serialize the journal for atomic persistence."""
+        return {
+            "version": TRANSACTION_VERSION,
+            "state": self.state,
+            "changes": [entry.to_dict() for entry in self.entries],
+        }
+
+
 class RenameCancelled(Exception):
     """Raised when an interrupt arrives during a staged rename."""
 
@@ -310,12 +351,17 @@ class FileRenamer:
         self.modified_files = 0
         self.stop_requested = False
         self._install_signal_handler()
+        if not self._recover_transaction():
+            raise RuntimeError(
+                "A previous rename transaction could not be recovered safely."
+            )
 
     def _install_signal_handler(self) -> None:
-        try:
-            signal.signal(signal.SIGINT, self._signal_handler)
-        except ValueError:
-            pass
+        for signal_number in (signal.SIGINT, signal.SIGTERM):
+            try:
+                signal.signal(signal_number, self._signal_handler)
+            except (OSError, ValueError):
+                continue
 
     def _signal_handler(self, signum: int, frame: FrameType | None) -> None:
         del signum, frame
@@ -337,7 +383,318 @@ class FileRenamer:
     def _valid_target_name(name: str) -> bool:
         if not name or name in {".", ".."}:
             return False
+        if name in {TRANSACTION_JOURNAL_NAME, TRANSACTION_JOURNAL_TEMP_NAME}:
+            return False
+        if name.startswith(RENAME_TEMP_PREFIX):
+            return False
         return not any(character in name for character in "\x00/:\\")
+
+    def _transaction_path(self) -> Path:
+        return self.directory / TRANSACTION_JOURNAL_NAME
+
+    def _transaction_journal_temp_path(self) -> Path:
+        return self.directory / TRANSACTION_JOURNAL_TEMP_NAME
+
+    def _temporary_paths(self) -> list[Path]:
+        return [
+            entry
+            for entry in self.directory.iterdir()
+            if entry.name.startswith(RENAME_TEMP_PREFIX)
+        ]
+
+    @staticmethod
+    def _sync_directory(directory: Path) -> None:
+        try:
+            descriptor = os.open(os.fspath(directory), os.O_RDONLY)
+        except OSError:
+            return
+        try:
+            os.fsync(descriptor)
+        except OSError:
+            pass
+        finally:
+            os.close(descriptor)
+
+    def _validate_transaction_journal(self, journal: TransactionJournal) -> None:
+        if journal.state not in TRANSACTION_STATES:
+            raise ValueError(f"unknown transaction state: {journal.state}")
+        if not journal.entries:
+            raise ValueError("transaction journal contains no changes")
+
+        source_names: set[str] = set()
+        destination_keys: set[str] = set()
+        temporary_keys: set[str] = set()
+        for entry in journal.entries:
+            for name in (entry.old_name, entry.new_name):
+                if Path(name).name != name or not self._valid_target_name(name):
+                    raise ValueError(f"invalid transaction filename: {name!r}")
+            if (
+                Path(entry.temporary_name).name != entry.temporary_name
+                or not entry.temporary_name.startswith(RENAME_TEMP_PREFIX)
+                or any(character in entry.temporary_name for character in "\x00/:\\")
+            ):
+                raise ValueError(
+                    f"invalid transaction temporary filename: {entry.temporary_name!r}"
+                )
+
+            destination_key = self._collision_key(entry.new_name)
+            temporary_key = entry.temporary_name
+            if entry.old_name in source_names:
+                raise ValueError(f"duplicate transaction source: {entry.old_name!r}")
+            if destination_key in destination_keys:
+                raise ValueError(
+                    f"duplicate transaction destination: {entry.new_name!r}"
+                )
+            if temporary_key in temporary_keys:
+                raise ValueError(
+                    f"duplicate transaction temporary: {entry.temporary_name!r}"
+                )
+            source_names.add(entry.old_name)
+            destination_keys.add(destination_key)
+            temporary_keys.add(temporary_key)
+
+    def _load_transaction_journal(self) -> TransactionJournal:
+        with self._transaction_path().open("r", encoding="utf-8") as input_file:
+            payload = json.load(input_file)
+        if not isinstance(payload, dict):
+            raise ValueError("transaction journal must contain an object")
+        if payload.get("version") != TRANSACTION_VERSION:
+            raise ValueError("unsupported transaction journal version")
+
+        state = payload.get("state")
+        raw_entries = payload.get("changes")
+        if not isinstance(state, str) or not isinstance(raw_entries, list):
+            raise ValueError("transaction journal has invalid fields")
+
+        entries: list[TransactionEntry] = []
+        for raw_entry in raw_entries:
+            if not isinstance(raw_entry, dict):
+                raise ValueError("transaction journal contains an invalid change")
+            old_name = raw_entry.get("old_name")
+            new_name = raw_entry.get("new_name")
+            temporary_name = raw_entry.get("temporary_name")
+            if not all(
+                isinstance(value, str) for value in (old_name, new_name, temporary_name)
+            ):
+                raise ValueError("transaction journal contains invalid filenames")
+            entries.append(TransactionEntry(old_name, new_name, temporary_name))
+
+        journal = TransactionJournal(state, entries)
+        self._validate_transaction_journal(journal)
+        return journal
+
+    def _write_transaction_journal(self, journal: TransactionJournal) -> None:
+        journal_path = self._transaction_path()
+        temporary_path = self._transaction_journal_temp_path()
+        try:
+            with temporary_path.open("w", encoding="utf-8") as output_file:
+                json.dump(
+                    journal.to_dict(),
+                    output_file,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                output_file.write("\n")
+                output_file.flush()
+                os.fsync(output_file.fileno())
+            os.replace(temporary_path, journal_path)
+            self._sync_directory(self.directory)
+        except (OSError, TypeError, ValueError):
+            try:
+                temporary_path.unlink()
+            except (FileNotFoundError, OSError):
+                pass
+            raise
+
+    def _clear_transaction_journal(self) -> bool:
+        try:
+            for path in (
+                self._transaction_path(),
+                self._transaction_journal_temp_path(),
+            ):
+                try:
+                    path.unlink()
+                except FileNotFoundError:
+                    continue
+            self._sync_directory(self.directory)
+        except OSError as error:
+            print_status(
+                f"Could not clear rename transaction journal: {error}",
+                CLIStyle.COLORS["ERROR"],
+            )
+            return False
+        return True
+
+    def _restore_transaction(self, journal: TransactionJournal) -> None:
+        known_temporary_names = {entry.temporary_name for entry in journal.entries}
+        unexpected_temporary_paths = [
+            path
+            for path in self._temporary_paths()
+            if path.name not in known_temporary_names
+        ]
+        if unexpected_temporary_paths:
+            names = ", ".join(path.name for path in unexpected_temporary_paths)
+            raise OSError(f"unexpected temporary files found: {names}")
+
+        if journal.state == "staging":
+            source_names = {entry.old_name for entry in journal.entries}
+            for entry in journal.entries:
+                old_exists = self._exists(self.directory / entry.old_name)
+                temporary_exists = self._exists(self.directory / entry.temporary_name)
+                if old_exists and temporary_exists:
+                    raise OSError(
+                        f"both source and temporary file exist for '{entry.old_name}'"
+                    )
+                if not old_exists and not temporary_exists:
+                    raise OSError(
+                        f"missing source and temporary file for '{entry.old_name}'"
+                    )
+                if entry.new_name not in source_names and self._exists(
+                    self.directory / entry.new_name
+                ):
+                    raise OSError(
+                        f"transaction target appeared externally: '{entry.new_name}'"
+                    )
+
+            for entry in journal.entries:
+                temporary_path = self.directory / entry.temporary_name
+                if not self._exists(temporary_path):
+                    continue
+                source = self.directory / entry.old_name
+                if self._exists(source):
+                    raise OSError(
+                        f"source reappeared during recovery: '{entry.old_name}'"
+                    )
+                temporary_path.rename(source)
+            return
+
+        if self._transaction_is_restored(journal):
+            return
+
+        destination_entries = {
+            self._collision_key(entry.new_name): entry for entry in journal.entries
+        }
+        for entry in journal.entries:
+            source = self.directory / entry.old_name
+            temporary_path = self.directory / entry.temporary_name
+            destination = self.directory / entry.new_name
+            if self._exists(source):
+                destination_entry = destination_entries.get(
+                    self._collision_key(entry.old_name)
+                )
+                if destination_entry is None or self._exists(
+                    self.directory / destination_entry.temporary_name
+                ):
+                    raise OSError(
+                        f"source appeared during recovery: '{entry.old_name}'"
+                    )
+            if self._exists(temporary_path) and self._exists(destination):
+                raise OSError(
+                    f"both destination and temporary file exist for '{entry.old_name}'"
+                )
+            if not self._exists(temporary_path) and not self._exists(destination):
+                raise OSError(
+                    f"missing destination and temporary file for '{entry.old_name}'"
+                )
+
+        for entry in journal.entries:
+            temporary_path = self.directory / entry.temporary_name
+            destination = self.directory / entry.new_name
+            if self._exists(destination):
+                destination.rename(temporary_path)
+
+        for entry in journal.entries:
+            source = self.directory / entry.old_name
+            temporary_path = self.directory / entry.temporary_name
+            if self._exists(source):
+                raise OSError(f"source appeared during recovery: '{entry.old_name}'")
+            if not self._exists(temporary_path):
+                raise OSError(f"temporary file disappeared for '{entry.old_name}'")
+            temporary_path.rename(source)
+
+    def _transaction_is_restored(self, journal: TransactionJournal) -> bool:
+        if self._temporary_paths():
+            return False
+        source_names = {entry.old_name for entry in journal.entries}
+        for entry in journal.entries:
+            if not self._exists(self.directory / entry.old_name):
+                return False
+            if entry.new_name not in source_names and self._exists(
+                self.directory / entry.new_name
+            ):
+                return False
+        return True
+
+    def _recover_transaction(self) -> bool:
+        journal_path = self._transaction_path()
+        if not self._exists(journal_path):
+            try:
+                self._transaction_journal_temp_path().unlink()
+            except (FileNotFoundError, OSError):
+                pass
+            try:
+                orphaned_paths = self._temporary_paths()
+            except OSError as error:
+                print_status(
+                    f"Could not inspect rename recovery files: {error}",
+                    CLIStyle.COLORS["ERROR"],
+                )
+                return False
+            if orphaned_paths:
+                names = ", ".join(path.name for path in orphaned_paths)
+                print_status(
+                    f"Orphaned rename temporary files require manual recovery: {names}",
+                    CLIStyle.COLORS["ERROR"],
+                )
+                return False
+            return True
+
+        try:
+            journal = self._load_transaction_journal()
+            if journal.state == "rolled_back":
+                if not self._transaction_is_restored(journal):
+                    raise OSError("rolled-back transaction still has active files")
+            elif journal.state != "committed":
+                self._restore_transaction(journal)
+            elif self._temporary_paths():
+                raise OSError("completed transaction still has temporary files")
+        except (OSError, ValueError) as error:
+            print_status(
+                f"Rename transaction recovery failed: {error}",
+                CLIStyle.COLORS["ERROR"],
+            )
+            return False
+
+        if not self._clear_transaction_journal():
+            return False
+        if journal.state == "committed":
+            print_status(
+                "Cleared completed rename transaction journal.",
+                CLIStyle.COLORS["WARNING"],
+            )
+        else:
+            print_status(
+                "Recovered interrupted rename transaction.",
+                CLIStyle.COLORS["WARNING"],
+            )
+        return True
+
+    def _create_transaction_journal(
+        self, changes: Sequence[RenameChange]
+    ) -> TransactionJournal:
+        if self._exists(self._transaction_path()):
+            raise OSError("another rename transaction is already active")
+        entries = [
+            TransactionEntry(
+                old_name=change.old_name,
+                new_name=change.new_name,
+                temporary_name=self._temporary_name(index).name,
+            )
+            for index, change in enumerate(changes, start=1)
+        ]
+        journal = TransactionJournal("staging", entries)
+        self._write_transaction_journal(journal)
+        return journal
 
     def _show_statistics(self) -> None:
         print("")
@@ -355,12 +712,14 @@ class FileRenamer:
         )
         entries = []
         for entry in self.directory.iterdir():
-            if entry.name in self.excluded_names:
+            if entry.name in self.excluded_names or entry.name.startswith(
+                RENAME_TEMP_PREFIX
+            ):
                 continue
             if entry.is_file() or (should_include_dirs and entry.is_dir()):
                 entries.append(entry.name)
 
-        entries.sort(key=natural_sort_key)
+        entries.sort(key=lambda name: (natural_sort_key(name), name.casefold(), name))
         self.total_files = len(entries)
         return entries
 
@@ -465,7 +824,7 @@ class FileRenamer:
 
     def _temporary_name(self, index: int) -> Path:
         while True:
-            candidate = self.directory / f".rename-tmp-{index}-{uuid4().hex}"
+            candidate = self.directory / f"{RENAME_TEMP_PREFIX}{index}-{uuid4().hex}"
             if not self._exists(candidate):
                 return candidate
 
@@ -473,13 +832,26 @@ class FileRenamer:
         self,
         staged: Sequence[tuple[RenameChange, Path]],
         completed: Sequence[tuple[RenameChange, Path]],
-    ) -> None:
+    ) -> bool:
+        rollback_succeeded = True
         completed_names = {change.new_name for change, _ in completed}
         for change, temporary_path in reversed(staged):
             destination = self.directory / change.new_name
             if change.new_name not in completed_names:
                 continue
             if not self._exists(destination):
+                print_status(
+                    f"Rollback could not find '{change.new_name}'.",
+                    CLIStyle.COLORS["ERROR"],
+                )
+                rollback_succeeded = False
+                continue
+            if self._exists(temporary_path):
+                print_status(
+                    f"Rollback temporary path is occupied: '{temporary_path.name}'",
+                    CLIStyle.COLORS["ERROR"],
+                )
+                rollback_succeeded = False
                 continue
             try:
                 destination.rename(temporary_path)
@@ -488,10 +860,16 @@ class FileRenamer:
                     f"Rollback failed for '{change.new_name}': {error}",
                     CLIStyle.COLORS["ERROR"],
                 )
+                rollback_succeeded = False
 
         for change, temporary_path in reversed(staged):
             source = self.directory / change.old_name
             if not self._exists(temporary_path):
+                print_status(
+                    f"Rollback temporary file is missing for '{change.old_name}'.",
+                    CLIStyle.COLORS["ERROR"],
+                )
+                rollback_succeeded = False
                 continue
             if self._exists(source):
                 print_status(
@@ -499,6 +877,7 @@ class FileRenamer:
                     f"'{change.old_name}'",
                     CLIStyle.COLORS["ERROR"],
                 )
+                rollback_succeeded = False
                 continue
             try:
                 temporary_path.rename(source)
@@ -507,25 +886,36 @@ class FileRenamer:
                     f"Rollback failed for '{change.old_name}': {error}",
                     CLIStyle.COLORS["ERROR"],
                 )
+                rollback_succeeded = False
+        return rollback_succeeded
 
     def _apply_changes(
         self, changes: Sequence[RenameChange], show_progress: bool = False
     ) -> bool:
         staged: list[tuple[RenameChange, Path]] = []
         completed: list[tuple[RenameChange, Path]] = []
+        journal: TransactionJournal | None = None
 
         try:
-            for index, change in enumerate(changes, start=1):
+            if self.stop_requested:
+                raise RenameCancelled
+            journal = self._create_transaction_journal(changes)
+            for change, entry in zip(changes, journal.entries):
                 if self.stop_requested:
                     raise RenameCancelled
                 source = self.directory / change.old_name
-                temporary_path = self._temporary_name(index)
+                temporary_path = self.directory / entry.temporary_name
                 source.rename(temporary_path)
                 staged.append((change, temporary_path))
 
-            for index, (change, temporary_path) in enumerate(staged, start=1):
+            journal.state = "committing"
+            self._write_transaction_journal(journal)
+            for index, (change, entry) in enumerate(
+                zip(changes, journal.entries), start=1
+            ):
                 if self.stop_requested:
                     raise RenameCancelled
+                temporary_path = self.directory / entry.temporary_name
                 destination = self.directory / change.new_name
                 if self._exists(destination):
                     raise OSError(f"target appeared during rename: '{change.new_name}'")
@@ -533,12 +923,39 @@ class FileRenamer:
                 completed.append((change, destination))
                 if show_progress:
                     self._show_progress(index, len(staged), "Renaming")
+            journal.state = "committed"
+            self._write_transaction_journal(journal)
+            self._clear_transaction_journal()
         except RenameCancelled:
-            self._rollback(staged, completed)
+            rollback_succeeded = self._rollback(staged, completed)
+            if journal is not None and rollback_succeeded:
+                journal.state = "rolled_back"
+                try:
+                    self._write_transaction_journal(journal)
+                except (OSError, TypeError, ValueError):
+                    pass
+                self._clear_transaction_journal()
+            elif journal is not None:
+                print_status(
+                    "Rename recovery journal retained for the next run.",
+                    CLIStyle.COLORS["WARNING"],
+                )
             print_status("Rename cancelled safely.", CLIStyle.COLORS["WARNING"])
             return False
-        except OSError as error:
-            self._rollback(staged, completed)
+        except (OSError, TypeError, ValueError) as error:
+            rollback_succeeded = self._rollback(staged, completed)
+            if journal is not None and rollback_succeeded:
+                journal.state = "rolled_back"
+                try:
+                    self._write_transaction_journal(journal)
+                except (OSError, TypeError, ValueError):
+                    pass
+                self._clear_transaction_journal()
+            elif journal is not None:
+                print_status(
+                    "Rename recovery journal retained for the next run.",
+                    CLIStyle.COLORS["WARNING"],
+                )
             print_status(f"Rename failed: {error}", CLIStyle.COLORS["ERROR"])
             return False
 
@@ -572,7 +989,7 @@ class FileRenamer:
     def fast_rename(
         self,
         file_type: str,
-        width: int = 3,
+        width: int | None = None,
         start_num: int = 1,
         target_extension: str | None = None,
     ) -> None:
@@ -594,6 +1011,14 @@ class FileRenamer:
                 CLIStyle.COLORS["WARNING"],
             )
             return
+
+        if width is None:
+            end_num = start_num + len(files) - 1
+            width = max(
+                len(str(len(files))),
+                len(str(start_num)),
+                len(str(end_num)),
+            )
 
         pairs = []
         for index, filename in enumerate(files, start_num):
@@ -980,8 +1405,8 @@ def build_parser() -> ColoredArgumentParser:
         "-w",
         "--width",
         type=positive_int,
-        default=3,
-        help="Number width.",
+        default=None,
+        help="Number width; defaults to the digits in the matching file count.",
     )
     fast_parser.add_argument(
         "-s",

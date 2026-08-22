@@ -4,7 +4,7 @@ mode: rule
 log-level: info
 ipv6: false
 external-controller: 0.0.0.0:1081
-secret: "Sdu4jRE8J_cGS1s_"
+secret: "FG3d8MqOkGBMTCvo"
 unified-delay: true
 sniffer:
   sniff:
@@ -25,6 +25,10 @@ tun:
   route-exclude-address:
   - 10.8.0.0/24
   - 10.10.0.0/16
+  - 10.21.0.0/16
+  - 10.22.0.0/16
+  - 10.23.0.0/16
+  - 10.24.0.0/16
   - 10.160.0.0/16
   - 10.168.0.0/16
   - 10.172.0.0/16

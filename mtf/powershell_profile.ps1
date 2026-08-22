@@ -55,8 +55,6 @@ $env:GIT_EDITOR = "$VIMPATH/vim.exe"
 $env:FZF_DEFAULT_COMMAND = "rg --files"
 $env:FZF_DEFAULT_OPTS="-m --height 40% --reverse --border --ansi"
 
-Set-Alias agent cursor-agent.cmd
-
 ###################### software ######################
 $NOTEPAD4PATH = "$software_base_path/notepad4"
 $POTPLAYERPATH = "$software_base_path/potplayer"
