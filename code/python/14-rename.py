@@ -182,9 +182,11 @@ class FileType:
 
     VIDEO = "video"
     IMAGE = "image"
+    ALL = "all"
     EXTENSIONS = {
         VIDEO: VIDEO_EXTENSIONS,
         IMAGE: IMAGE_EXTENSIONS,
+        ALL: IMAGE_EXTENSIONS + VIDEO_EXTENSIONS,
     }
 
     @classmethod
@@ -1283,6 +1285,7 @@ def create_example_text(script_name: str) -> str:
     examples = [
         ("Fast rename images and preserve extensions", "fast --type image"),
         ("Fast rename videos", "fast --type video --width 3"),
+        ("Fast rename images and videos together", "fast --type all"),
         ("Preview a prefix operation", "--dry-run prefix --width 3"),
         ("Add numeric prefixes without prompting", "prefix --yes"),
         ("Interactive pattern rename", "interactive"),
@@ -1397,9 +1400,9 @@ def build_parser() -> ColoredArgumentParser:
     fast_parser.add_argument(
         "-t",
         "--type",
-        choices=[FileType.IMAGE, "img", FileType.VIDEO],
+        choices=[FileType.IMAGE, "img", FileType.VIDEO, FileType.ALL],
         default=FileType.IMAGE,
-        help="File type to process; image, img, or video.",
+        help="File type to process; image, img, video, or all.",
     )
     fast_parser.add_argument(
         "-w",

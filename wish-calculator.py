@@ -19,15 +19,15 @@ DEBUG_MODE = False
 
 # Default demo scenario, used when running with --demo.
 DEFAULT_DEMO_CONFIG = {
-    "fates": 180,  # 已有抽数预算
+    "fates": 70,  # 已有抽数预算
     "target_characters": 3,  # 目标抽到几个角色
-    "char_pity": 50,  # 角色池已垫抽数
+    "char_pity": 66,  # 角色池已垫抽数
     "char_guaranteed": False,  # 是否为大保底
-    "cr_counter": 1,  # 捕获明光参数，连续歪了几次
+    "cr_counter": 0,  # 捕获明光参数，连续歪了几次；捕获一次明光后，会重置这个参数
     "target_weapons": 1,  # 目标抽到几把武器
-    "weapon_pity": 50,  # 武器池已垫抽数
+    "weapon_pity": 54,  # 武器池已垫抽数
     "weapon_guaranteed": False,  # 是否为大保底（上次出金不为两把 up 之一）
-    "fate_point": 1,  # 武器池命定值
+    "fate_point": 0,  # 武器池命定值
 }
 
 
@@ -706,16 +706,16 @@ def render_report(config: dict, result: dict) -> str:
     lines.append(
         CLIStyle.color(
             f"  Target characters    : {config['target_characters']} "
-            f"(pity {config['char_pity']}, guaranteed={config['char_guaranteed']}, "
-            f"cr_counter={config['cr_counter']})",
+            f"(pity {config['char_pity']}, guaranteed = {config['char_guaranteed']}, "
+            f"cr_counter = {config['cr_counter']})",
             CLIStyle.COLORS["CONTENT"],
         )
     )
     lines.append(
         CLIStyle.color(
             f"  Target weapons       : {config['target_weapons']} "
-            f"(pity {config['weapon_pity']}, guaranteed={config['weapon_guaranteed']}, "
-            f"fate_point={config['fate_point']})",
+            f"(pity {config['weapon_pity']}, guaranteed = {config['weapon_guaranteed']}, "
+            f"fate_point = {config['fate_point']})",
             CLIStyle.COLORS["CONTENT"],
         )
     )
