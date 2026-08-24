@@ -1,0 +1,24 @@
+format_version: 1
+captured_at_utc: 2026-08-24T02:24:43Z
+source_schema: rime_mint
+source_rime_commit: e447df59174edc0189e5ab894bd45b8f87483956
+source_origin: https://github.com/Mintimate/oh-my-rime.git
+distribution_code_name: fcitx-rime
+distribution_version: 5.1.10
+rime_version: 1.13.1
+includes_userdb: true
+files:
+  - path: default.yaml
+    sha256: ecefcea23b2d3ffe169339785e691d8479213d25575bc0b98428343041176495
+  - path: rime_mint.custom.yaml
+    sha256: 7d423c3f36c16c7a914a4d2443f907c9fea48fd5b90434517b5afc2409ce0f5a
+  - path: dicts/custom_simple.dict.yaml
+    sha256: bbdc4d05b219d44c65ba729f598531cf85012851dd0bb91ae5826c325c63476e
+  - path: lua/remove_bun_candidate.lua
+    sha256: 4ebd89c0977d07cb69a23315c946bd352c52ecaa4fddf929f475ec1f31ede0ea
+  - path: user.yaml
+    sha256: ebb5a933f349bca1ac5cd9d2f61500921771b293e8ca4484dbe84a6dd90df3f1
+  - path: state/rime_mint.userdb.txt
+    sha256: 86291137d8d73c7fc4542225318aa971853a3ff46014e054019e9d3fbf857683
+  - path: state/melt_eng.userdb.txt
+    sha256: 24643a5abfdb210e6bb9f4ca7b779922433530fd8fdc2618028c8cf63f6b6da0

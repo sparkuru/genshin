@@ -152,7 +152,7 @@ highlight PreviewTerminal ctermfg=15 ctermbg=0 guifg=#f5f5f5 guibg=#1f1f1f
 let g:gitgutter_enabled = 1
 let g:gitgutter_signs = 1
 let g:gitgutter_set_sign_backgrounds = 1
-let g:gitgutter_highlight_lines = 1
+let g:gitgutter_highlight_lines = 0
 let g:gitgutter_sign_added = '▎'
 let g:gitgutter_sign_modified = '▎'
 let g:gitgutter_sign_removed = '▁'
@@ -168,9 +168,19 @@ Plug 'junegunn/fzf.vim'
 Plug 'junegunn/fzf', {'do': { -> fzf#install() }}
 Plug 'airblade/vim-gitgutter'
 Plug 'frazrepo/vim-rainbow'
+Plug 'skywind3000/vim-auto-popmenu'
+Plug 'mg979/vim-visual-multi', {'branch': 'master'}
 call plug#end()
 
 let g:rainbow_active = 1
+let g:apc_enable = 0
+let g:apc_enable_ft = {}
+let g:VM_maps = {}
+let g:VM_maps['Find Under'] = '<C-D>'
+let g:VM_maps['Find Subword Under'] = '<C-D>'
+set cpt=.
+set completeopt=menu,menuone,noselect
+set shortmess+=c
 
 nnoremap <expr> j v:count ? 'j' : 'gj'
 nnoremap <expr> k v:count ? 'k' : 'gk'
@@ -185,6 +195,10 @@ nnoremap <silent> <leader><space> :nohlsearch<CR>
 nnoremap <leader>q gqip
 nnoremap <silent> <leader>l :set list!<CR>
 nnoremap <leader>w :write<CR>
+nnoremap <silent> <C-S> :write<CR>
+inoremap <silent> <C-S> <C-O>:write<CR>
+inoremap <silent> <C-D> <C-O><Plug>(VM-Find-Under)
+xnoremap <silent> <C-S> :<C-U>write<CR>
 xnoremap <silent> <Tab> >gv
 xnoremap <silent> <S-Tab> <gv
 
@@ -203,6 +217,7 @@ augroup filetype_indentation
   autocmd!
   autocmd FileType python setlocal tabstop=4 shiftwidth=4 softtabstop=4 expandtab
   autocmd FileType make setlocal tabstop=8 shiftwidth=8 softtabstop=0 noexpandtab
+  autocmd FileType text,markdown setlocal iskeyword+=.
 augroup END
 
 set cursorline cursorcolumn

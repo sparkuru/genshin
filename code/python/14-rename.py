@@ -36,7 +36,9 @@ DEBUG_MODE = False
 VERSION = "1.2.0"
 TRANSACTION_JOURNAL_NAME = ".rename-transaction.json"
 TRANSACTION_JOURNAL_TEMP_NAME = f"{TRANSACTION_JOURNAL_NAME}.tmp"
-RENAME_TEMP_PREFIX = ".rename-tmp-"
+RENAME_TEMP_PREFIX = "rename-tmp-"
+LEGACY_RENAME_TEMP_PREFIX = ".rename-tmp-"
+RENAME_TEMP_PREFIXES = (RENAME_TEMP_PREFIX, LEGACY_RENAME_TEMP_PREFIX)
 TRANSACTION_VERSION = 1
 TRANSACTION_STATES = frozenset({"staging", "committing", "committed", "rolled_back"})
 
@@ -254,6 +256,11 @@ def print_status(message: str, color_code: int = CLIStyle.COLORS["CONTENT"]) -> 
     print(CLIStyle.color(message, color_code))
 
 
+def is_rename_temporary_name(name: str) -> bool:
+    """Return whether a name uses a supported transaction temporary prefix."""
+    return name.startswith(RENAME_TEMP_PREFIXES)
+
+
 def debug(
     *args: object,
     file: str | Path | None = None,
@@ -337,6 +344,7 @@ class FileRenamer:
         excluded_names: Iterable[str] | None = None,
         dry_run: bool = False,
         assume_yes: bool = False,
+        verbose: bool = False,
     ) -> None:
         self.directory = directory.expanduser().resolve()
         self.include_dirs = include_dirs
@@ -348,6 +356,7 @@ class FileRenamer:
             self.excluded_names.update(excluded_names)
         self.dry_run = dry_run
         self.assume_yes = assume_yes
+        self.verbose = verbose
         self.console = Console()
         self.total_files = 0
         self.modified_files = 0
@@ -387,7 +396,7 @@ class FileRenamer:
             return False
         if name in {TRANSACTION_JOURNAL_NAME, TRANSACTION_JOURNAL_TEMP_NAME}:
             return False
-        if name.startswith(RENAME_TEMP_PREFIX):
+        if is_rename_temporary_name(name):
             return False
         return not any(character in name for character in "\x00/:\\")
 
@@ -401,7 +410,7 @@ class FileRenamer:
         return [
             entry
             for entry in self.directory.iterdir()
-            if entry.name.startswith(RENAME_TEMP_PREFIX)
+            if is_rename_temporary_name(entry.name)
         ]
 
     @staticmethod
@@ -432,7 +441,7 @@ class FileRenamer:
                     raise ValueError(f"invalid transaction filename: {name!r}")
             if (
                 Path(entry.temporary_name).name != entry.temporary_name
-                or not entry.temporary_name.startswith(RENAME_TEMP_PREFIX)
+                or not is_rename_temporary_name(entry.temporary_name)
                 or any(character in entry.temporary_name for character in "\x00/:\\")
             ):
                 raise ValueError(
@@ -707,23 +716,46 @@ class FileRenamer:
             f"{CLIStyle.color(self.modified_files, CLIStyle.COLORS['CONTENT'])}"
         )
 
-    def get_file_list(self, include_dirs: bool | None = None) -> list[str]:
-        """Return sorted eligible entries in the working directory."""
+    def get_file_list(
+        self, include_dirs: bool | None = None, order: str = "name"
+    ) -> list[str]:
+        """Return eligible entries in the working directory in the requested order."""
+        if order not in {"name", "time"}:
+            raise ValueError("order must be 'name' or 'time'")
+
         should_include_dirs = (
             self.include_dirs if include_dirs is None else include_dirs
         )
-        entries = []
+        entries: list[Path] = []
         for entry in self.directory.iterdir():
-            if entry.name in self.excluded_names or entry.name.startswith(
-                RENAME_TEMP_PREFIX
+            if entry.name in self.excluded_names or is_rename_temporary_name(
+                entry.name
             ):
                 continue
             if entry.is_file() or (should_include_dirs and entry.is_dir()):
-                entries.append(entry.name)
+                entries.append(entry)
 
-        entries.sort(key=lambda name: (natural_sort_key(name), name.casefold(), name))
-        self.total_files = len(entries)
-        return entries
+        if order == "time":
+            entries.sort(
+                key=lambda entry: (
+                    entry.stat().st_mtime,
+                    natural_sort_key(entry.name),
+                    entry.name.casefold(),
+                    entry.name,
+                )
+            )
+        else:
+            entries.sort(
+                key=lambda entry: (
+                    natural_sort_key(entry.name),
+                    entry.name.casefold(),
+                    entry.name,
+                )
+            )
+
+        file_list = [entry.name for entry in entries]
+        self.total_files = len(file_list)
+        return file_list
 
     def show_files(self, file_list: Sequence[str]) -> None:
         """Print the entries selected for processing."""
@@ -830,6 +862,17 @@ class FileRenamer:
             if not self._exists(candidate):
                 return candidate
 
+    def _show_verbose_step(
+        self, stage: str, index: int, total: int, change: RenameChange
+    ) -> None:
+        if not self.verbose:
+            return
+        print_status(
+            f"[{stage} {index}/{total}] "
+            f"'{change.old_name}' => '{change.new_name}'",
+            CLIStyle.COLORS["CONTENT"],
+        )
+
     def _rollback(
         self,
         staged: Sequence[tuple[RenameChange, Path]],
@@ -902,11 +945,14 @@ class FileRenamer:
             if self.stop_requested:
                 raise RenameCancelled
             journal = self._create_transaction_journal(changes)
-            for change, entry in zip(changes, journal.entries):
+            for index, (change, entry) in enumerate(
+                zip(changes, journal.entries), start=1
+            ):
                 if self.stop_requested:
                     raise RenameCancelled
                 source = self.directory / change.old_name
                 temporary_path = self.directory / entry.temporary_name
+                self._show_verbose_step("staging", index, len(changes), change)
                 source.rename(temporary_path)
                 staged.append((change, temporary_path))
 
@@ -919,6 +965,7 @@ class FileRenamer:
                     raise RenameCancelled
                 temporary_path = self.directory / entry.temporary_name
                 destination = self.directory / change.new_name
+                self._show_verbose_step("committing", index, len(changes), change)
                 if self._exists(destination):
                     raise OSError(f"target appeared during rename: '{change.new_name}'")
                 temporary_path.rename(destination)
@@ -994,6 +1041,7 @@ class FileRenamer:
         width: int | None = None,
         start_num: int = 1,
         target_extension: str | None = None,
+        order: str = "name",
     ) -> None:
         """Rename matching media files while preserving their content suffix."""
         extensions = FileType.get_extensions(file_type)
@@ -1003,7 +1051,7 @@ class FileRenamer:
 
         files = [
             filename
-            for filename in self.get_file_list()
+            for filename in self.get_file_list(order=order)
             if (self.directory / filename).is_file()
             and Path(filename).suffix.lower() in extensions
         ]
@@ -1286,7 +1334,9 @@ def create_example_text(script_name: str) -> str:
         ("Fast rename images and preserve extensions", "fast --type image"),
         ("Fast rename videos", "fast --type video --width 3"),
         ("Fast rename images and videos together", "fast --type all"),
+        ("Fast rename by modification time", "fast --type image --order time"),
         ("Preview a prefix operation", "--dry-run prefix --width 3"),
+        ("Show each staging and committing step", "-v prefix --yes"),
         ("Add numeric prefixes without prompting", "prefix --yes"),
         ("Interactive pattern rename", "interactive"),
         ("Replace text in filenames", "replace '_' '-'"),
@@ -1308,8 +1358,10 @@ def create_example_text(script_name: str) -> str:
         [
             f"{CLIStyle.color('Notes:', CLIStyle.COLORS['SUB_TITLE'])}",
             f"  {CLIStyle.color('- Fast rename preserves suffixes by default; --extension only changes the name.', CLIStyle.COLORS['CONTENT'])}",
+            f"  {CLIStyle.color('- Fast --order name uses natural filename order; --order time uses modification time from oldest to newest.', CLIStyle.COLORS['CONTENT'])}",
             f"  {CLIStyle.color('- All changes are previewed before confirmation.', CLIStyle.COLORS['CONTENT'])}",
             f"  {CLIStyle.color('- --dry-run never changes files.', CLIStyle.COLORS['CONTENT'])}",
+            f"  {CLIStyle.color('- -v/--verbose shows each staging and committing step.', CLIStyle.COLORS['CONTENT'])}",
             f"  {CLIStyle.color('- Interactive placeholders: {{name}}, {{ext}}, {{num}}, and {{regex:pattern:group}}.', CLIStyle.COLORS['CONTENT'])}",
         ]
     )
@@ -1353,6 +1405,13 @@ def add_runtime_options(
         help="Preview changes without modifying files.",
     )
     parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        default=default,
+        help="Show each staging and committing step.",
+    )
+    parser.add_argument(
         "-y",
         "--yes",
         action="store_true",
@@ -1377,7 +1436,7 @@ def build_parser() -> ColoredArgumentParser:
     )
     add_runtime_options(parser)
     parser.add_argument(
-        "-v",
+        "-V",
         "--version",
         action="version",
         version=f"%(prog)s {VERSION}",
@@ -1403,6 +1462,12 @@ def build_parser() -> ColoredArgumentParser:
         choices=[FileType.IMAGE, "img", FileType.VIDEO, FileType.ALL],
         default=FileType.IMAGE,
         help="File type to process; image, img, video, or all.",
+    )
+    fast_parser.add_argument(
+        "--order",
+        choices=["name", "time"],
+        default="name",
+        help="Order: name uses natural filename order; time uses modification time from oldest to newest.",
     )
     fast_parser.add_argument(
         "-w",
@@ -1537,7 +1602,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         excluded_names=args.exclude,
         dry_run=args.dry_run,
         assume_yes=args.yes,
+        verbose=args.verbose,
     )
+    if args.command == "fast":
+        file_type = FileType.IMAGE if args.type == "img" else args.type
+        debug(
+            "Selected directory",
+            directory=renamer.directory,
+            command=args.command,
+            order=args.order,
+        )
+        renamer.fast_rename(
+            file_type,
+            args.width,
+            args.start_num,
+            args.extension,
+            order=args.order,
+        )
+        return 0
+
     file_list = renamer.get_file_list()
     debug(
         "Selected directory",
@@ -1545,15 +1628,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         candidates=len(file_list),
     )
 
-    if args.command == "fast":
-        file_type = FileType.IMAGE if args.type == "img" else args.type
-        renamer.fast_rename(
-            file_type,
-            args.width,
-            args.start_num,
-            args.extension,
-        )
-    elif args.command == "prefix":
+    if args.command == "prefix":
         renamer.prefix_rename(file_list, args.width, args.mode, args.start_num)
     elif args.command in {"interactive", "interact"}:
         renamer.interactive_rename(file_list)

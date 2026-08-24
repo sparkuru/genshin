@@ -1,0 +1,39 @@
+# Rime user dictionary
+#@/db_name	melt_eng
+#@/db_type	userdb
+#@/rime_version	1.13.1
+#@/tick	75
+#@/user_id	ca62f353-43e6-488d-90b6-9dde39353ca4
+AV 	AV	c=1 d=1 t=75
+CD 	CD	c=16 d=15.4153 t=75
+CDN 	CDN	c=1 d=1 t=75
+DNS 	DNS	c=1 d=1 t=75
+GPT 	GPT	c=1 d=1 t=75
+ID 	ID	c=2 d=1.99501 t=75
+IP 	IP	c=1 d=1 t=75
+Linux 	Linux	c=1 d=1 t=75
+OK 	OK	c=4 d=3.96032 t=75
+PHP 	PHP	c=1 d=1 t=75
+SMS 	SMS	c=2 d=1.99501 t=75
+SSH 	SSH	c=1 d=1 t=75
+Vim 	Vim	c=1 d=1 t=75
+Visa 	Visa	c=1 d=1 t=75
+bug 	bug	c=2 d=1.99501 t=75
+curl 	curl	c=1 d=1 t=75
+description 	description	c=1 d=1 t=75
+file 	file	c=4 d=3.97017 t=75
+git 	git	c=13 d=12.6181 t=75
+goo 	goo	c=1 d=1 t=75
+helix 	helix	c=1 d=1 t=75
+if 	if	c=1 d=1 t=75
+is 	is	c=1 d=1 t=75
+language 	language	c=1 d=1 t=75
+omega 	omega	c=1 d=1 t=75
+phi 	phi	c=6 d=5.92568 t=75
+python 	python	c=1 d=1 t=75
+root 	root	c=1 d=1 t=75
+rugs 	rugs	c=1 d=1 t=75
+sudo 	sudo	c=1 d=1 t=75
+to 	to	c=1 d=1 t=75
+touch 	touch	c=1 d=1 t=75
+web 	web	c=2 d=1.99501 t=75

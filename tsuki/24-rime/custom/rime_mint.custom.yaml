@@ -9,3 +9,5 @@ patch:
     - derive/([jqxy])u/$1v/
     - derive/([nl])ue/$1ve/
     - abbrev/^([a-z]).+$/$1/
+  'engine/filters/+':
+    - lua_filter@*remove_bun_candidate
