@@ -1,3 +1,10 @@
+---
+title: "ipsec"
+description: "ipsec study notes."
+date: 2026-08-25
+draft: true
+layout: post
+---
 # ipsec
 
 1. strongwan 实现原理的分析

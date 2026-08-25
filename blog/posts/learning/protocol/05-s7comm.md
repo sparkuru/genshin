@@ -1,3 +1,10 @@
+---
+title: "s7comm"
+description: "s7comm study notes."
+date: 2026-08-25
+draft: true
+layout: post
+---
 
 端口、协议格式
 

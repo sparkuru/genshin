@@ -1,3 +1,10 @@
+---
+title: "mil std 1553b"
+description: "mil std 1553b study notes."
+date: 2026-08-25
+draft: true
+layout: post
+---
 
 
 
