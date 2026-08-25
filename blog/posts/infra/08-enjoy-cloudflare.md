@@ -97,8 +97,8 @@ vicente.ns.cloudflare.com
 确认后点击 审核令牌，然后确认令牌，复制弹出对话框里的 ID 和 API_key，修改 acme 更新脚本即可
 
 ```
-aX5gPWIgi05gRoDyGIdfbctFfVaY0l1y    # 即 acme 脚本里的 CF_Account_ID
-cfat_OD3fofblH9rsZTM6p1PnzYriNTORzRNnR8zkfktH2801cbf0   # CF_Token
+xcaggexgdgxxbgddabexdaeggebacfbc    # 即 acme 脚本里的 CF_Account_ID
+gfexcebfaffgcgddaxedbfxxxcabxfaxgdeexebcxxfabgxggfaxb   # CF_Token
 ```
 
 ### 配置 nginx real ip
