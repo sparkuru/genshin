@@ -402,7 +402,7 @@ should_handle_root() {
 
 detect_vim_root() {
 	local root=""
-	local vim_fallback_pattern='s/.*: "\(.*\)"/\1/p'
+	local vim_fallback_pattern='s/^[[:space:]]*fall-back for \$VIM: "\(.*\)"/\1/p'
 
 	if [[ -n "$preferred_vim_bin" ]]; then
 		root="$("$preferred_vim_bin" --version 2>/dev/null | sed -n "$vim_fallback_pattern" | head -n 1)"
