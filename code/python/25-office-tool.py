@@ -48,15 +48,17 @@ DPI_SCALE = 96 / 72
 CELL_PADDING_X = 8
 CELL_PADDING_Y = 5
 MIN_COLUMN_WIDTH = 36
-MIN_ROW_HEIGHT = 28
+MIN_RENDER_ROW_HEIGHT = 1
 WIDTH_FACTOR = 1.35
+LINE_SPACING = 5
 DEFAULT_BACKGROUND = "#ffffff"
 DEFAULT_GRID_COLOR = "#b7b7b7"
 DEFAULT_TEXT_COLOR = "#1f1f1f"
 DEFAULT_BAND_COLORS = ("#ffffff", "#f5f9fc")
 DEFAULT_THEME_HEADER_TEXT = "\u4e3b\u9898"
 DEFAULT_FONT_SIZE = 11
-MIN_RENDER_FONT_SIZE = 18
+DEFAULT_ROW_HEIGHT_POINTS = 15.0
+DEFAULT_COLUMN_WIDTH = 8.43
 FONT_FAMILY_PATHS = {
     "\u5b8b\u4f53": (
         "/home/wkyuu/.local/share/fonts/STSONG.TTF",
@@ -68,10 +70,34 @@ FONT_FAMILY_PATHS = {
     "Carlito": ("/home/wkyuu/.local/share/fonts/calibri.ttf",),
     "Calibri": ("/home/wkyuu/.local/share/fonts/calibri.ttf",),
 }
+FONT_FAMILY_BOLD_PATHS = {
+    "\u5b8b\u4f53": (
+        "/home/wkyuu/.local/share/fonts/msyhbd.ttc",
+        "/home/wkyuu/.local/share/fonts/STSONG.TTF",
+    ),
+    "SimSun": (
+        "/home/wkyuu/.local/share/fonts/msyhbd.ttc",
+        "/home/wkyuu/.local/share/fonts/STSONG.TTF",
+    ),
+    "STSong": (
+        "/home/wkyuu/.local/share/fonts/msyhbd.ttc",
+        "/home/wkyuu/.local/share/fonts/STSONG.TTF",
+    ),
+    "\u534e\u6587\u5b8b\u4f53": (
+        "/home/wkyuu/.local/share/fonts/msyhbd.ttc",
+        "/home/wkyuu/.local/share/fonts/STSONG.TTF",
+    ),
+    "Carlito": ("/home/wkyuu/.local/share/fonts/calibrib.ttf",),
+    "Calibri": ("/home/wkyuu/.local/share/fonts/calibrib.ttf",),
+}
 DEFAULT_FONT_PATHS = (
     "/home/wkyuu/.local/share/fonts/msyh.ttc",
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+)
+DEFAULT_BOLD_FONT_PATHS = (
+    "/home/wkyuu/.local/share/fonts/msyhbd.ttc",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
 )
 
 
@@ -171,6 +197,7 @@ class ImageRenderOptions:
     text_color: str
     theme_header_text: str
     use_theme_bands: bool
+    preserve_fills: bool
     theme_colors: dict[int, str] = field(default_factory=dict)
 
 
@@ -183,6 +210,7 @@ class ImageConversionRequest:
     scale: int
     selected_sheets: tuple[str, ...]
     use_theme_bands: bool
+    preserve_fills: bool
     theme_header_text: str
 
 
@@ -248,19 +276,23 @@ def ensure_office_dependencies() -> None:
         ) from OFFICE_IMPORT_ERROR
 
 
-def find_font_path(font_name: str | None = None) -> str | None:
+def find_font_path(font_name: str | None = None, bold: bool = False) -> str | None:
     """Return the first available path for a worksheet font."""
-    font_paths = FONT_FAMILY_PATHS.get(font_name or "", ()) + DEFAULT_FONT_PATHS
+    family_paths = FONT_FAMILY_BOLD_PATHS if bold else FONT_FAMILY_PATHS
+    fallback_paths = DEFAULT_BOLD_FONT_PATHS if bold else DEFAULT_FONT_PATHS
+    font_paths = family_paths.get(font_name or "", ()) + fallback_paths
     for font_path in font_paths:
         if Path(font_path).exists():
             return font_path
     return None
 
 
-def load_render_font(size: int, font_name: str | None = None) -> Any:
+def load_render_font(
+    size: int, font_name: str | None = None, bold: bool = False
+) -> Any:
     """Load a font for worksheet rendering."""
     ensure_office_dependencies()
-    font_path = find_font_path(font_name)
+    font_path = find_font_path(font_name, bold=bold)
     if font_path is None:
         return ImageFont.load_default()
     return ImageFont.truetype(font_path, size=size, index=0)
@@ -273,18 +305,23 @@ def sanitize_filename(value: str) -> str:
     return safe_name or "document"
 
 
-def points_to_pixels(points: float | None) -> int:
+def points_to_pixels(
+    points: float | None, default_points: float = DEFAULT_ROW_HEIGHT_POINTS
+) -> int:
     """Convert point height to image pixels."""
-    if points is None:
-        return MIN_ROW_HEIGHT
-    return max(MIN_ROW_HEIGHT, int(round(points * DPI_SCALE)))
+    effective_points = default_points if points is None else points
+    return max(1, int(round(effective_points * DPI_SCALE)))
 
 
-def column_width_to_pixels(width: float | None) -> int:
+def column_width_to_pixels(
+    width: float | None, default_width: float = DEFAULT_COLUMN_WIDTH
+) -> int:
     """Convert spreadsheet column width to approximate image pixels."""
-    if width is None:
-        return int(round(72 * WIDTH_FACTOR))
-    return max(MIN_COLUMN_WIDTH, int(round((width * 7 + 8) * WIDTH_FACTOR)))
+    effective_width = default_width if width is None else width
+    return max(
+        MIN_COLUMN_WIDTH,
+        int(round((effective_width * 7 + 8) * WIDTH_FACTOR)),
+    )
 
 
 def parse_theme_colors(theme_xml: bytes | None) -> dict[int, str]:
@@ -497,13 +534,23 @@ class WorksheetImageRenderer:
             max_row,
             max_col,
         )
-
-        if self.options.scale != 1:
-            image = image.resize(
-                (image.width * self.options.scale, image.height * self.options.scale),
-                Image.Resampling.LANCZOS,
-            )
         image.save(output_path)
+
+    def scale_pixels(self, pixels: int) -> int:
+        """Scale a logical pixel measurement for the output image."""
+        return max(1, int(round(pixels * self.options.scale)))
+
+    def get_scaled_padding_x(self) -> int:
+        """Return horizontal cell padding at the output scale."""
+        return self.scale_pixels(CELL_PADDING_X)
+
+    def get_scaled_padding_y(self) -> int:
+        """Return vertical cell padding at the output scale."""
+        return self.scale_pixels(CELL_PADDING_Y)
+
+    def get_scaled_line_spacing(self) -> int:
+        """Return line spacing at the output scale."""
+        return self.scale_pixels(LINE_SPACING)
 
     def get_used_bounds(self, worksheet: Any) -> tuple[int, int]:
         """Return worksheet bounds that should be rendered."""
@@ -524,20 +571,58 @@ class WorksheetImageRenderer:
         row_heights = []
         col_widths = []
 
+        default_row_height = worksheet.sheet_format.defaultRowHeight
+        if default_row_height is None:
+            default_row_height = DEFAULT_ROW_HEIGHT_POINTS
+        default_column_width = worksheet.sheet_format.defaultColWidth
+        if default_column_width is None:
+            default_column_width = DEFAULT_COLUMN_WIDTH
+
         for row_index in range(1, max_row + 1):
-            dimension = worksheet.row_dimensions[row_index]
+            dimension = worksheet.row_dimensions.get(row_index)
+            row_height = (
+                dimension.height
+                if dimension is not None and dimension.height is not None
+                else default_row_height
+            )
             row_heights.append(
-                0 if dimension.hidden else points_to_pixels(dimension.height)
+                0
+                if dimension is not None and dimension.hidden
+                else self.scale_pixels(points_to_pixels(row_height))
             )
 
         for col_index in range(1, max_col + 1):
-            column_letter = get_column_letter(col_index)
-            dimension = worksheet.column_dimensions[column_letter]
+            dimension = self.get_column_dimension(worksheet, col_index)
+            column_width = (
+                dimension.width
+                if dimension is not None and dimension.width is not None
+                else default_column_width
+            )
             col_widths.append(
-                0 if dimension.hidden else column_width_to_pixels(dimension.width)
+                0
+                if dimension is not None and dimension.hidden
+                else self.scale_pixels(column_width_to_pixels(column_width))
             )
 
         return row_heights, col_widths
+
+    def get_column_dimension(self, worksheet: Any, col_index: int) -> Any:
+        """Return an explicit column dimension, including grouped ranges."""
+        column_letter = get_column_letter(col_index)
+        dimension = worksheet.column_dimensions.get(column_letter)
+        if dimension is not None:
+            return dimension
+
+        for candidate in worksheet.column_dimensions.values():
+            first_column = getattr(candidate, "min", None)
+            last_column = getattr(candidate, "max", None)
+            if (
+                first_column is not None
+                and last_column is not None
+                and first_column <= col_index <= last_column
+            ):
+                return candidate
+        return None
 
     def build_merged_lookup(
         self, worksheet: Any
@@ -693,15 +778,16 @@ class WorksheetImageRenderer:
 
     def get_cell_font(self, cell: Any) -> Any:
         """Return a font sized from the cell style."""
+        font_size = float(cell.font.sz or DEFAULT_FONT_SIZE)
         size = max(
-            MIN_RENDER_FONT_SIZE,
-            int(round(cell.font.sz or DEFAULT_FONT_SIZE)),
+            1,
+            int(round(font_size * DPI_SCALE * self.options.scale)),
         )
-        return load_render_font(size=size, font_name=cell.font.name)
-
-    def get_text_stroke_width(self, cell: Any) -> int:
-        """Return a small stroke used to reproduce bold worksheet text."""
-        return 1 if cell.font.b else 0
+        return load_render_font(
+            size=size,
+            font_name=cell.font.name,
+            bold=bool(cell.font.b),
+        )
 
     def expand_rows_for_wrapped_text(
         self,
@@ -735,6 +821,9 @@ class WorksheetImageRenderer:
         if not text:
             return
 
+        if not cell.alignment.wrap_text:
+            return
+
         row_index = cell.row
         col_index = cell.column
         min_row, min_col, max_row, max_col = merged_lookup.get(
@@ -745,13 +834,16 @@ class WorksheetImageRenderer:
             return
 
         font = self.get_cell_font(cell)
-        stroke_width = self.get_text_stroke_width(cell)
         cell_width = get_span_size(min_col, max_col, col_widths)
-        available_width = max(12, cell_width - CELL_PADDING_X * 2)
-        lines = wrap_text(draw, text, font, available_width, stroke_width)
-        _, line_height = measure_text(draw, "Ag", font, stroke_width)
+        padding_x = self.get_scaled_padding_x()
+        available_width = max(self.scale_pixels(12), cell_width - padding_x * 2)
+        lines = wrap_text(draw, text, font, available_width)
+        _, line_height = measure_text(draw, "Ag", font)
+        line_spacing = self.get_scaled_line_spacing()
+        padding_y = self.get_scaled_padding_y()
         required_height = max(
-            MIN_ROW_HEIGHT, len(lines) * (line_height + 5) + CELL_PADDING_Y * 2
+            self.scale_pixels(MIN_RENDER_ROW_HEIGHT),
+            len(lines) * (line_height + line_spacing) + padding_y * 2,
         )
         row_heights[row_index - 1] = max(row_heights[row_index - 1], required_height)
 
@@ -834,6 +926,8 @@ class WorksheetImageRenderer:
 
     def get_render_fill_color(self, cell: Any, band_color: str | None) -> str:
         """Return the cell fill color, using band color for plain cells."""
+        if not self.options.preserve_fills and cell.row > 1:
+            return band_color or self.options.background
         fill_color = self.get_fill_color(cell).lower()
         if band_color is not None and cell.fill.fill_type is None:
             return band_color
@@ -852,12 +946,18 @@ class WorksheetImageRenderer:
         )
 
         for side, line in sides:
+            emphasized = side is not None and side.style in {
+                "medium",
+                "thick",
+                "double",
+            }
             color = (
                 get_color(side.color, self.options.theme_colors)
-                if side and side.style
+                if emphasized
                 else self.options.grid_color
             )
-            width = 2 if side and side.style in {"medium", "thick", "double"} else 1
+            logical_width = 2 if emphasized else 1
+            width = self.scale_pixels(logical_width)
             draw.line(line, fill=color or self.options.grid_color, width=width)
 
     def draw_cell_text(
@@ -870,18 +970,18 @@ class WorksheetImageRenderer:
 
         x1, y1, x2, y2 = rectangle
         font = self.get_cell_font(cell)
-        stroke_width = self.get_text_stroke_width(cell)
         width = x2 - x1
         height = y2 - y1
-        lines = wrap_text(
-            draw,
-            text,
-            font,
-            max(12, width - CELL_PADDING_X * 2),
-            stroke_width,
+        padding_x = self.get_scaled_padding_x()
+        available_width = max(self.scale_pixels(12), width - padding_x * 2)
+        lines = (
+            wrap_text(draw, text, font, available_width)
+            if cell.alignment.wrap_text
+            else text.splitlines() or [""]
         )
-        _, line_height = measure_text(draw, "Ag", font, stroke_width)
-        text_height = len(lines) * (line_height + 5) - 5
+        _, line_height = measure_text(draw, "Ag", font)
+        line_spacing = self.get_scaled_line_spacing()
+        text_height = len(lines) * (line_height + line_spacing) - line_spacing
         text_y = self.get_text_y(cell, y1, y2, height, text_height)
 
         color = (
@@ -890,28 +990,27 @@ class WorksheetImageRenderer:
         )
         for line in lines:
             text_x = self.get_text_x(
-                cell, line, draw, font, x1, x2, width, stroke_width
+                cell, line, draw, font, x1, x2, width
             )
             draw.text(
                 (text_x, text_y),
                 line,
                 fill=color,
                 font=font,
-                stroke_width=stroke_width,
-                stroke_fill=color,
             )
-            text_y += line_height + 5
+            text_y += line_height + line_spacing
 
     def get_text_y(
         self, cell: Any, y1: int, y2: int, height: int, text_height: int
     ) -> int:
         """Return the y coordinate for a cell text block."""
+        padding_y = self.get_scaled_padding_y()
         vertical = cell.alignment.vertical or "center"
         if vertical == "top":
-            return y1 + CELL_PADDING_Y
+            return y1 + padding_y
         if vertical == "bottom":
-            return y2 - text_height - CELL_PADDING_Y
-        return y1 + max(CELL_PADDING_Y, (height - text_height) // 2)
+            return y2 - text_height - padding_y
+        return y1 + max(padding_y, (height - text_height) // 2)
 
     def get_text_x(
         self,
@@ -922,16 +1021,16 @@ class WorksheetImageRenderer:
         x1: int,
         x2: int,
         width: int,
-        stroke_width: int = 0,
     ) -> int:
         """Return the x coordinate for one cell text line."""
+        padding_x = self.get_scaled_padding_x()
         horizontal = cell.alignment.horizontal or "left"
-        text_width, _ = measure_text(draw, line, font, stroke_width)
+        text_width, _ = measure_text(draw, line, font)
         if horizontal == "center":
-            return x1 + max(CELL_PADDING_X, (width - text_width) // 2)
+            return x1 + max(padding_x, (width - text_width) // 2)
         if horizontal == "right":
-            return x2 - text_width - CELL_PADDING_X
-        return x1 + CELL_PADDING_X
+            return x2 - text_width - padding_x
+        return x1 + padding_x
 
 
 class ExcelImageConverter:
@@ -949,6 +1048,7 @@ class ExcelImageConverter:
             text_color=DEFAULT_TEXT_COLOR,
             theme_header_text=request.theme_header_text,
             use_theme_bands=request.use_theme_bands,
+            preserve_fills=request.preserve_fills,
             theme_colors=parse_theme_colors(workbook.loaded_theme),
         )
         renderer = WorksheetImageRenderer(options)
@@ -1002,7 +1102,8 @@ def build_image_request(args: argparse.Namespace) -> ImageConversionRequest:
         output_dir=Path(args.output_dir),
         scale=args.scale,
         selected_sheets=tuple(args.sheet or ()),
-        use_theme_bands=not args.no_theme_bands,
+        use_theme_bands=bool(getattr(args, "theme_bands", False)),
+        preserve_fills=bool(getattr(args, "preserve_fills", False)),
         theme_header_text=args.theme_header,
     )
 
@@ -1068,13 +1169,45 @@ def add_excel_image_arguments(parser: argparse.ArgumentParser) -> None:
             CLIStyle.COLORS["CONTENT"],
         ),
     )
-    parser.add_argument(
-        "--no-theme-bands",
+    theme_group = parser.add_mutually_exclusive_group()
+    theme_group.add_argument(
+        "--theme-bands",
+        dest="theme_bands",
         action="store_true",
         help=CLIStyle.color(
-            "Disable first-column themed visual grouping.", CLIStyle.COLORS["CONTENT"]
+            "Enable optional first-column themed visual grouping.",
+            CLIStyle.COLORS["CONTENT"],
         ),
     )
+    theme_group.add_argument(
+        "--no-theme-bands",
+        dest="theme_bands",
+        action="store_false",
+        help=CLIStyle.color(
+            "Keep only native worksheet merges and fills.",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
+    parser.set_defaults(theme_bands=False)
+    fill_group = parser.add_mutually_exclusive_group()
+    fill_group.add_argument(
+        "--preserve-fills",
+        dest="preserve_fills",
+        action="store_true",
+        help=CLIStyle.color(
+            "Preserve source worksheet cell fills.", CLIStyle.COLORS["CONTENT"]
+        ),
+    )
+    fill_group.add_argument(
+        "--clean-fills",
+        dest="preserve_fills",
+        action="store_false",
+        help=CLIStyle.color(
+            "Use a neutral body background for a cleaner image.",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
+    parser.set_defaults(preserve_fills=False)
     parser.add_argument(
         "--theme-header",
         default=DEFAULT_THEME_HEADER_TEXT,
@@ -1153,13 +1286,18 @@ def build_excel_convert_epilog(script_name: str) -> str:
                 "excel convert-to-img workbook.xlsx -o images --sheet Summary",
             ),
             (
-                "Disable visual grouping",
-                "excel convert-to-img workbook.xlsx --no-theme-bands",
+                "Enable optional visual grouping",
+                "excel convert-to-img workbook.xlsx --theme-bands",
+            ),
+            (
+                "Preserve source cell fills",
+                "excel convert-to-img workbook.xlsx --preserve-fills",
             ),
         ],
         [
             "Output files are PNG images named from worksheet titles.",
             "Use --scale 1, 2, or 3 to control output resolution.",
+            "Body fills are normalized by default; use --preserve-fills to keep them.",
         ],
     )
 
@@ -1203,7 +1341,8 @@ def add_convert_placeholder_parser(
         namespace=namespace,
         function="convert-to-img",
         sheet=[],
-        no_theme_bands=True,
+        theme_bands=False,
+        preserve_fills=False,
         theme_header=DEFAULT_THEME_HEADER_TEXT,
     )
 

@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+
+interface_name=${1:-}
+action=${2:-}
+connection_id=${CONNECTION_ID:-}
+home_interface=${OVERLAP_VPN_HOME_INTERFACE:-wlan0}
+home_connection_id=${OVERLAP_VPN_HOME_CONNECTION_ID:-home}
+home_lan_regex=${OVERLAP_VPN_HOME_LAN_REGEX:-'^192\.0\.2\.0/24'}
+
+[ "$interface_name" = "$home_interface" ] || exit 0
+[ "$connection_id" = "$home_connection_id" ] || exit 0
+command -v ip >/dev/null 2>&1 || exit 0
+command -v grep >/dev/null 2>&1 || exit 0
+
+case "$action" in
+up | dhcp4-change | reapply)
+	ip -4 route show dev "$interface_name" | grep -q "$home_lan_regex" || exit 0
+	ip -4 route replace 10.92.0.0/24 via 192.0.2.1 dev "$interface_name" table 2022
+	ip -4 route replace 10.93.0.0/24 via 192.0.2.1 dev "$interface_name" table 2022
+	;;
+down | pre-down)
+	ip -4 route del 10.92.0.0/24 table 2022 2>/dev/null || :
+	ip -4 route del 10.93.0.0/24 table 2022 2>/dev/null || :
+	;;
+esac

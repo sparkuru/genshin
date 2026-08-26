@@ -1,0 +1,3 @@
+# Format: name<TAB>address<TAB>public_key
+# away-demo<TAB>10.93.0.10/32<TAB><AWAY_PUBLIC_KEY>
+# Allocate the next unused address, for example 10.93.0.11/32, to another device.

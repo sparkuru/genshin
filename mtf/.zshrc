@@ -895,6 +895,7 @@ ggit() {
 				"  push                           Pull and push changes" \
 				"  commit [commit_msg]            Commit all changes" \
 				"  auto [commit_msg]              Commit and push changes" \
+				"  size                           Show current directory size excluding Git-ignored files" \
 				"  root                           Change to repository root" \
 				"  path <file_path>               Print raw GitHub URL" \
 				"  ignore <file_or_dir_path>      Inspect Git ignore rules" \
@@ -905,6 +906,66 @@ ggit() {
 		''|status)
 			git status
 			;;
+        size)
+            if ! command -v git >/dev/null 2>&1 || ! command -v du >/dev/null 2>&1; then
+                printf '%s\n' "ggit size requires git and du" >&2
+                return 1
+            fi
+            if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+                printf '%s\n' "not a git repository" >&2
+                return 1
+            fi
+
+            local -a ignored_entries exclude_args pushable_entries status_entries
+            local git_prefix ignored_entry status_entry
+            git_prefix=$(git rev-parse --show-prefix)
+            status_entries=( ${(0)"$(git -c status.relativePaths=true status --porcelain=v1 --ignored --untracked-files=normal -z -- .)"} )
+            ignored_entries=()
+
+            for status_entry in "${status_entries[@]}"; do
+                [[ "$status_entry" == '!! '* ]] || continue
+                ignored_entry="${status_entry#!! }"
+                if [[ -n "$git_prefix" && "$ignored_entry" == "$git_prefix"* ]]; then
+                    ignored_entry="${ignored_entry#"$git_prefix"}"
+                fi
+                ignored_entries+=( "$ignored_entry" )
+            done
+
+            for ignored_entry in "${ignored_entries[@]}"; do
+                if [[ -z "$ignored_entry" || "$ignored_entry" == './' || "$ignored_entry" == '.' ]]; then
+                    pushable_entries=( ${(0)"$(git ls-files --cached --others --exclude-standard --no-empty-directory -z -- .)"} )
+                    if (( ${#pushable_entries[@]} == 0 )); then
+                        printf '%s\t%s\n' '0' '.'
+                        return 0
+                    fi
+
+                    ignored_entries=()
+                    status_entries=( ${(0)"$(git -c status.relativePaths=true status --porcelain=v1 --ignored --untracked-files=all -z -- .)"} )
+                    for status_entry in "${status_entries[@]}"; do
+                        [[ "$status_entry" == '!! '* ]] || continue
+                        ignored_entry="${status_entry#!! }"
+                        if [[ -n "$git_prefix" && "$ignored_entry" == "$git_prefix"* ]]; then
+                            ignored_entry="${ignored_entry#"$git_prefix"}"
+                        fi
+                        ignored_entries+=( "$ignored_entry" )
+                    done
+                    break
+                fi
+            done
+
+            exclude_args=( "--exclude=.git" )
+            for ignored_entry in "${ignored_entries[@]}"; do
+                ignored_entry="${ignored_entry#./}"
+                [[ -n "$ignored_entry" ]] || continue
+                if [[ "$ignored_entry" == */ ]]; then
+                    exclude_args+=( "--exclude=${ignored_entry%/}/*" )
+                else
+                    exclude_args+=( "--exclude=$ignored_entry" )
+                fi
+            done
+
+            du -abh --time -d 1 "${exclude_args[@]}" . 2>/dev/null
+            ;;
         push)
             if [ $(git pull -q; echo $?) -eq 0 ]; then
                 git push

@@ -1,0 +1,32 @@
+# Reference-only fragment for a future VPS host firewall integration.
+# This is intentionally not a standalone firewall and has no base-chain policy.
+# Merge with the existing host firewall only after inspecting the current rules.
+
+table inet wg_policy {
+    chain wg_input {
+        # WireGuard itself; actual jump from the host input chain is still required.
+        udp dport 51820 accept comment "wireguard hub"
+    }
+
+    chain wg_forward {
+        ct state established,related accept
+
+        # Hub transit: only translated site prefixes and road-warrior peers.
+        iifname "wg0" oifname "wg0" ip daddr {
+            10.91.0.0/24,
+            10.92.0.0/24,
+            10.93.0.0/24
+        } accept comment "wg translated forwarding"
+    }
+}
+
+# Not applied in the current deployment:
+# - the VPS already uses Docker-managed iptables-nft;
+# - /etc/nftables.conf contains flush ruleset;
+# - wg-quick PostUp/PostDown currently owns the narrow IPv4 forwarding rules.
+#
+# Required before applying this alternative:
+# - verify the cloud firewall/security group permits UDP/51820;
+# - inspect whether the host uses nftables, iptables-nft, or legacy iptables;
+# - connect these chains to the actual host firewall without changing unrelated policy;
+# - enable IPv4 forwarding and verify it before testing.

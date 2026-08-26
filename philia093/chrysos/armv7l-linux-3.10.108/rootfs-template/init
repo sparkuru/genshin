@@ -1,0 +1,40 @@
+#!/bin/sh
+set -eu
+
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sysfs /sys 2>/dev/null || true
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts 2>/dev/null || true
+mount -t tmpfs tmpfs /tmp 2>/dev/null || true
+
+hostname -F /etc/hostname
+printf '%s\n' 'Linux 3.10.108 ARMv7 lab initramfs'
+printf '%s\n' 'Host-local telnetd enabled; filesystem state is ephemeral.'
+
+if ifconfig eth0 >/dev/null 2>&1; then
+	ifconfig eth0 up 2>/dev/null || true
+	udhcpc -n -q -t 5 -T 1 -i eth0 >/tmp/udhcpc.log 2>&1 || true
+fi
+
+telnetd -F -p 23 -b 0.0.0.0 -l /sbin/telnet-login >/tmp/telnetd.log 2>&1 &
+
+if grep -q 'user.validate=1' /proc/cmdline; then
+	printf 'release: '
+	uname -r
+	printf 'machine: '
+	uname -m
+	printf 'identity: '
+	id
+	printf '%s\n' 'user.validate=1'
+	printf '%s\n' 'validation-init-ok'
+	poweroff -f 2>/dev/null || true
+	while :; do
+		sleep 1
+	done
+fi
+
+while :; do
+	su -s /bin/sh - user
+	sleep 1
+done

@@ -1,0 +1,28 @@
+# WireGuard Hub example.
+# Do not apply as-is. Replace placeholders locally; never commit private keys.
+
+[Interface]
+Address = 10.90.0.1/24
+ListenPort = 51820
+MTU = 1420
+PrivateKey = <VPS_PRIVATE_KEY>
+
+[Peer]
+# Home gateway c
+PublicKey = <C_PUBLIC_KEY>
+AllowedIPs = 10.90.0.2/32, 10.91.0.0/24
+
+[Peer]
+# Company gateway g
+PublicKey = <G_PUBLIC_KEY>
+AllowedIPs = 10.90.0.3/32, 10.92.0.0/24
+
+[Peer]
+# Optional road-warrior away-demo
+PublicKey = <A3_PUBLIC_KEY>
+AllowedIPs = 10.93.0.10/32
+
+# The deployed VPS keeps its private key in this root-only config.
+# A host firewall may be iptables-nft or nftables, so the narrow forwarding
+# allow-list is maintained by wg-quick PostUp/PostDown rather than enabling
+# /etc/nftables.conf (which currently contains flush ruleset).

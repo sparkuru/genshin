@@ -1,0 +1,34 @@
+services:
+  wireguard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: overlap-vpn-wireguard:local
+    container_name: wireguard-server
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      WIREGUARD_INTERFACE: wg0
+      OVERLAP_VPN_ENDPOINT_HOST: ${OVERLAP_VPN_ENDPOINT_HOST:-vpn.example.invalid}
+      OVERLAP_VPN_WG_HUB_ADDRESS: ${OVERLAP_VPN_WG_HUB_ADDRESS:-10.90.0.1}
+      OVERLAP_VPN_HOME_TRANSLATED_CIDR: ${OVERLAP_VPN_HOME_TRANSLATED_CIDR:-10.91.0.0/24}
+      OVERLAP_VPN_COMPANY_TRANSLATED_CIDR: ${OVERLAP_VPN_COMPANY_TRANSLATED_CIDR:-10.92.0.0/24}
+      OVERLAP_VPN_ROAD_WARRIOR_PREFIX: ${OVERLAP_VPN_ROAD_WARRIOR_PREFIX:-10.93.0}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - /etc/wireguard:/etc/wireguard
+      - /etc/overlap-vpn:/etc/overlap-vpn
+      - /lib/modules:/lib/modules:ro
+      - ./road-warrior-peer.sh:/usr/local/sbin/overlap-vpn-road-peer:ro
+    restart: unless-stopped
+    stop_grace_period: 15s
+    healthcheck:
+      test: ["CMD-SHELL", "wg show wg0 >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+# docker compose -f "$PWD/wireguard-server.yml" up -d --build
+# This service uses host networking intentionally; do not add a ports section.

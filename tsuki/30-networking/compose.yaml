@@ -1,0 +1,338 @@
+# Single-file public lab reproduction of an overlap-LAN WireGuard VPN.
+#
+# Demo address plan (do not infer production values from this file):
+#   VPS hub       10.90.0.1/24
+#   home c        10.90.0.2/24 -> translated 10.91.0.0/24
+#   company g     10.90.0.3/24 -> translated 10.92.0.0/24
+#   away client   10.93.0.11/32
+#   example home and company LANs are both 192.0.2.0/24
+#
+# The lab uses 192.168.101.0/24 and 192.168.102.0/24 for the two Docker LANs.
+# Docker cannot create two overlapping bridge networks, so these are stand-ins
+# for the example 192.0.2.0/24 LANs. The routers still perform the same 1:1
+# host-octet Prefix NAT to 10.91.0.0/24 and 10.92.0.0/24.
+#
+# These networks are deliberately ordinary bridges, not Docker `internal`
+# networks. Docker's internal-network isolation rejects a forwarded packet
+# whose source is 10.93.0.0/24 before it reaches the LAN host; that source is
+# valid in this design. Masquerade remains disabled so the lab preserves the
+# packet identities that deployed routers must handle.
+#
+# Linux host prerequisites:
+#   docker compose -f compose.yaml up -d --build
+#   docker compose -f compose.yaml exec away-test ping -c 3 10.91.0.100
+#   docker compose -f compose.yaml exec away-test ping -c 3 10.92.0.100
+#   docker compose -f compose.yaml cp away:/etc/wireguard/wg0.conf ./away.conf
+#   docker compose -f compose.yaml down -v
+#
+# This lab uses the existing Debian WireGuard image definition. It needs a
+# Linux Docker host with a WireGuard-capable kernel, NET_ADMIN, SYS_MODULE and
+# /lib/modules. It is not a production configuration and has lab-only keys.
+# The lab's host UDP port defaults to the documented demo port 51820; set
+# LAB_WG_PORT if that port is already in use. Production endpoint, port and
+# key material must be supplied separately.
+#
+# One-time WRT-like router checklist for a deployment based on this design:
+#   1. Install kmod-wireguard and wireguard-tools on c and g.
+#   2. Enable net.ipv4.ip_forward=1. Keep rp_filter=0 for this policy-NAT
+#      design when strict reverse-path filtering rejects translated replies.
+#   3. Configure c as 10.90.0.2/24 and g as 10.90.0.3/24 on wg0, MTU 1420.
+#   4. On c, the VPS peer AllowedIPs are 10.90.0.1/32,
+#      10.92.0.0/24,10.93.0.0/24. On g they are 10.90.0.1/32,
+#      10.91.0.0/24,10.93.0.0/24. Use Endpoint <VPS_ENDPOINT_HOST>:<VPS_WG_PORT> and
+#      PersistentKeepalive=25; verify the port with wg show wg0 listen-port.
+#   5. If c/g is the LAN default gateway, no route is needed on ordinary LAN
+#      clients. Otherwise add the remote translated prefix route on the real
+#      default gateway, not on every client.
+#   6. Keep Prefix NAT at the site boundary: c maps 10.91.0.X <->
+#      192.0.2.X and g maps 10.92.0.X <-> 192.0.2.X. c currently uses
+#      legacy NETMAP; g currently uses fw4/nftables prefix NAT.
+#   7. Permit only the required WG-to-LAN and LAN-to-WG forwarding plus
+#      ESTABLISHED,RELATED. Keep router INPUT/management policy separate.
+#      Never put the real 192.0.2.0/24 into VPS peer AllowedIPs.
+#
+# After this one-time c/g setup, adding an away device only requires the VPS
+# road-warrior issuer. It emits a complete client config; import that config
+# into the away device. No c/g change is needed for each new away client.
+
+x-wireguard-image: &wireguard-image
+  build:
+    context: ./vps/docker/wireguard-server
+    dockerfile: Dockerfile
+  image: overlap-vpn-wireguard:lab
+
+x-wireguard-node: &wireguard-node
+  <<: *wireguard-image
+  cap_add:
+    - NET_ADMIN
+    - SYS_MODULE
+  sysctls:
+    net.ipv4.ip_forward: "1"
+  volumes:
+    - lab_keys:/keys
+    - /lib/modules:/lib/modules:ro
+  depends_on:
+    key-init:
+      condition: service_completed_successfully
+  restart: unless-stopped
+  stop_grace_period: 15s
+  healthcheck:
+    test: ["CMD", "wg", "show", "wg0"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+    start_period: 5s
+  entrypoint:
+    - /bin/sh
+    - -ec
+  command:
+    - |
+      node_name=$${NODE_NAME:?NODE_NAME is required}
+      wg_port=$${WG_PORT:-51820}
+  
+      until [ -s /keys/vps ] && [ -s /keys/home ] && [ -s /keys/company ] && [ -s /keys/away ]; do
+        sleep 1
+      done
+  
+      vps_public_key=$$(wg pubkey < /keys/vps)
+      home_public_key=$$(wg pubkey < /keys/home)
+      company_public_key=$$(wg pubkey < /keys/company)
+      away_public_key=$$(wg pubkey < /keys/away)
+      mkdir -p /etc/wireguard
+  
+      case "$${node_name}" in
+      vps)
+        cat >/etc/wireguard/wg0.conf <<EOF
+      [Interface]
+      Address = 10.90.0.1/24
+      ListenPort = $${wg_port}
+      MTU = 1420
+      PrivateKey = $$(cat /keys/vps)
+  
+      [Peer]
+      # home c
+      PublicKey = $${home_public_key}
+      AllowedIPs = 10.90.0.2/32, 10.91.0.0/24
+  
+      [Peer]
+      # company g
+      PublicKey = $${company_public_key}
+      AllowedIPs = 10.90.0.3/32, 10.92.0.0/24
+  
+      [Peer]
+      # away client
+      PublicKey = $${away_public_key}
+      AllowedIPs = 10.93.0.11/32
+      EOF
+        ;;
+      home-router)
+        cat >/etc/wireguard/wg0.conf <<EOF
+      [Interface]
+      Address = 10.90.0.2/24
+      MTU = 1420
+      PrivateKey = $$(cat /keys/home)
+  
+      [Peer]
+      # VPS hub
+      PublicKey = $${vps_public_key}
+      Endpoint = vps:$${wg_port}
+      AllowedIPs = 10.90.0.1/32, 10.92.0.0/24, 10.93.0.0/24
+      PersistentKeepalive = 25
+      EOF
+        ;;
+      company-router)
+        cat >/etc/wireguard/wg0.conf <<EOF
+      [Interface]
+      Address = 10.90.0.3/24
+      MTU = 1420
+      PrivateKey = $$(cat /keys/company)
+  
+      [Peer]
+      # VPS hub
+      PublicKey = $${vps_public_key}
+      Endpoint = vps:$${wg_port}
+      AllowedIPs = 10.90.0.1/32, 10.91.0.0/24, 10.93.0.0/24
+      PersistentKeepalive = 25
+      EOF
+        ;;
+      away)
+        cat >/etc/wireguard/wg0.conf <<EOF
+      [Interface]
+      Address = 10.93.0.11/32
+      MTU = 1420
+      PrivateKey = $$(cat /keys/away)
+  
+      [Peer]
+      # VPS hub
+      PublicKey = $${vps_public_key}
+      Endpoint = vps:$${wg_port}
+      AllowedIPs = 10.90.0.1/32, 10.91.0.0/24, 10.92.0.0/24
+      PersistentKeepalive = 25
+      EOF
+        ;;
+      *)
+        printf 'unknown WireGuard lab node: %s\n' "$${node_name}" >&2
+        exit 1
+        ;;
+      esac
+  
+      chmod 600 /etc/wireguard/wg0.conf
+      wg-quick up wg0
+      trap 'wg-quick down wg0 >/dev/null 2>&1 || true' EXIT INT TERM
+  
+      iptables -w 5 -I FORWARD 1 -i wg0 -j ACCEPT
+      iptables -w 5 -I FORWARD 1 -o wg0 -j ACCEPT
+  
+      case "$${node_name}" in
+      vps)
+        # The lab hub only forwards traffic between WireGuard peers.
+        iptables -w 5 -I FORWARD 1 -i wg0 -o wg0 -j ACCEPT
+        ;;
+      home-router)
+        # 192.168.101.0/24 stands in for home 192.0.2.0/24.
+        iptables -w 5 -t nat -A PREROUTING -i wg0 -d 10.91.0.0/24 -j NETMAP --to 192.168.101.0/24
+        iptables -w 5 -t nat -A POSTROUTING -o wg0 -s 192.168.101.0/24 -d 10.92.0.0/24 -j NETMAP --to 10.91.0.0/24
+        iptables -w 5 -t nat -A POSTROUTING -o wg0 -s 192.168.101.0/24 -d 10.93.0.0/24 -j NETMAP --to 10.91.0.0/24
+        ;;
+      company-router)
+        # 192.168.102.0/24 stands in for company 192.0.2.0/24.
+        iptables -w 5 -t nat -A PREROUTING -i wg0 -d 10.92.0.0/24 -j NETMAP --to 192.168.102.0/24
+        iptables -w 5 -t nat -A POSTROUTING -o wg0 -s 192.168.102.0/24 -d 10.91.0.0/24 -j NETMAP --to 10.92.0.0/24
+        iptables -w 5 -t nat -A POSTROUTING -o wg0 -s 192.168.102.0/24 -d 10.93.0.0/24 -j NETMAP --to 10.92.0.0/24
+        ;;
+      away)
+        ;;
+      esac
+  
+      while :; do
+        sleep 3600 &
+        wait "$$!"
+      done
+
+services:
+  key-init:
+    <<: *wireguard-image
+    restart: "no"
+    network_mode: none
+    volumes:
+      - lab_keys:/keys
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        umask 077
+        mkdir -p /keys
+        for node in vps home company away; do
+          if [ ! -s "/keys/$${node}" ]; then
+            wg genkey >"/keys/$${node}"
+          fi
+          chmod 600 "/keys/$${node}"
+        done
+
+  vps:
+    <<: *wireguard-node
+    environment:
+      NODE_NAME: vps
+      WG_PORT: "${LAB_WG_PORT:-51820}"
+    ports:
+      - "${LAB_WG_PORT:-51820}:${LAB_WG_PORT:-51820}/udp"
+    networks:
+      underlay:
+        ipv4_address: 172.31.0.2
+
+  home-router:
+    <<: *wireguard-node
+    environment:
+      NODE_NAME: home-router
+      WG_PORT: "${LAB_WG_PORT:-51820}"
+    networks:
+      underlay:
+        ipv4_address: 172.31.0.3
+      home_lan:
+        ipv4_address: 192.168.101.1
+
+  company-router:
+    <<: *wireguard-node
+    environment:
+      NODE_NAME: company-router
+      WG_PORT: "${LAB_WG_PORT:-51820}"
+    networks:
+      underlay:
+        ipv4_address: 172.31.0.4
+      company_lan:
+        ipv4_address: 192.168.102.1
+
+  away:
+    <<: *wireguard-node
+    environment:
+      NODE_NAME: away
+      WG_PORT: "${LAB_WG_PORT:-51820}"
+    networks:
+      underlay:
+        ipv4_address: 172.31.0.5
+
+  away-test:
+    image: alpine:3.20
+    network_mode: service:away
+    depends_on:
+      away:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - -ec
+      - sleep 2147483647
+
+  home-host:
+    image: alpine:3.20
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      home-router:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - -ec
+      - ip route replace default via 192.168.101.1 && sleep 2147483647
+    networks:
+      home_lan:
+        ipv4_address: 192.168.101.100
+
+  company-host:
+    image: alpine:3.20
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      company-router:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - -ec
+      - ip route replace default via 192.168.102.1 && sleep 2147483647
+    networks:
+      company_lan:
+        ipv4_address: 192.168.102.100
+
+volumes:
+  lab_keys:
+
+networks:
+  underlay:
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24
+          gateway: 172.31.0.1
+  home_lan:
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+    ipam:
+      config:
+        - subnet: 192.168.101.0/24
+          gateway: 192.168.101.254
+  company_lan:
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+    ipam:
+      config:
+        - subnet: 192.168.102.0/24
+          gateway: 192.168.102.254

@@ -1,0 +1,29 @@
+[Interface]
+# Allocate one unused host address from 10.93.0.0/24 per device.
+Address = 10.93.0.<HOST>/32
+MTU = 1420
+PrivateKey = <CLIENT_PRIVATE_KEY>
+
+# The main host already uses policy table 2022 for the Clash TUN.
+# Keep VPN destinations in a dedicated table with higher-priority rules.
+Table = off
+PostUp = ip route replace 10.90.0.1/32 dev %i table 2023
+PostUp = ip route replace 10.91.0.0/24 dev %i table 2023
+PostUp = ip route replace 10.92.0.0/24 dev %i table 2023
+PostUp = ip rule add priority 8900 to 10.90.0.1/32 table 2023 2>/dev/null || true
+PostUp = ip rule add priority 8901 to 10.91.0.0/24 table 2023 2>/dev/null || true
+PostUp = ip rule add priority 8902 to 10.92.0.0/24 table 2023 2>/dev/null || true
+PostDown = ip rule del priority 8900 to 10.90.0.1/32 table 2023 2>/dev/null || true
+PostDown = ip rule del priority 8901 to 10.91.0.0/24 table 2023 2>/dev/null || true
+PostDown = ip rule del priority 8902 to 10.92.0.0/24 table 2023 2>/dev/null || true
+PostDown = ip route del 10.90.0.1/32 table 2023 2>/dev/null || true
+PostDown = ip route del 10.91.0.0/24 table 2023 2>/dev/null || true
+PostDown = ip route del 10.92.0.0/24 table 2023 2>/dev/null || true
+
+[Peer]
+# VPS / road-warrior hub
+PublicKey = <VPS_PUBLIC_KEY>
+# Read the active port with: sudo wg show wg0 listen-port
+Endpoint = <VPS_ENDPOINT_HOST>:<VPS_WG_PORT>
+AllowedIPs = 10.90.0.1/32, 10.91.0.0/24, 10.92.0.0/24
+PersistentKeepalive = 25

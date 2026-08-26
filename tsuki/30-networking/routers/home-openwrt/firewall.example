@@ -1,0 +1,17 @@
+# c / lan1 firewall reference fragment.
+# c uses fw3/legacy iptables. The reference zone uses a direct device because
+# wg0 is owned by the independent overlap-vpn init service.
+
+config zone 'wg_transit'
+        option name 'wg_transit'
+        list device 'wg0'
+        option input 'REJECT'
+        option output 'ACCEPT'
+        option forward 'REJECT'
+
+# Put the c NAT rules in /etc/overlap-vpn/firewall.user and load them with a
+# fw3 config include. Use NETMAP for:
+# - wg0 ingress 10.91.0.0/24 -> 192.0.2.0/24
+# - LAN egress to 10.92.0.0/24 or 10.93.0.0/24:
+#   192.0.2.0/24 -> 10.91.0.0/24
+# Existing LAN/WAN forwarding and DNAT rules remain separate.

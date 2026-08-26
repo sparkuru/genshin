@@ -1,0 +1,20 @@
+# g / lan2 fw4/nftables reference fragment.
+# This is the chain-only content installed as
+# /etc/nftables.d/90-overlap-vpn.nft and included inside table inet fw4.
+
+define LAN2_REAL = 192.0.2.0/24
+define LAN1_XLAT = 10.91.0.0/24
+define LAN2_XLAT = 10.92.0.0/24
+define WG_TRANSIT = 10.90.0.0/24
+define ROAD_WARRIOR = 10.93.0.0/24
+
+chain overlap_vpn_prerouting {
+    type nat hook prerouting priority dstnat; policy accept;
+    iifname "wg0" ip daddr 10.92.0.0/24 dnat ip prefix to 192.0.2.0/24
+}
+
+chain overlap_vpn_postrouting {
+    type nat hook postrouting priority srcnat; policy accept;
+    oifname "wg0" ip saddr 192.0.2.0/24 ip daddr 10.91.0.0/24 snat ip prefix to 10.92.0.0/24
+    oifname "wg0" ip saddr 192.0.2.0/24 ip daddr 10.93.0.0/24 snat ip prefix to 10.92.0.0/24
+}

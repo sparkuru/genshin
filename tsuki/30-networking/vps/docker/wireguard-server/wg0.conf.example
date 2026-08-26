@@ -1,0 +1,38 @@
+# Apply this only after replacing every placeholder and reviewing firewall rules.
+# The production private key stays in /etc/wireguard/wg0.conf on the VPS.
+
+[Interface]
+Address = 10.90.0.1/24
+ListenPort = 51820
+MTU = 1420
+PrivateKey = <VPS_PRIVATE_KEY>
+
+PostUp = iptables -w 5 -C INPUT -p udp --dport 51820 -m comment --comment overlap-vpn-wireguard -j ACCEPT 2>/dev/null || iptables -w 5 -I INPUT 1 -p udp --dport 51820 -m comment --comment overlap-vpn-wireguard -j ACCEPT
+PostDown = iptables -w 5 -D INPUT -p udp --dport 51820 -m comment --comment overlap-vpn-wireguard -j ACCEPT 2>/dev/null || true
+PostUp = iptables -w 5 -C FORWARD -i %i -o %i -s 10.91.0.0/24 -d 10.92.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT 2>/dev/null || iptables -w 5 -I FORWARD 1 -i %i -o %i -s 10.91.0.0/24 -d 10.92.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT
+PostDown = iptables -w 5 -D FORWARD -i %i -o %i -s 10.91.0.0/24 -d 10.92.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT 2>/dev/null || true
+PostUp = iptables -w 5 -C FORWARD -i %i -o %i -s 10.92.0.0/24 -d 10.91.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT 2>/dev/null || iptables -w 5 -I FORWARD 1 -i %i -o %i -s 10.92.0.0/24 -d 10.91.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT
+PostDown = iptables -w 5 -D FORWARD -i %i -o %i -s 10.92.0.0/24 -d 10.91.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT 2>/dev/null || true
+PostUp = iptables -w 5 -C FORWARD -i %i -o %i -s 10.91.0.0/24 -d 10.93.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT 2>/dev/null || iptables -w 5 -I FORWARD 1 -i %i -o %i -s 10.91.0.0/24 -d 10.93.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT
+PostDown = iptables -w 5 -D FORWARD -i %i -o %i -s 10.91.0.0/24 -d 10.93.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT 2>/dev/null || true
+PostUp = iptables -w 5 -C FORWARD -i %i -o %i -s 10.93.0.0/24 -d 10.91.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT 2>/dev/null || iptables -w 5 -I FORWARD 1 -i %i -o %i -s 10.93.0.0/24 -d 10.91.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT
+PostDown = iptables -w 5 -D FORWARD -i %i -o %i -s 10.93.0.0/24 -d 10.91.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT 2>/dev/null || true
+PostUp = iptables -w 5 -C FORWARD -i %i -o %i -s 10.92.0.0/24 -d 10.93.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT 2>/dev/null || iptables -w 5 -I FORWARD 1 -i %i -o %i -s 10.92.0.0/24 -d 10.93.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT
+PostDown = iptables -w 5 -D FORWARD -i %i -o %i -s 10.92.0.0/24 -d 10.93.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT 2>/dev/null || true
+PostUp = iptables -w 5 -C FORWARD -i %i -o %i -s 10.93.0.0/24 -d 10.92.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT 2>/dev/null || iptables -w 5 -I FORWARD 1 -i %i -o %i -s 10.93.0.0/24 -d 10.92.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT
+PostDown = iptables -w 5 -D FORWARD -i %i -o %i -s 10.93.0.0/24 -d 10.92.0.0/24 -m comment --comment overlap-vpn-wireguard -j ACCEPT 2>/dev/null || true
+
+[Peer]
+# Home gateway c
+PublicKey = <C_PUBLIC_KEY>
+AllowedIPs = 10.90.0.2/32, 10.91.0.0/24
+
+[Peer]
+# Company gateway g
+PublicKey = <G_PUBLIC_KEY>
+AllowedIPs = 10.90.0.3/32, 10.92.0.0/24
+
+[Peer]
+# Road-warrior a3
+PublicKey = <A3_PUBLIC_KEY>
+AllowedIPs = 10.93.0.10/32

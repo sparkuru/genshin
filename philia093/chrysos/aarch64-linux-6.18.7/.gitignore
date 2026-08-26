@@ -1,0 +1,8 @@
+# Generated Buildroot source, downloads, output, and runtime logs.
+/build/
+/downloads/
+/out/
+*.part
+*.swp
+*~
+.DS_Store

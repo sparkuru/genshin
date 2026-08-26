@@ -1,0 +1,45 @@
+# This directory contains reproducible source files. Keep public docs,
+# examples, scripts and compose.yaml visible to Git by default.
+
+# Local-only handoff and operational notes. These may contain private
+# hostnames, paths, topology details or other context not needed to reproduce.
+/handoff/
+
+# Real WireGuard/client credentials and rendered configurations. The example
+# files are intentionally named *.example and are not matched by these rules.
+*.conf
+**/*.conf
+!**/*.conf.example
+**/*privatekey*
+**/*private-key*
+**/*private_key*
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+**/*.ovpn
+**/road-warriors.tsv
+
+# Local secrets, overrides and generated state.
+.env
+.env.*
+!.env.example
+**/secrets/
+**/private/
+**/state/
+**/backup/
+**/backups/
+compose.override.yaml
+docker-compose.override.yml
+
+# Archives, logs and editor/runtime artifacts.
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.log
+*.pid
+*.sock
+*.tmp
+*.swp
+.DS_Store

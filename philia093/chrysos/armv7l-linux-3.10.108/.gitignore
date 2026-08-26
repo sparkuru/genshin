@@ -1,0 +1,14 @@
+# Expanded source trees, cross-toolchain, and build cache recreated by build.sh.
+/build/
+
+# Downloaded archives are verified and fetched again when absent.
+/downloads/
+
+# Generated kernel images, device trees, reports, and QEMU runtime logs.
+/out/
+
+# Partial downloads and local editor/OS noise.
+*.part
+*.swp
+*~
+.DS_Store

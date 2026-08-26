@@ -1,0 +1,18 @@
+# c / lan1 OpenWrt network reference.
+# This example targets an OpenWrt-like router with fw3/legacy iptables. The
+# deployment intentionally does not restart netifd; /etc/init.d/overlap-vpn
+# owns wg0.
+# The private key remains in /etc/wireguard/privatekey on c and is never stored here.
+
+Native service paths:
+        /etc/init.d/overlap-vpn
+        /usr/sbin/overlap-vpn
+
+Reference interface:
+        wg0 = 10.90.0.2/24, MTU 1420
+        VPS peer = 10.90.0.1/32, 10.92.0.0/24, 10.93.0.0/24
+
+# Site-specific values to fill in locally:
+# - LAN UCI interface: lan / br-lan / 192.0.2.1/24
+# - WAN UCI interface: wan / pppoe-wan
+# - Do not assume eth0 is the routed WAN device after PPPoE comes up.

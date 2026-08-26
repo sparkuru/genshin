@@ -1,0 +1,9 @@
+.dockerignore
+.git
+.gitignore
+config/
+*.key
+*.pem
+*.png
+*.conf
+

@@ -1,5 +1,5 @@
 ---
-title: "ai | 01_artificial_intelligence_dev_env_configuration"
+title: "artificial-intelligence-dev-env-configuration"
 description: "dev environment for Artificial Intelligence."
 date: "2023-04-08T03:52:00.000Z"
 updated: "2024-12-12T08:23:57.000Z"
@@ -9,7 +9,7 @@ layout: "post"
 slug: "environment-setup"
 ---
 
-## dev | artificial-intelligence-dev-env-configuration
+## artificial-intelligence-dev-env-configuration
 
 >   一些在接触 Artificial Intelligence 过程中的各类问题集合
 
