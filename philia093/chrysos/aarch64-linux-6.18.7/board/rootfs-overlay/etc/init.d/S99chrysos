@@ -3,6 +3,14 @@ set -eu
 
 case "${1:-}" in
 start)
+	if grep -q -w 'chrysos.share=1' /proc/cmdline; then
+		mkdir -p /mnt/host
+		if ! mount -t 9p -o trans=virtio,version=9p2000.L,ro hostshare /mnt/host; then
+			printf '%s\n' 'Warning: failed to mount the read-only host share' >/dev/console
+		else
+			printf '%s\n' 'host-share-mounted path=/mnt/host mode=ro' >/dev/console
+		fi
+	fi
 	if grep -q -w 'lab.validate=1' /proc/cmdline; then
 		(
 			sleep 2

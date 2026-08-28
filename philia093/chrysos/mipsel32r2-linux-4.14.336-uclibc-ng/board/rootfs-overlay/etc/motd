@@ -1,0 +1,2 @@
+MIPSel32r2 Linux 4.14.336 Buildroot lab
+Use /mnt/host for a read-only directory supplied with --share.

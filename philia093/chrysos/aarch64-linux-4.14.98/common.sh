@@ -24,6 +24,7 @@ readonly SERIAL_LOG_FILE="$RUN_DIR/qemu-serial.log"
 readonly VALIDATION_LOG_FILE="$OUTPUT_DIR/validation.log"
 readonly RUNTIME_ROOTFS="$RUN_DIR/rootfs.ext4"
 readonly VALIDATION_ROOTFS="$RUN_DIR/validation-rootfs.ext4"
+readonly KERNEL_ARTIFACT="$OUTPUT_DIR/$KERNEL_IMAGE_NAME"
 
 color_text() {
 	local style=$1
@@ -69,6 +70,20 @@ require_profile_variables() {
 		LINUX_HEADERS_OPTION
 		QEMU_PORT
 		BUILDROOT_DEFCONFIG_TEMPLATE
+		TARGET_ARCHITECTURE
+		KERNEL_MACHINE
+		TARGET_ENDIAN
+		TARGET_LIBC
+		CPU_BASELINE
+		QEMU_SYSTEM_BINARY
+		QEMU_BACKEND
+		QEMU_MACHINE
+		QEMU_SMP
+		QEMU_MEMORY
+		QEMU_SHARE_DEVICE
+		KERNEL_IMAGE_NAME
+		KERNEL_CONSOLE
+		ROOT_DEVICE
 	)
 
 	for variable_name in "${required_variables[@]}"; do
@@ -136,11 +151,20 @@ extract_buildroot() {
 
 render_defconfig() {
 	local rendered_path="$BR_OUTPUT_DIR/profile.defconfig"
+	local support_dir="$BR_OUTPUT_DIR/profile-support"
 
 	[[ -f "$BUILDROOT_DEFCONFIG_TEMPLATE" ]] ||
 		die "missing Buildroot defconfig template: $BUILDROOT_DEFCONFIG_TEMPLATE"
-	mkdir -p -- "$BR_OUTPUT_DIR"
-	sed "s|@PROFILE_DIR@|$PROFILE_DIR|g" "$BUILDROOT_DEFCONFIG_TEMPLATE" >"$rendered_path"
+	mkdir -p -- "$support_dir/linux" "$support_dir/linux-headers"
+	printf 'sha256  %s  %s\n' "$LINUX_SHA256" "$LINUX_ARCHIVE" >"$support_dir/linux/linux.hash"
+	printf 'sha256  %s  %s\n' "$LINUX_SHA256" "$LINUX_ARCHIVE" >"$support_dir/linux-headers/linux-headers.hash"
+	sed \
+		-e "s|@PROFILE_DIR@|$PROFILE_DIR|g" \
+		-e "s|@PROFILE_NAME@|$PROFILE_NAME|g" \
+		-e "s|@LINUX_VERSION@|$LINUX_VERSION|g" \
+		-e "s|@LINUX_HEADERS_OPTION@|$LINUX_HEADERS_OPTION|g" \
+		"$BUILDROOT_DEFCONFIG_TEMPLATE" >"$rendered_path"
+	printf 'BR2_GLOBAL_PATCH_DIR="%s"\n' "$support_dir" >>"$rendered_path"
 	printf '%s\n' "$rendered_path"
 }
 
@@ -179,11 +203,12 @@ Status: built
 | --- | --- |
 | Buildroot | $BUILDROOT_VERSION |
 | Linux | $LINUX_VERSION |
-| Architecture | AArch64 little-endian |
-| CPU baseline | Cortex-A53 / Armv8-A |
+| Architecture | $TARGET_ARCHITECTURE $TARGET_ENDIAN-endian |
+| C library | $TARGET_LIBC |
+| CPU baseline | $CPU_BASELINE |
 | Toolchain headers | $LINUX_HEADERS_OPTION |
-| QEMU machine | virt |
-| Root filesystem | ext4 on virtio-blk |
+| QEMU machine | $QEMU_MACHINE |
+| Root filesystem | ext4 on $ROOT_DEVICE |
 | Host telnet port | 127.0.0.1:$QEMU_PORT |
 
 ## Inputs
@@ -197,17 +222,17 @@ Status: built
 
 | Artifact | SHA-256 |
 | --- | --- |
-| out/Image | $(sha256sum "$OUTPUT_DIR/Image" | awk '{ print $1 }') |
+| out/$KERNEL_IMAGE_NAME | $(sha256sum "$KERNEL_ARTIFACT" | awk '{ print $1 }') |
 | out/rootfs.ext4 | $(sha256sum "$OUTPUT_DIR/rootfs.ext4" | awk '{ print $1 }') |
 | out/buildroot.config | $(sha256sum "$OUTPUT_DIR/buildroot.config" | awk '{ print $1 }') |
 
 ## Runtime boundary
 
-The guest uses QEMU's generic virt machine with restricted user-mode
+The guest uses QEMU's $QEMU_MACHINE machine with restricted user-mode
 networking. Only TCP port 23 is forwarded to localhost when background mode
-is selected. The filesystem is writable inside an ephemeral QEMU snapshot
-during the guest session; the published ext4 image remains unchanged and no
-host directory is shared.
+is selected. The filesystem is writable inside an ephemeral rootfs copy
+during the guest session; the published ext4 image remains unchanged. A host
+directory is shared only when --share is selected, and that mount is read-only.
 
 Generated: $generated_at
 EOF
@@ -258,7 +283,7 @@ build_profile() {
 	info "Building $PROFILE_NAME with $build_jobs job(s)"
 	buildroot_make -j"$build_jobs"
 
-	copy_output_file "$BR_OUTPUT_DIR/images/Image" Image
+	copy_output_file "$BR_OUTPUT_DIR/images/$KERNEL_IMAGE_NAME" "$KERNEL_IMAGE_NAME"
 	copy_output_file "$BR_OUTPUT_DIR/images/rootfs.ext4" rootfs.ext4
 	copy_output_file "$BR_OUTPUT_DIR/.config" buildroot.config
 	printf '%s\n' "$BUILDROOT_VERSION" >"$OUTPUT_DIR/buildroot.release"
@@ -270,7 +295,7 @@ build_profile() {
 }
 
 require_artifacts() {
-	[[ -f "$OUTPUT_DIR/Image" ]] || die "missing $OUTPUT_DIR/Image; run ./build.sh"
+	[[ -f "$KERNEL_ARTIFACT" ]] || die "missing $KERNEL_ARTIFACT; run ./build.sh"
 	[[ -f "$OUTPUT_DIR/rootfs.ext4" ]] ||
 		die "missing $OUTPUT_DIR/rootfs.ext4; run ./build.sh"
 }
@@ -284,7 +309,7 @@ running_pid() {
 	[[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
 	kill -0 "$pid" 2>/dev/null || return 1
 	command -v readlink >/dev/null 2>&1 || return 1
-	qemu_path=$(command -v qemu-system-aarch64 2>/dev/null) || return 1
+	qemu_path=$(command -v "$QEMU_SYSTEM_BINARY" 2>/dev/null) || return 1
 	qemu_path=$(readlink --canonicalize "$qemu_path") || return 1
 	[[ -r "/proc/$pid/exe" ]] || return 1
 	[[ "$(readlink --canonicalize "/proc/$pid/exe")" == "$qemu_path" ]] || return 1
@@ -294,56 +319,115 @@ running_pid() {
 qemu_arguments() {
 	local append_value=$1
 	local serial_argument=$2
-	local network_argument=${3:-"user,id=net0,restrict=on,hostfwd=tcp:127.0.0.1:$QEMU_PORT-:23"}
-	local rootfs_image=${4:-"$OUTPUT_DIR/rootfs.ext4"}
+	local network_argument=$3
+	local rootfs_image=$4
+	local share_path=${5:-}
+	local -a qemu_args=(
+		"$QEMU_SYSTEM_BINARY"
+		-machine "$QEMU_MACHINE"
+	)
 
-	printf '%s\n' \
-		qemu-system-aarch64 \
-		-machine virt \
-		-cpu cortex-a53 \
-		-smp 2 \
-		-m 512M \
-		-kernel "$OUTPUT_DIR/Image" \
-		-append "$append_value" \
-		-netdev "$network_argument" \
-		-device virtio-net-device,netdev=net0 \
-		-drive "file=$rootfs_image,if=none,format=raw,id=hd0" \
-		-device virtio-blk-device,drive=hd0 \
-		-no-reboot \
-		-display none \
-		-serial "$serial_argument" \
+	if [[ -n "${QEMU_CPU:-}" ]]; then
+		qemu_args+=(-cpu "$QEMU_CPU")
+	fi
+	qemu_args+=(
+		-smp "$QEMU_SMP"
+		-m "$QEMU_MEMORY"
+		-kernel "$KERNEL_ARTIFACT"
+		-append "$append_value"
+		-netdev "$network_argument"
+	)
+	case "$QEMU_BACKEND" in
+	aarch64-virt)
+		qemu_args+=(
+			-device "virtio-net-device,netdev=net0"
+			-drive "file=$rootfs_image,if=none,format=raw,id=hd0"
+			-device "virtio-blk-device,drive=hd0"
+		)
+		;;
+	x86_64-pc)
+		qemu_args+=(
+			-device "virtio-net-pci,netdev=net0"
+			-drive "file=$rootfs_image,if=none,format=raw,id=hd0"
+			-device "virtio-blk-pci,drive=hd0"
+		)
+		;;
+	mipsel-malta)
+		qemu_args+=(
+			-device "pcnet,netdev=net0"
+			-drive "file=$rootfs_image,format=raw"
+		)
+		;;
+	*) die "unsupported QEMU backend: $QEMU_BACKEND" ;;
+	esac
+	if [[ -n "$share_path" ]]; then
+		qemu_args+=(
+			-fsdev "local,id=hostshare,path=$share_path,security_model=none,readonly=on"
+			-device "$QEMU_SHARE_DEVICE,fsdev=hostshare,mount_tag=hostshare"
+		)
+	fi
+	qemu_args+=(
+		-no-reboot
+		-display none
+		-serial "$serial_argument"
 		-monitor none
+	)
+	printf '%s\n' "${qemu_args[@]}"
 }
 
 start_qemu_profile() {
-	local option=${1:-}
 	local mode=foreground
-	local append_value='root=/dev/vda rw rootwait console=ttyAMA0,115200'
+	local append_value="root=$ROOT_DEVICE rw rootwait console=$KERNEL_CONSOLE"
+	local requested_share_path
+	local share_path=
 	local -a qemu_args=()
 	local arg
 	local qemu_status
 
-	case "$option" in
-	"") ;;
-	--background)
-		mode=background
-		;;
-	--help | -h)
-		printf 'Usage: %s [--background]\n\n' "$SCRIPT_NAME"
-		printf 'Start the %s AArch64 guest.\n' "$PROFILE_NAME"
-		printf '  --background  Save serial output and expose telnet on '
-		printf '127.0.0.1:%s.\n' "$QEMU_PORT"
-		return 0
-		;;
-	*)
-		printf 'Usage: %s [--background]\n' "$SCRIPT_NAME" >&2
-		die "unknown option: $option"
-		;;
-	esac
+	if [[ -n "${KERNEL_EXTRA_ARGS:-}" ]]; then
+		append_value+=" $KERNEL_EXTRA_ARGS"
+	fi
+
+	while (($# > 0)); do
+		case "$1" in
+		--background)
+			mode=background
+			shift
+			;;
+		--share)
+			[[ -n "${2:-}" ]] || die "missing directory for --share"
+			[[ -z "$share_path" ]] || die "--share may only be specified once"
+			share_path=$2
+			shift 2
+			;;
+		--help | -h)
+			printf 'Usage: %s [--background] [--share DIRECTORY]\n\n' "$SCRIPT_NAME"
+			printf 'Start the %s guest.\n' "$PROFILE_NAME"
+			printf '  --background       Save serial output and expose telnet on '
+			printf '127.0.0.1:%s.\n' "$QEMU_PORT"
+			printf '  --share DIRECTORY  Mount an existing host directory read-only at /mnt/host.\n'
+			return 0
+			;;
+		*)
+			printf 'Usage: %s [--background] [--share DIRECTORY]\n' "$SCRIPT_NAME" >&2
+			die "unknown option: $1"
+			;;
+		esac
+	done
 
 	require_command cp
-	require_command qemu-system-aarch64
+	require_command "$QEMU_SYSTEM_BINARY"
 	require_artifacts
+	if [[ -n "$share_path" ]]; then
+		require_command readlink
+		requested_share_path=$share_path
+		share_path=$(readlink --canonicalize "$share_path") ||
+			die "shared directory does not exist: $requested_share_path"
+		[[ -d "$share_path" ]] || die "shared path is not a directory: $share_path"
+		[[ "$share_path" != *','* && "$share_path" != *$'\n'* ]] ||
+			die "shared directory path must not contain commas or newlines"
+		append_value+=' chrysos.share=1'
+	fi
 	mkdir -p -- "$RUN_DIR"
 	if [[ "$mode" == background ]]; then
 		if running_pid >/dev/null; then
@@ -354,7 +438,9 @@ start_qemu_profile() {
 	prepare_runtime_rootfs "$RUNTIME_ROOTFS"
 	while IFS= read -r arg; do
 		qemu_args+=("$arg")
-	done < <(qemu_arguments "$append_value" "stdio" "" "$RUNTIME_ROOTFS")
+	done < <(qemu_arguments "$append_value" "stdio" \
+		"user,id=net0,restrict=on,hostfwd=tcp:127.0.0.1:$QEMU_PORT-:23" \
+		"$RUNTIME_ROOTFS" "$share_path")
 
 	if [[ "$mode" == foreground ]]; then
 		if "${qemu_args[@]}"; then
@@ -369,7 +455,9 @@ start_qemu_profile() {
 	qemu_args=()
 	while IFS= read -r arg; do
 		qemu_args+=("$arg")
-	done < <(qemu_arguments "$append_value" "file:$SERIAL_LOG_FILE" "" "$RUNTIME_ROOTFS")
+	done < <(qemu_arguments "$append_value" "file:$SERIAL_LOG_FILE" \
+		"user,id=net0,restrict=on,hostfwd=tcp:127.0.0.1:$QEMU_PORT-:23" \
+		"$RUNTIME_ROOTFS" "$share_path")
 	nohup "${qemu_args[@]}" >"$RUN_DIR/qemu.stdout.log" 2>&1 </dev/null &
 	local pid=$!
 	printf '%s\n' "$pid" >"$PID_FILE"
@@ -382,6 +470,9 @@ start_qemu_profile() {
 	printf 'QEMU started with PID %s\n' "$pid"
 	printf 'Guest telnetd: telnet 127.0.0.1 %s\n' "$QEMU_PORT"
 	printf 'Serial log: %s\n' "$SERIAL_LOG_FILE"
+	if [[ -n "$share_path" ]]; then
+		printf 'Read-only host share: %s -> /mnt/host\n' "$share_path"
+	fi
 	printf 'Stop: ./stop-qemu.sh\n'
 }
 
@@ -434,7 +525,7 @@ validate_profile() {
 	"") ;;
 	--help | -h)
 		printf 'Usage: %s\n\n' "$SCRIPT_NAME"
-		printf 'Boot %s and verify kernel and AArch64 identity.\n' "$PROFILE_NAME"
+		printf 'Boot %s and verify kernel and architecture identity.\n' "$PROFILE_NAME"
 		return 0
 		;;
 	*)
@@ -444,16 +535,20 @@ validate_profile() {
 	esac
 
 	require_command cp
-	require_command qemu-system-aarch64
+	require_command "$QEMU_SYSTEM_BINARY"
 	require_command timeout
 	require_artifacts
 	mkdir -p -- "$RUN_DIR"
 	prepare_runtime_rootfs "$VALIDATION_ROOTFS"
 	: >"$VALIDATION_LOG_FILE"
-	append_value="root=/dev/vda rw rootwait console=ttyAMA0,115200 lab.validate=1"
+	append_value="root=$ROOT_DEVICE rw rootwait console=$KERNEL_CONSOLE lab.validate=1"
+	if [[ -n "${KERNEL_EXTRA_ARGS:-}" ]]; then
+		append_value+=" $KERNEL_EXTRA_ARGS"
+	fi
 	while IFS= read -r arg; do
 		qemu_args+=("$arg")
-	done < <(qemu_arguments "$append_value" "file:$VALIDATION_LOG_FILE" "user,id=net0,restrict=on" "$VALIDATION_ROOTFS")
+	done < <(qemu_arguments "$append_value" "file:$VALIDATION_LOG_FILE" \
+		"user,id=net0,restrict=on" "$VALIDATION_ROOTFS")
 
 	set +e
 	timeout --signal=TERM 45s "${qemu_args[@]}"
@@ -466,8 +561,8 @@ validate_profile() {
 	rm -f -- "$VALIDATION_ROOTFS"
 	grep --fixed-strings --quiet "$LINUX_VERSION" "$VALIDATION_LOG_FILE" ||
 		die "kernel release was not observed; inspect $VALIDATION_LOG_FILE"
-	grep --extended-regexp --quiet 'aarch64|AArch64' "$VALIDATION_LOG_FILE" ||
-		die "AArch64 identity was not observed; inspect $VALIDATION_LOG_FILE"
+	grep --fixed-strings --quiet "machine=$KERNEL_MACHINE" "$VALIDATION_LOG_FILE" ||
+		die "$TARGET_ARCHITECTURE identity was not observed; inspect $VALIDATION_LOG_FILE"
 	grep --fixed-strings --quiet 'validation-init-ok' "$VALIDATION_LOG_FILE" ||
 		die "validation init path was not observed; inspect $VALIDATION_LOG_FILE"
 
@@ -477,7 +572,7 @@ validate_profile() {
 
 ## Validation result
 
-- Passed: QEMU booted the generated image and emitted Linux $LINUX_VERSION with AArch64 identity.
+- Passed: QEMU booted the generated image and emitted Linux $LINUX_VERSION with $TARGET_ARCHITECTURE identity.
 - Log: out/validation.log.
 - Scope: boot, rootfs, network setup, and identity only; no exploit or vendor behavior was tested.
 EOF

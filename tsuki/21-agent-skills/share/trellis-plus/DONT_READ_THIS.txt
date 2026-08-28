@@ -1,0 +1,187 @@
+你现在位于一个已经执行过 trellis-plus、并且已有开发任务和项目记录的 Git 仓库中。
+
+请执行一次“可回滚的 Trellis 重建与数据恢复”，目标是：
+
+1. 重新生成干净的 Trellis 运行时文件；
+2. 保留已有 task、spec、workspace、mainline 和开发证据；
+3. 不把旧版 Trellis Plus 对 Trellis 受保护文件的修改恢复回来；
+4. 不引入新的许可证或版权风险。
+
+必须严格遵守以下规则。
+
+## 一、先做只读检查
+
+先确认当前目录是 Git 仓库根目录，并读取：
+
+- 所有适用的 `AGENTS.md`、`CLAUDE.md` 等项目说明；
+- 当前安装的 `trellis-plus/SKILL.md`；
+- `references/license-safe-file-policy.md`；
+- `.trellis/workflow.md`；
+- `.trellis/config.yaml`；
+- `.trellis/.version`；
+- `.trellis/.template-hashes.json`；
+- `.trellis/mainline.md`；
+- `.trellis/spec/**`；
+- `.trellis/tasks/**`；
+- `.trellis/workspace/**`；
+- `.trellis/.developer` 和当前任务指针；
+- 当前启用的平台目录，例如 `.codex/`、`.claude/`、`.agents/`、`.opencode/` 等；
+- `LICENSE*`、`COPYING*`、`NOTICE*`、`COPYRIGHT`。
+
+记录：
+
+- `trellis --version`；
+- 当前开发者身份；
+- 当前启用的平台；
+- 当前 active task；
+- 所有未归档 task 及其状态；
+- task、spec、workspace 的文件数量和路径；
+- `git status --short`；
+- 当前所有未提交变更。
+
+如果发现业务代码、依赖文件、密钥或其他非 Trellis 文件存在未提交变更，先停止并报告，不要自动 stash、reset、checkout 或 clean。
+
+## 二、创建备份
+
+在仓库外创建一个只允许当前用户访问的备份目录，例如：
+
+`/tmp/trellis-repair-<repo-name>-<timestamp>/`
+
+不得把备份放到 `.trellis/` 内。
+
+备份至少包括：
+
+- 整个 `.trellis/`；
+- `.trellis/tasks/`；
+- `.trellis/spec/`；
+- `.trellis/workspace/`；
+- `.trellis/mainline.md`；
+- `.trellis/.developer`；
+- 当前任务指针；
+- 现有平台配置目录；
+- `AGENTS.md`、`CLAUDE.md` 及可能被 `trellis init` 修改的根目录配置；
+- 初始化前的 `git status`、文件清单、版本信息和许可证信息。
+
+备份目录权限设置为仅当前用户可读写。不要把备份内容上传、发送到网络或打印其中的密钥。
+
+为备份生成文件清单和 SHA-256 校验信息。备份失败、文件数量异常或校验失败时，立即停止，不得删除 `.trellis`。
+
+## 三、请求确认
+
+备份完成后，先向我报告：
+
+- 备份路径；
+- 备份是否通过校验；
+- 将要移动或重建的目录；
+- 发现的 active task；
+- 未提交变更；
+- 预计会新增的 Trellis 文件；
+- 不会恢复的受保护文件。
+
+然后停止，等待我明确回复：
+
+`确认重建 Trellis`
+
+没有这句确认，不得继续。
+
+## 四、重建 Trellis
+
+收到确认后：
+
+1. 不要使用 `rm -rf` 直接删除；
+2. 将旧的 `.trellis/` 移动到已验证的备份目录中，确保仍可回滚；
+3. 使用原来的开发者身份和原来已经启用的平台执行 `trellis init`；
+4. 不要使用 `--force`、`--overwrite`、`--migrate`、新的 registry 或新的 spec template，除非先向我说明原因并获得单独确认；
+5. 不要自动安装 npm 包、下载外部资源或修改项目许可证；
+6. 如果 `trellis init` 失败，停止并使用备份恢复原来的 `.trellis/`，不要继续恢复数据。
+
+## 五、选择性恢复项目数据
+
+初始化成功后，禁止把旧 `.trellis/` 整体复制回来。
+
+只允许恢复或合并以下项目数据：
+
+- `.trellis/tasks/**`；
+- `.trellis/workspace/**`；
+- `.trellis/mainline.md`；
+- `.trellis/spec/trellis-plus/**`；
+- 明确确认是项目原创、且不是 Trellis 模板复制品的其他 spec；
+- `.trellis/.developer` 等个人状态文件；
+- 明确属于用户个人的本地平台配置。
+
+恢复 task 时：
+
+- 不删除任何旧 task；
+- 不执行 `task.py archive`；
+- 不改变 task 状态；
+- 不覆盖发生冲突的 task，先比较并报告；
+- 如果新 init 生成了 bootstrap task 或 join task，不要自动删除或归档，保留并报告；
+- 保留 archived task。
+
+对于来源不明、与 Trellis 模板混合、或可能包含 Trellis 原文的 spec，不要直接恢复到新项目中，放入备份目录的 `quarantine/`，并报告：
+
+`license-notice-needed` 或 `provenance-review-needed`
+
+## 六、绝对禁止恢复的内容
+
+以下内容必须保留新 `trellis init` 生成的版本，不得从旧备份复制回来：
+
+- `.trellis/workflow.md`；
+- `.trellis/scripts/**`；
+- `.trellis/agents/**`；
+- `.trellis/config.yaml`；
+- `.trellis/.gitignore`；
+- `.trellis/.version`；
+- `.trellis/.template-hashes.json`；
+- `.trellis/.backup-*`；
+- Trellis 管理的平台 skill、command、hook、agent 文件；
+- 旧版 `AGENTS.md` 或其他文件中的 Trellis managed block。
+
+如果旧的 `workflow.md`、`config.yaml` 或脚本中包含真正的项目规则，只能提取项目原创的决策，写入新的：
+
+`.trellis/spec/trellis-plus/`
+
+不得复制 Trellis 的流程原文、脚本代码或模板内容。
+
+## 七、重新应用 Trellis Plus
+
+数据恢复完成后，再运行当前新版 trellis-plus 的安全 reconciliation：
+
+- 只允许写入 `.trellis/spec/trellis-plus/**`；
+- 必要时写入 `.trellis/mainline.md`；
+- task-specific 内容只能写入对应 `.trellis/tasks/<TASK-ID>/`；
+- 个人执行设置只能写入未跟踪的 `.codex/`、`.claude/`、`.agents/` 或 `.opencode/`；
+- 不得修改 `.trellis/workflow.md`、`scripts/`、`agents/`、`config.yaml` 或 Trellis 管理的平台文件；
+- 不得使用 `git add .`、`git add -A`、`git add -f` 或自动提交。
+
+## 八、验证
+
+完成后检查：
+
+- 所有旧 task 是否仍存在；
+- archived task 是否仍存在；
+- task 状态是否保持不变；
+- `.trellis/spec/trellis-plus/index.md` 是否存在；
+- mainline、workspace 和项目原创 spec 是否恢复；
+- active task 指针是否仍指向存在的 task；
+- 新 Trellis runtime 文件是否来自本次 init；
+- 受保护文件中是否仍存在旧版 Trellis Plus 注入内容；
+- 是否产生未预期的文件删除、覆盖或新增；
+- `trellis task list` 或等价 task 检查是否通过；
+- Trellis context/spec 索引是否可以正常读取；
+- `git diff --check` 是否通过；
+- 工作区是否出现个人配置被错误 staged 的情况；
+- LICENSE、COPYING、NOTICE、COPYRIGHT 是否被修改。
+
+不要自动 `git add`、`git commit`、`git push`，也不要删除备份。
+
+最后报告：
+
+1. 备份路径；
+2. Trellis 版本和 init 参数；
+3. 恢复了哪些文件；
+4. 隔离了哪些来源不明文件；
+5. 初始化前后 task 数量和状态差异；
+6. 受保护文件是否保持为新 init 版本；
+7. 许可证/版权声明检查结果；
+8. 所有失败、冲突和需要我人工决定的事项。

@@ -12,6 +12,15 @@ hostname -F /etc/hostname
 printf '%s\n' 'Linux 3.10.108 ARMv7 lab initramfs'
 printf '%s\n' 'Host-local telnetd enabled; filesystem state is ephemeral.'
 
+if grep -q -w 'chrysos.share=1' /proc/cmdline; then
+	mkdir -p /mnt/host
+	if ! mount -t 9p -o trans=virtio,version=9p2000.L,ro hostshare /mnt/host; then
+		printf '%s\n' 'Warning: failed to mount the read-only host share'
+	else
+		printf '%s\n' 'host-share-mounted path=/mnt/host mode=ro'
+	fi
+fi
+
 if ifconfig eth0 >/dev/null 2>&1; then
 	ifconfig eth0 up 2>/dev/null || true
 	udhcpc -n -q -t 5 -T 1 -i eth0 >/tmp/udhcpc.log 2>&1 || true

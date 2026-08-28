@@ -2,7 +2,7 @@
 
 ## Goal
 
-Inject a durable Trellis rule for the moment a task has been implemented, checked, and appears ready to commit.
+Record a durable project rule for the moment a task has been implemented, checked, and appears ready to commit.
 
 At that point, the agent must decide whether human review is required, optional, or unnecessary. When human input is needed, the agent must ask for specific feedback before committing.
 
@@ -44,7 +44,10 @@ Do not request human review when:
 
 ## Project Validation Profile
 
-When injecting this gate, also add or update a short validation profile in the most appropriate project-level Trellis spec or workflow section.
+When recording this gate, add or update a short validation profile in the
+project-owned `.trellis/spec/trellis-plus/index.md` or a detail file beside it.
+Do not add the profile to `.trellis/workflow.md` or an existing generated spec
+index merely to make it visible.
 
 Infer it from repository evidence:
 
@@ -64,11 +67,19 @@ Record:
 
 Keep the profile concrete. Prefer `npm run test:e2e` over "run e2e tests" when the command exists.
 
-For browser-automatable UI projects, the Playwright-specific portion is a single `Trellis Plus: Playwright Validation Profile` in the project's frontend/testing spec, or in `.trellis/workflow.md` only when no suitable spec exists. It must record the execution mode, setup/browser bootstrap, app readiness and base URL, exact focused and CI commands, browser projects/viewports, fixture boundary, visual/accessibility policy, and failure-artifact locations. Future tasks must read that profile before rediscovering commands or consulting external documentation.
+For browser-automatable UI projects, the Playwright-specific portion is a
+single `Trellis Plus: Playwright Validation Profile` in the shared Trellis Plus
+spec layer. It must record the execution mode, setup/browser bootstrap, app
+readiness and base URL, exact focused and CI commands, browser
+projects/viewports, fixture boundary, visual/accessibility policy, and
+failure-artifact locations. Future tasks must read that profile before
+rediscovering commands or consulting external documentation.
 
 ## Suggested Template Block
 
-Adapt this block to the target Trellis file's style and status names:
+Adapt this block to the project-owned `.trellis/spec/trellis-plus/index.md`
+style and the installed Trellis status names. The block is guidance data, not
+a replacement for Trellis's workflow source:
 
 ```markdown
 ### Trellis Plus: Submit-Ready Human Review Gate
@@ -132,14 +143,22 @@ Human review: not needed because <specific reason tied to tests/risk>.
 
 ## Patch Guidance
 
-Patch the installed Trellis files in this order of preference:
+Write only project-owned or personal/local targets:
 
-1. `.trellis/workflow.md`: add the gate to the finish, verify, submit-ready, or commit phase.
-2. `.trellis/spec/**/index.md`: add the validation profile where project testing conventions already live.
-3. `.claude/skills/trellis-check/SKILL.md` or equivalent: add the decision and feedback request requirement when final verification is delegated to that skill.
-4. `.claude/commands/trellis/**`: patch only when the commit command bypasses workflow text.
+1. Create or update `.trellis/spec/trellis-plus/index.md` with the concise gate
+   and validation profile.
+2. Add project-owned detail files beside that index when the profile or review
+   rules need more space.
+3. Add the shared spec path to active task implement/check context through
+   Trellis's existing context mechanism when delegated agents need it.
+4. Add a narrow local adapter to `.codex/`, `.claude/`, `.agents/`, or
+   `.opencode/` only when the active platform cannot load the shared spec;
+   leave it untracked and keep it as a pointer, not a second policy.
 
-If several targets exist, add the core rule once and add short pointers elsewhere.
+Do not patch `.trellis/workflow.md`, `.trellis/scripts/**`,
+`.trellis/agents/**`, `.trellis/config.yaml`, or Trellis-managed platform
+commands/skills. If one of those files already contains local changes, report
+it and leave it untouched.
 
 ## Verification After Injection
 
@@ -149,4 +168,6 @@ After patching, verify:
 - the gate says when to block
 - the request format is concrete
 - project-specific commands or manual checks are recorded
+- the shared rule is in `.trellis/spec/trellis-plus/`
+- protected Trellis files were not modified or staged
 - no current task status was changed just by installing the enhancement

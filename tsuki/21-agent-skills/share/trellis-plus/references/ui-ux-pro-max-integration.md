@@ -23,7 +23,11 @@ If the task explicitly changes user-facing UI, treat it as a frontend task even 
 
 ## Initialization Check
 
-Initialization means that UUPM has been installed in the current project for the active AI platform. Check the platform-specific project path and verify the generated skill entry point exists. Common paths include:
+Initialization means that UUPM has been installed in the current project for the
+active AI platform. Check the platform-specific project path and verify the
+generated skill entry point exists. These generated platform files are
+personal/local integration files by default; do not commit them merely because
+they live inside the project. Common paths include:
 
 | Platform | Project-local entry point |
 | --- | --- |
@@ -74,7 +78,7 @@ If the user accepts, continue with the initialization procedure below.
 
    Use `--force` only when repairing an incomplete installation after telling the user which files will be replaced. Use `--offline` only when network access is unavailable and the CLI's bundled assets are known to be available.
 3. Inspect the resulting diff before continuing. Preserve unrelated user changes and do not overwrite an existing platform skill without the user's approval.
-   - Keep generic assistant settings subject to the repository's existing ignore rules. Do not force-stage UUPM or other generated assistant files with `git add -f`, `git add --force`, or an equivalent operation unless the user explicitly asks for tracking.
+   - Keep generic assistant settings subject to the repository's existing ignore rules. Trellis Plus never stages UUPM or other generated assistant files with `git add -f`, `git add --force`, or an equivalent operation; a user-requested tracking exception is a separate manual license and secrets review.
 4. Verify the generated UUPM entry point and the script/data paths referenced by its instructions. When `scripts/search.py` exists, run its cheapest help/version check before generating design material:
 
    ```bash
@@ -85,13 +89,11 @@ If initialization fails, report the exact command, failure, and files created. D
 
 ## Trellis Workflow Integration
 
-After initialization, add a short `Trellis Plus: UUPM integration` pointer to the narrowest available durable target:
-
-1. `.trellis/workflow.md` for shared phase behavior
-2. a project plan/brainstorm skill for planning behavior
-3. a before-dev skill for initialization and execution readiness
-4. a check skill for UI verification
-5. an update-spec skill for promoting stable UI rules
+After initialization, add a short `Trellis Plus: UUPM integration` pointer to
+the project-owned `.trellis/spec/trellis-plus/index.md` or a detail file beside
+it. Add a personal/local platform pointer only when the platform cannot load
+the shared spec. Do not patch `.trellis/workflow.md`, Trellis runtime files, or
+generated Trellis platform skills.
 
 Do not duplicate the full procedure in every target. Keep the detailed rules in this reference and add phase-specific pointers.
 
@@ -162,7 +164,13 @@ Lint, type-check, unit tests, and build success are not sufficient UI verificati
 
 ### Update Spec
 
-After verification, promote only stable, reusable UI rules into the project's existing `.trellis/spec/` frontend entry point. Keep task-specific decisions and raw UUPM research in the task. Maintain one project-level source of truth for approved design-system rules; do not create a competing editable `MASTER.md` unless the project already treats it as canonical.
+After verification, promote only stable, reusable UI rules into the
+project-owned `.trellis/spec/trellis-plus/` configuration. Keep task-specific
+decisions and raw UUPM research in the task only when the exact generated
+source/license permits retaining it; otherwise keep a concise original
+decision summary. Maintain one project-level source of truth for approved
+design-system rules; do not create a competing editable `MASTER.md` unless the
+project already treats it as canonical.
 
 ## Verification After Injection
 
@@ -172,7 +180,8 @@ After applying this enhancement, verify:
 - the initialization prompt appears only for a frontend/UI project lacking active-platform UUPM
 - user acceptance runs the narrow platform-specific initializer and user decline skips UUPM commands
 - incomplete initialization is not reported as successful
-- the workflow points to UUPM in Plan, Implement, Check, and Update Spec at the narrowest available targets
+- the shared Trellis Plus spec records UUPM behavior for Plan, Implement, Check, and Update Spec
 - UUPM research is saved under the active task and added to both implement and check context
 - UI checks include states, responsive behavior, accessibility, Playwright validation when browser-automatable, and manual review only when needed
 - `trellis update` recovery re-applies pointers without silently reinstalling or overwriting UUPM
+- protected Trellis files were not modified or staged

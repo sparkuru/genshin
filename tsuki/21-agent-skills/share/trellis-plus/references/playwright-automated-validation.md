@@ -60,9 +60,13 @@ Record the command that will run during final validation. Prefer an existing nar
 
 ## Durable Project Profile
 
-For every project where this enhancement applies, create or update one durable section named `### Trellis Plus: Playwright Validation Profile`.
+For every project where this enhancement applies, create or update one durable
+section named `### Trellis Plus: Playwright Validation Profile`.
 
-Place it in the existing frontend or testing `.trellis/spec/**/index.md` entry point. If no suitable spec exists, place it in `.trellis/workflow.md` near final verification. Do not create a parallel test framework or a task-local substitute just to hold this profile.
+Place it in the project-owned `.trellis/spec/trellis-plus/index.md` or a detail
+file beside it. Do not put it in `.trellis/workflow.md` or an existing
+generated spec index merely to make the profile durable. Do not create a
+parallel test framework or a task-local substitute just to hold this profile.
 
 The profile must contain only repository-confirmed values and these fields:
 
@@ -164,10 +168,14 @@ Record the exact command, covered routes/states/viewports, fixture strategy, and
 
 Patch in this order:
 
-1. `.trellis/workflow.md`: add the automate-first decision before final check or submit-ready.
-2. Existing frontend or testing `.trellis/spec/**/index.md`: add or update the `Trellis Plus: Playwright Validation Profile` with repository-confirmed exact commands and constraints. Use `.trellis/workflow.md` only when no suitable spec exists.
-3. Existing check skill or command: point to the profile and add the task evidence format; do not repeat a generic command list.
-4. Existing frontend validation spec: add stable test routes, fixture conventions, viewport policy, and approved visual-baseline policy when those conventions exist.
+1. `.trellis/spec/trellis-plus/index.md` or a detail file beside it: add the
+   automate-first decision and the repository-confirmed profile.
+2. Active task implement/check context: reference the shared profile when an
+   agent needs it for the task.
+3. Project-owned test/config files: add only the smallest Playwright test,
+   config, dependency metadata, and fixture changes justified by the task.
+4. Personal/local platform settings: add only a narrow pointer when the
+   platform cannot load the shared spec; keep it untracked.
 
 Add the detailed rule once and short pointers elsewhere. Do not create a parallel E2E workflow or rewrite existing Playwright configuration just to install the enhancement.
 
@@ -178,6 +186,7 @@ After patching, verify:
 - browser-accessible UI changes are classified before human review is requested
 - existing Playwright or equivalent browser-test conventions are discovered and preserved
 - the project has one current `Trellis Plus: Playwright Validation Profile` at the prescribed durable location
+- the profile is in `.trellis/spec/trellis-plus/`
 - the profile identifies the execution mode, bootstrap, exact focused and CI commands, readiness/base URL, browser projects, fixtures, and artifact locations
 - eligible tasks read the profile before external documentation and record only task-specific coverage/results
 - eligible work requires an implemented, runnable focused browser test rather than a generic manual smoke-test request
@@ -185,3 +194,4 @@ After patching, verify:
 - test evidence includes the exact command and covered user-facing behavior
 - snapshot changes require intentional review and failure artifacts are retained
 - human review requests name only residual risks that automation cannot resolve
+- protected Trellis files were not modified or staged

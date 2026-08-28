@@ -114,22 +114,29 @@ Patch only these durable project files:
 1. Create `.trellis/mainline.md` from the control-record template when the
    project has a declared initiative; otherwise leave it absent and keep the
    default conservative behavior.
-2. Add a short `Trellis Plus: Mainline Continuity` section to the existing
-   `[workflow-state:no_task]` block in `.trellis/workflow.md`. It must say to
-   run the read-only Pulse for relevant requests, default to `guided`, honor
-   `paused`, and permit serial work only under recorded explicit authorization.
-3. Add short pointers elsewhere only if a local command or skill bypasses the
-   workflow block. Do not patch hooks, runtime scripts, or task schema.
+2. Add a short `Trellis Plus: Mainline Continuity` section to the shared
+   `.trellis/spec/trellis-plus/index.md` (or a detail file beside it). It must
+   say to run the read-only Pulse for relevant requests, default to `guided`,
+   honor `paused`, and permit serial work only under recorded explicit
+   authorization.
+3. Add the shared spec path to active task context when delegated work needs
+   it. A personal/local adapter may point to the shared rule when a platform
+   cannot load it. Do not patch `.trellis/workflow.md`, hooks, runtime scripts,
+   or task schema.
 
-Preserve existing wording and state names. The existing workflow-state parser
-reads the block verbatim, so workflow text is sufficient. Removing the
-continuity block and `.trellis/mainline.md` restores the prior behavior.
+Preserve existing wording and state names when reading the workflow. Trellis
+Plus reads the shared continuity rule on each relevant run; removing the
+project-owned rule and `.trellis/mainline.md` restores the prior Trellis Plus
+behavior without changing Trellis's workflow parser.
 
 ## Verification
 
 - Confirm a plain `$trellis-plus` reads this reference as part of the default set.
 - Confirm the record names an approved objective, parent when applicable, mode,
   ordered work, readiness/dependency evidence, and next decision.
+- Confirm the shared continuity rule is in `.trellis/spec/trellis-plus/`.
+- Confirm `.trellis/workflow.md` and other protected Trellis files were not
+  modified or staged.
 - Forward-read a no-record request: it reports evidence and asks for direction.
 - Forward-read `guided`: it recommends but does not create work or edit code.
 - Forward-read authorized `serial`: it advances one ready listed child through

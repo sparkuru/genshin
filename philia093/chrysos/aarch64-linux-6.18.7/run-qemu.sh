@@ -1,18 +1,15 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# shellcheck disable=SC2034 # Profile metadata is consumed by the sourced common library.
-
-SCRIPT_NAME="$(basename "$0")"
+SCRIPT_NAME=$(basename "$0")
 readonly SCRIPT_NAME
-profile_dir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)"
+profile_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)
 readonly PROFILE_DIR="$profile_dir"
-readonly PROFILE_NAME="aarch64-linux-6.18.7"
-readonly BUILDROOT_VERSION="2026.05.2"
-readonly QEMU_PORT="4547"
-export SCRIPT_NAME PROFILE_DIR PROFILE_NAME BUILDROOT_VERSION QEMU_PORT
+export SCRIPT_NAME
 
-# shellcheck disable=SC1091 # The source path is intentionally relative to this profile.
-source "$PROFILE_DIR/../buildroot-common.sh"
+# shellcheck disable=SC1090,SC1091 # The profile owns this runtime path.
+source "$PROFILE_DIR/profile.env"
+# shellcheck disable=SC1091 # The profile owns this local lifecycle library.
+source "$PROFILE_DIR/common.sh"
 
-start_qemu_profile "${1:-}"
+start_qemu_profile "$@"

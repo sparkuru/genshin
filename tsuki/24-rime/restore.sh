@@ -12,7 +12,6 @@ readonly -a RESTORE_FILES=(
 	"default.yaml"
 	"rime_mint.custom.yaml"
 	"dicts/custom_simple.dict.yaml"
-	"user.yaml"
 )
 
 rime_dir=$DEFAULT_RIME_DIR

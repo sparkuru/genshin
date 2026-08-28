@@ -267,6 +267,11 @@ configure_kernel() {
 	"$config_tool" --file "$config_file" --enable DEVTMPFS
 	"$config_tool" --file "$config_file" --enable DEVTMPFS_MOUNT
 	"$config_tool" --file "$config_file" --enable BLK_DEV_INITRD
+	"$config_tool" --file "$config_file" --enable VIRTIO
+	"$config_tool" --file "$config_file" --enable VIRTIO_MMIO
+	"$config_tool" --file "$config_file" --enable NET_9P
+	"$config_tool" --file "$config_file" --enable NET_9P_VIRTIO
+	"$config_tool" --file "$config_file" --enable 9P_FS
 	"$config_tool" --file "$config_file" --set-str INITRAMFS_SOURCE \
 		"$ROOTFS_DIR $ROOTFS_DEVICE_LIST"
 	"$config_tool" --file "$config_file" --enable BINFMT_ELF
@@ -331,11 +336,11 @@ Run an interactive unprivileged shell:
 
 The foreground console is attached to the terminal. The initramfs starts the user account; use su - root when a root shell is required. The root account has an empty password because this is a disposable local lab image.
 
-For a background VM, use ./run-qemu.sh --background and connect only through telnet 127.0.0.1 4545. Stop it with ./stop-qemu.sh.
+For a background VM, use ./run-qemu.sh --background and connect only through telnet 127.0.0.1 4545. Add --share /path/to/programs to mount that host directory read-only at /mnt/host. Stop the VM with ./stop-qemu.sh.
 
 ## Reset and isolation
 
-The guest has no disk. Every boot creates a fresh in-kernel initramfs. QEMU uses the emulated Cortex-A9 CPU and the vexpress-a9 machine; KVM is not required. The emulated LAN9118 NIC uses restricted QEMU user networking. Only guest TCP port 23 is forwarded to host 127.0.0.1:4545 in background mode; no LAN bridge, host networking, shared folder, USB, or clipboard is configured.
+The guest has no disk. Every boot creates a fresh in-kernel initramfs. QEMU uses the emulated Cortex-A9 CPU and the vexpress-a9 machine; KVM is not required. The emulated LAN9118 NIC uses restricted QEMU user networking. Only guest TCP port 23 is forwarded to host 127.0.0.1:4545 in background mode. A host directory is shared only when --share is selected, and that mount is read-only. No LAN bridge, host networking, USB, or clipboard is configured.
 
 ## Limitations
 
@@ -385,6 +390,7 @@ The generated kernel source receives one compatibility-only adjustment in the AR
 - Storage: none; the BusyBox initramfs is built into the kernel.
 - Network: QEMU user-mode LAN9118 NIC with restrict=on; guest DHCP is ephemeral.
 - Host exposure: guest telnetd is forwarded only to 127.0.0.1:4545 in background mode.
+- Optional host share: --share mounts one existing host directory read-only at /mnt/host through virtio-9p.
 - State: ephemeral; rebooting resets the initramfs.
 
 ## Validation

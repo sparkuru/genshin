@@ -11,7 +11,7 @@ For a checkout that already has local `out/` artifacts, the environment can
 start without a rebuild:
 
 ```sh
-./run-qemu.sh --background
+./run-qemu.sh --background --share /path/to/programs
 telnet 127.0.0.1 4545
 ./stop-qemu.sh
 ```
@@ -31,18 +31,18 @@ pseudo-terminal and an unprivileged `user` shell. The disposable guest also
 has `su - root` for root-required lab setup.
 
 No host root is required. QEMU uses restricted user-mode networking and
-forwards only `127.0.0.1:4545` on the host to TCP port 23 in the guest. There
-is no LAN bridge, host networking, shared folder, USB passthrough, or
-clipboard integration. Background serial output is written to
-`out/run/qemu-serial.log`.
+forwards only `127.0.0.1:4545` on the host to TCP port 23 in the guest. With
+`--share`, one existing host directory is mounted read-only at `/mnt/host`;
+the guest never executes its contents automatically. There is no LAN bridge,
+host networking, USB passthrough, or clipboard integration. Background serial
+output is written to `out/run/qemu-serial.log`.
 
 ## Reuse as a base
 
-Add or replace guest files under `rootfs-template/`, then run `./build.sh`.
-The template is rebuilt into an initramfs embedded in `out/zImage`; every
-boot starts from a fresh ephemeral filesystem. Keep application-specific
-files, startup hooks, and static ARM binaries in the template so the same
-QEMU and kernel lifecycle can be reused for related kernel applications.
+Use `--share` for programs that change frequently. Add guest support files
+under `rootfs-template/` only when they must be embedded, then run `./build.sh`.
+The template is rebuilt into an initramfs embedded in `out/zImage`; every boot
+starts from a fresh ephemeral filesystem.
 
 The main project components are:
 

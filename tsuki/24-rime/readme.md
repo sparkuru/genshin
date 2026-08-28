@@ -94,12 +94,11 @@ $ curl -fl -o ~/.local/share/fcitx5/rime/rime_mint.custom.yaml https://raw.githu
 - `custom/rime_mint.custom.yaml`：候选页、拼音容错和 `bun` 候选过滤器
 - `custom/dicts/custom_simple.dict.yaml`：个人词条，包括 `bun\t不能`
 - `custom/lua/remove_bun_candidate.lua`：只在输入 `bun` 时移除 `兺`
-- `custom/user.yaml`：当前选中的 `rime_mint` 方案
 - `custom/state/*.userdb.txt`：可选的用户词频文本，可能包含个人输入内容
 
 `backup.sh` 会从本机 Rime 目录读取这些运行配置；`restore.sh` 会在本机 Rime 目录中为运行配置创建指向 `custom/` 的符号链接，其中 `custom/lua/*.lua` 会逐个链接到本机 `lua/` 的同名路径。`manifest.yaml` 和 `state/*.userdb.txt` 只用于备份与恢复，不会链接到 Rime 目录。
 
-不备份 `build/`、`installation.yaml` 和二进制 `*.userdb`。这些内容分别是可重建产物、设备标识和正在运行的 LevelDB 状态。
+不备份 `build/`、`installation.yaml`、`user.yaml` 和二进制 `*.userdb`。这些内容分别是可重建产物、设备标识、会频繁变化的 Rime 运行状态和正在运行的 LevelDB 状态。恢复时也不会链接 `user.yaml`，由各设备的 Rime 自行维护。
 
 ### 刷新当前设备的备份
 

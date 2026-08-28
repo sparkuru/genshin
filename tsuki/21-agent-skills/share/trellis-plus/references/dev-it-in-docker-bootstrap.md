@@ -4,7 +4,9 @@
 
 Integrate the base `dev-it-in-docker` skill into a Trellis project so development commands can run through a repo-local Docker wrapper, usually `./hako`, without repeatedly asking for agent approval.
 
-This is a Trellis Plus sub-enhancement. It wires the existing base skill into the Trellis workflow; it does not reimplement the full wrapper generation logic.
+This is a Trellis Plus sub-enhancement. It connects the existing base skill to
+the shared Trellis Plus project policy; it does not reimplement the full
+wrapper generation logic or modify Trellis's upstream workflow.
 
 ## Required Source Skill
 
@@ -12,15 +14,22 @@ Before applying this enhancement, read skill `dev-it-in-docker`
 
 That path is a symlink to the maintained base skill. Follow its rules for toolchain detection, `hako` generation, `.devhome`, `.gitignore`, agent registration, and verification.
 
+Before copying or committing any generated wrapper content, confirm the base
+skill's source and license. If that provenance is unavailable, write only a
+small project-authored wrapper or keep the generated wrapper local; do not
+present unknown third-party content as project-owned.
+
 ## Trellis Placement
 
 Do not add this as a new required phase in every task's plan -> execute -> finish loop.
 
-Treat it as project bootstrap and before-development readiness:
+Treat it as project bootstrap and before-development readiness. Record the
+checkpoint in the shared `.trellis/spec/trellis-plus/index.md` (or a detail
+file beside it). Add a short pointer to a personal/local before-dev adapter
+only when the active platform cannot load the shared spec.
 
-- If the project has `.trellis/workflow.md`, add a short checkpoint near the first `trellis-before-dev` / Phase 2 implementation guidance: if no dev wrapper exists and the task needs local lint/test/build commands, apply `dev-it-in-docker` before implementation.
-- If the project has a before-dev skill (`.claude/skills/trellis-before-dev/SKILL.md`, `.codex/skills/before-dev/SKILL.md`, `.agents/skills/before-dev/SKILL.md`, or equivalent), add the checkpoint there because before-dev is where Trellis refreshes project execution conventions.
-- If the project has an init/onboard checklist, add a one-line bootstrap reminder there.
+Do not patch `.trellis/workflow.md`, `.trellis/scripts/**`, Trellis agents, or
+installed platform Trellis skills just to add this checkpoint.
 
 Keep the wording as a pointer to the base skill. Do not paste the full `dev-it-in-docker` instructions into Trellis workflow files.
 
@@ -36,7 +45,8 @@ Before patching, inspect:
 - `.codex/config.toml`
 - `opencode.json`
 
-If a wrapper already exists, do not create a competing wrapper. Add Trellis pointers and missing allow rules only.
+If a wrapper already exists, do not create a competing wrapper. Update the
+shared project rule and missing personal/local allow rule only.
 
 ## Auto-Allow Targets
 
@@ -120,7 +130,8 @@ Keep this after any catch-all `"*": "ask"` rule because OpenCode is last-match-w
 
 ## Suggested Trellis Patch Block
 
-Adapt this block to the local before-dev skill or workflow wording:
+Adapt this block to the project-owned `.trellis/spec/trellis-plus/index.md` or
+its detail file. It must not be pasted into Trellis's upstream workflow:
 
 ```markdown
 ### Trellis Plus: Docker dev-command bootstrap
@@ -142,9 +153,11 @@ Do not broaden allow rules to raw `docker`, `bash`, `sh`, or package-manager com
 
 After patching, verify:
 
-- Trellis before-dev or workflow points to `dev-it-in-docker`
+- the shared Trellis Plus spec points to `dev-it-in-docker`
 - existing wrapper scripts were reused instead of duplicated
 - `.gitignore` contains `.devhome` when `hako` uses it
 - the active agent has a narrow wrapper allow rule
 - no broad Docker/package-manager allow rule was introduced by this enhancement
+- protected Trellis files were not modified or staged
+- any generated wrapper has a reviewed source/license provenance, or remains local
 - any generated wrapper remains executable

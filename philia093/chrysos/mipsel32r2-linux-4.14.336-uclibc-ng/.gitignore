@@ -1,0 +1,7 @@
+/build/
+/downloads/
+/out/
+*.part
+*.swp
+*~
+.DS_Store

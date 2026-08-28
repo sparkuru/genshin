@@ -1,0 +1,2 @@
+x86_64 Linux 6.18.7 Buildroot lab
+Use /mnt/host for a read-only directory supplied with --share.

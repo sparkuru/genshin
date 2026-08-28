@@ -2,7 +2,7 @@
 
 ## Goal
 
-Inject a durable Trellis rule so work commits created by ChatGPT/Codex during Trellis Phase 3.4 decide whether they deserve a detailed task completion summary and AI co-author trailer, following selective AI-attribution behavior.
+Record a durable project rule so work commits created by ChatGPT/Codex during Trellis Phase 3.4 decide whether they deserve a detailed task completion summary and AI co-author trailer, following selective AI-attribution behavior.
 
 Default trailer:
 
@@ -18,7 +18,9 @@ Trellis itself does not add AI co-author footers. Trellis puts work commits in `
 
 `finish-work` is later bookkeeping. It refuses to replace Phase 3.4 when current-task code is still dirty, then archives tasks and records the journal with the work-commit hashes.
 
-Therefore, inject this rule into the Phase 3.4 commit step, before the `git commit` commands are executed.
+Therefore, record this rule in the shared `.trellis/spec/trellis-plus/`
+configuration and read it before the Phase 3.4 commit plan. Do not inject it by
+modifying `.trellis/workflow.md`.
 
 Do not apply AI attribution to every work commit by default. Prefer it for larger task commits with substantial bodies, non-trivial implementation reasoning, cross-layer changes, or explicit validation narratives. Small follow-up feature/fix commits, task archive commits, and journal commits should usually omit it. Match the target project's recent attribution pattern when one is present.
 
@@ -123,6 +125,9 @@ When drafting the Phase 3.4 commit plan, show attribution only where it matters:
 - For `yes`, show the trailer, a short attribution reason, and a commit body preview.
 - For `ask`, ask one concise question before committing.
 - For `no`, omit the trailer line unless the user asked for an attribution audit.
+- Show the explicit staged project paths and exclude personal/local paths.
+- Run the license-safe path check before `git add`; if a protected Trellis path
+  changed, stop and report it instead of hiding it in a broad commit.
 
 Recommended plan shape:
 
@@ -140,6 +145,9 @@ Proposed commits (in order):
      - <file>
 
 Unrecognized dirty files (NOT in any commit - confirm include/exclude):
+  - <file>
+
+Protected or personal/local files (NOT staged by Trellis Plus):
   - <file>
 
 Reply 'ok' / '行' to execute. Reply with edits, or '我自己来' / 'manual' to abort.
@@ -183,7 +191,9 @@ Co-authored-by: OpenAI Codex <codex@openai.com>
 
 ## Suggested Template Block
 
-Adapt this block to the local `.trellis/workflow.md` Phase 3.4 wording:
+Adapt this block to the project-owned `.trellis/spec/trellis-plus/index.md` and
+the installed Trellis Phase 3.4 terminology. Keep it as a project rule that
+Trellis Plus reads before proposing a commit:
 
 ```markdown
 **AI co-author trailer**:
@@ -196,9 +206,11 @@ The body should summarize the problem/request, root cause or design rationale wh
 
 ## Verification After Injection
 
-After patching, verify:
+After recording, verify:
 
-- the rule is in or pointed from `.trellis/workflow.md` Phase 3.4
+- the rule is in `.trellis/spec/trellis-plus/`
+- the active task context references the shared rule when delegated commit work needs it
+- `.trellis/workflow.md` and other protected Trellis files were not modified
 - the rule applies before `git commit`
 - the rule has a threshold and does not add trailers to every Codex-touched commit
 - substantial attributed commits get a task completion summary body, not just a trailer

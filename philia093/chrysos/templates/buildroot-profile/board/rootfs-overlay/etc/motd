@@ -1,0 +1,2 @@
+Chrysos AArch64 Linux @LINUX_VERSION@ Buildroot lab
+This guest is disposable and reachable from the host only on localhost.

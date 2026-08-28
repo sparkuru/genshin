@@ -1,4 +1,4 @@
 interface:
   display_name: "Trellis Plus"
-  short_description: "Inject Trellis continuity, review, dev, and UI rules"
-  default_prompt: "Use $trellis-plus to inspect this Trellis project and inject the appropriate continuity and workflow enhancements."
+  short_description: "Add shared Trellis Plus rules without patching Trellis runtime"
+  default_prompt: "Use $trellis-plus to inspect this Trellis project, record safe project-shared rules and narrow local settings, and leave Trellis runtime files unchanged."
