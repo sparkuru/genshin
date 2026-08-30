@@ -7,11 +7,16 @@
 | 目录 | 架构与运行库 | Linux | 用途 |
 | --- | --- | --- | --- |
 | `armv7l-linux-3.10.108/` | ARMv7、静态 BusyBox/initramfs | 3.10.108 | 老 ARM 设备和旧内核程序 |
+| `armv5-linux-6.18.7-glibc/` | ARMv5、glibc、EABI、软浮点 | 6.18.7 | ARM926T 级旧式 32 位 ARM 程序 |
 | `aarch64-linux-4.14.98/` | AArch64、glibc | 4.14.98 | 老一代 ARM64 设备 |
 | `aarch64-linux-6.18.7/` | AArch64、glibc | 6.18.7 | 现代 ARM64 基线 |
+| `i686-linux-6.18.7-glibc/` | i686、glibc、32 位 | 6.18.7 | 旧 PC、NAS 和 32 位 x86 程序 |
 | `x86_64-linux-6.18.7-glibc/` | x86-64、glibc | 6.18.7 | PC、服务器、NAS 和常见虚拟机 |
+| `x86_64-linux-6.18.7-musl/` | x86-64、musl | 6.18.7 | Alpine 风格和静态/动态 musl 程序 |
 | `mipsel32r2-linux-4.14.336-uclibc-ng/` | MIPSel32r2、uClibc-ng | 4.14.336 | 小端 MIPS 路由器和嵌入式固件 |
 | `mips32r2-linux-4.14.336-uclibc-ng/` | MIPS32r2 大端、uClibc-ng | 4.14.336 | 大端 MIPS 固件和设备 |
+| `ppc32-linux-6.18.7-glibc/` | PowerPC 32 位大端、glibc | 6.18.7 | G4/PowerPC 32 位程序和旧设备 |
+| `ppc64-linux-6.18.7-glibc/` | PowerPC 64 位大端、glibc、ELFv1 | 6.18.7 | POWER7/pseries 服务器程序 |
 | `riscv64-linux-6.18.7-glibc/` | RISC-V 64、glibc、lp64d | 6.18.7 | RISC-V 64 位程序和现代固件 |
 
 ## 通用操作
@@ -30,7 +35,7 @@ telnet 127.0.0.1 PLATFORM_PORT
 
 ## 默认开发与调试工具
 
-六个 Buildroot 平台默认包含开发和调试工具，而不是仅提供最小启动环境：
+十一个 Buildroot 平台默认包含开发和调试工具，而不是仅提供最小启动环境：
 
 - 编辑与脚本：`vim`、`python3`（含 readline、SSL、zlib 和 xz 模块）
 - 下载与文件处理：`curl`、`wget`、`find`、`md5sum`、`file`

@@ -310,6 +310,9 @@ build_profile() {
 	install_gdbserver
 
 	copy_output_file "$BR_OUTPUT_DIR/images/$KERNEL_IMAGE_NAME" "$KERNEL_IMAGE_NAME"
+	if [[ -n "${KERNEL_DTB_NAME:-}" ]]; then
+		copy_output_file "$BR_OUTPUT_DIR/images/$KERNEL_DTB_NAME" "$KERNEL_DTB_NAME"
+	fi
 	copy_output_file "$BR_OUTPUT_DIR/images/rootfs.ext4" rootfs.ext4
 	copy_output_file "$BR_OUTPUT_DIR/.config" buildroot.config
 	printf '%s\n' "$BUILDROOT_VERSION" >"$OUTPUT_DIR/buildroot.release"
@@ -322,6 +325,10 @@ build_profile() {
 
 require_artifacts() {
 	[[ -f "$KERNEL_ARTIFACT" ]] || die "missing $KERNEL_ARTIFACT; run ./build.sh"
+	if [[ -n "${KERNEL_DTB_NAME:-}" ]]; then
+		[[ -f "$OUTPUT_DIR/$KERNEL_DTB_NAME" ]] ||
+			die "missing $OUTPUT_DIR/$KERNEL_DTB_NAME; run ./build.sh"
+	fi
 	[[ -f "$OUTPUT_DIR/rootfs.ext4" ]] ||
 		die "missing $OUTPUT_DIR/rootfs.ext4; run ./build.sh"
 }
@@ -360,6 +367,11 @@ qemu_arguments() {
 		-smp "$QEMU_SMP"
 		-m "$QEMU_MEMORY"
 		-kernel "$KERNEL_ARTIFACT"
+	)
+	if [[ -n "${KERNEL_DTB_NAME:-}" ]]; then
+		qemu_args+=(-dtb "$OUTPUT_DIR/$KERNEL_DTB_NAME")
+	fi
+	qemu_args+=(
 		-append "$append_value"
 		-netdev "$network_argument"
 	)
@@ -371,17 +383,35 @@ qemu_arguments() {
 			-device "virtio-blk-device,drive=hd0"
 		)
 		;;
-	x86_64-pc)
+	x86-pc | x86_64-pc)
 		qemu_args+=(
 			-device "virtio-net-pci,netdev=net0"
 			-drive "file=$rootfs_image,if=none,format=raw,id=hd0"
 			-device "virtio-blk-pci,drive=hd0"
 		)
 		;;
+	armv5-versatile)
+		qemu_args+=(
+			-device "rtl8139,netdev=net0"
+			-drive "file=$rootfs_image,if=scsi,format=raw"
+		)
+		;;
 	mipsel-malta | mips-malta)
 		qemu_args+=(
 			-device "pcnet,netdev=net0"
 			-drive "file=$rootfs_image,format=raw"
+		)
+		;;
+	ppc32-mac99)
+		qemu_args+=(
+			-device "sungem,netdev=net0"
+			-drive "file=$rootfs_image,format=raw"
+		)
+		;;
+	ppc64-pseries)
+		qemu_args+=(
+			-device "virtio-net-pci,netdev=net0"
+			-drive "file=$rootfs_image,if=scsi,index=0,format=raw"
 		)
 		;;
 	*) die "unsupported QEMU backend: $QEMU_BACKEND" ;;
