@@ -36,6 +36,11 @@ if grep -q 'user.validate=1' /proc/cmdline; then
 	printf 'identity: '
 	id
 	printf '%s\n' 'user.validate=1'
+	if command -v gdbserver >/dev/null 2>&1; then
+		printf '%s\n' 'validation-tooling-ok'
+	else
+		printf '%s\n' 'validation-tooling-missing tools=gdbserver'
+	fi
 	printf '%s\n' 'validation-init-ok'
 	poweroff -f 2>/dev/null || true
 	while :; do

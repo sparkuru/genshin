@@ -28,7 +28,8 @@ require_command() {
 
 collect_shell_files() {
 	find "$ROOT_DIR" \
-		-type d \( -name .git -o -name build -o -name downloads -o -name out \) -prune -o \
+		-type d \( -name .git -o -name build -o -name downloads -o -name out \
+		-o -path "$ROOT_DIR/tools/gdbserver/src" -o -path "$ROOT_DIR/tools/gdbserver/builds" \) -prune -o \
 		-type f \( \
 		-name '*.sh' -o \
 		-name 'profile.env' -o \
@@ -42,6 +43,7 @@ collect_shell_files() {
 check_buildroot_profiles() {
 	local profile_env
 	local profile_dir
+	local profile_kind
 	local common_file
 	local reference_common="$ROOT_DIR/templates/buildroot-profile/common.sh"
 	local status=0
@@ -51,6 +53,8 @@ check_buildroot_profiles() {
 	[[ -f "$reference_common" ]] || die "missing Buildroot common reference: $reference_common"
 	while IFS= read -r -d '' profile_env; do
 		profile_dir=$(dirname -- "$profile_env")
+		profile_kind=$(sed -n 's/^readonly PROFILE_KIND="\([^"]*\)"/\1/p' "$profile_env")
+		[[ "$profile_kind" == buildroot ]] || continue
 		common_file="$profile_dir/common.sh"
 		if [[ ! -f "$common_file" ]]; then
 			printf 'Error: Buildroot profile is missing common.sh: %s\n' "$profile_dir" >&2
@@ -100,6 +104,7 @@ main() {
 	require_command cmp
 	require_command find
 	require_command shellcheck
+	require_command sed
 	require_command shfmt
 
 	while IFS= read -r -d '' file_path; do
@@ -122,6 +127,9 @@ main() {
 		status=1
 	fi
 	if ! check_buildroot_profiles; then
+		status=1
+	fi
+	if ! "$ROOT_DIR/tools/check-profiles.sh"; then
 		status=1
 	fi
 

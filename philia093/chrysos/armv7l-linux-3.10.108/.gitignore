@@ -7,6 +7,9 @@
 # Generated kernel images, device trees, reports, and QEMU runtime logs.
 /out/
 
+# Generated static debugger sidecar installed before the initramfs is packed.
+/rootfs-template/usr/bin/gdbserver
+
 # Partial downloads and local editor/OS noise.
 *.part
 *.swp

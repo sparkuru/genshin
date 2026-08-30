@@ -1,0 +1,4 @@
+# GNU GDB sources and reproducible per-profile build outputs.
+/src/
+/builds/
+*.part

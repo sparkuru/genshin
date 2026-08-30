@@ -13,6 +13,18 @@ start)
 	fi
 	if grep -q -w 'lab.validate=1' /proc/cmdline; then
 		(
+			missing_tools=
+			for tool_name in vim curl wget python3 find md5sum file strace \
+				readelf objdump ip ps lsof tcpdump socat nc gdbserver; do
+				if ! command -v "$tool_name" >/dev/null 2>&1; then
+					missing_tools="$missing_tools $tool_name"
+				fi
+			done
+			if [ -n "$missing_tools" ]; then
+				printf 'validation-tooling-missing tools=%s\n' "$missing_tools" >/dev/console
+			else
+				printf '%s\n' 'validation-tooling-ok' >/dev/console
+			fi
 			sleep 2
 			printf 'validation-init-ok kernel=%s machine=%s\n' \
 				"$(uname -r)" "$(uname -m)" >/dev/console

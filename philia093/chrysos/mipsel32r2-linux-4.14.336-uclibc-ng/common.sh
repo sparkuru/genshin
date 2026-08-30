@@ -59,6 +59,7 @@ require_profile_variables() {
 	local -a required_variables=(
 		PROFILE_DIR
 		PROFILE_NAME
+		PROFILE_KIND
 		BUILDROOT_VERSION
 		BUILDROOT_ARCHIVE
 		BUILDROOT_URL
@@ -74,6 +75,11 @@ require_profile_variables() {
 		KERNEL_MACHINE
 		TARGET_ENDIAN
 		TARGET_LIBC
+		PROFILE_ABI
+		PROFILE_FLOAT_ABI
+		PROFILE_ELF_CLASS
+		USERSPACE_MODE
+		ROOTFS_INSTALL_DIR
 		CPU_BASELINE
 		QEMU_SYSTEM_BINARY
 		QEMU_BACKEND
@@ -89,6 +95,7 @@ require_profile_variables() {
 	for variable_name in "${required_variables[@]}"; do
 		[[ -n "${!variable_name:-}" ]] || die "profile variable is empty: $variable_name"
 	done
+	[[ "$PROFILE_KIND" == buildroot ]] || die "unsupported profile kind for Buildroot common.sh: $PROFILE_KIND"
 }
 
 verify_file() {
@@ -189,6 +196,20 @@ copy_output_file() {
 	install -m 0644 -- "$source_path" "$OUTPUT_DIR/$output_name"
 }
 
+install_gdbserver() {
+	local sidecar_script="$PROFILE_DIR/../tools/gdbserver/build.sh"
+	local artifact_path="$PROFILE_DIR/../tools/gdbserver/builds/$PROFILE_NAME/gdb-14.2/gdbserver"
+	local rootfs_image="$BR_OUTPUT_DIR/images/rootfs.ext4"
+
+	[[ -x "$sidecar_script" ]] || die "missing gdbserver builder: $sidecar_script"
+	"$sidecar_script" --profile "$PROFILE_NAME" --install-rootfs
+	[[ -x "$artifact_path" ]] || die "missing gdbserver artifact: $artifact_path"
+	install -D -m 0755 -- "$artifact_path" "$BR_OUTPUT_DIR/target/usr/bin/gdbserver"
+	[[ -f "$rootfs_image" ]] || die "missing generated rootfs image: $rootfs_image"
+	rm -f -- "$rootfs_image"
+	buildroot_make
+}
+
 write_report() {
 	local report_path="$OUTPUT_DIR/report.md"
 	local generated_at
@@ -205,6 +226,10 @@ Status: built
 | Linux | $LINUX_VERSION |
 | Architecture | $TARGET_ARCHITECTURE $TARGET_ENDIAN-endian |
 | C library | $TARGET_LIBC |
+| ABI | $PROFILE_ABI |
+| Float ABI | $PROFILE_FLOAT_ABI |
+| ELF class | ${PROFILE_ELF_CLASS}-bit |
+| Userspace mode | $USERSPACE_MODE |
 | CPU baseline | $CPU_BASELINE |
 | Toolchain headers | $LINUX_HEADERS_OPTION |
 | QEMU machine | $QEMU_MACHINE |
@@ -282,6 +307,7 @@ build_profile() {
 	configure_buildroot
 	info "Building $PROFILE_NAME with $build_jobs job(s)"
 	buildroot_make -j"$build_jobs"
+	install_gdbserver
 
 	copy_output_file "$BR_OUTPUT_DIR/images/$KERNEL_IMAGE_NAME" "$KERNEL_IMAGE_NAME"
 	copy_output_file "$BR_OUTPUT_DIR/images/rootfs.ext4" rootfs.ext4
@@ -338,7 +364,7 @@ qemu_arguments() {
 		-netdev "$network_argument"
 	)
 	case "$QEMU_BACKEND" in
-	aarch64-virt)
+	aarch64-virt | riscv64-virt)
 		qemu_args+=(
 			-device "virtio-net-device,netdev=net0"
 			-drive "file=$rootfs_image,if=none,format=raw,id=hd0"
@@ -352,7 +378,7 @@ qemu_arguments() {
 			-device "virtio-blk-pci,drive=hd0"
 		)
 		;;
-	mipsel-malta)
+	mipsel-malta | mips-malta)
 		qemu_args+=(
 			-device "pcnet,netdev=net0"
 			-drive "file=$rootfs_image,format=raw"
@@ -565,6 +591,8 @@ validate_profile() {
 		die "$TARGET_ARCHITECTURE identity was not observed; inspect $VALIDATION_LOG_FILE"
 	grep --fixed-strings --quiet 'validation-init-ok' "$VALIDATION_LOG_FILE" ||
 		die "validation init path was not observed; inspect $VALIDATION_LOG_FILE"
+	grep --fixed-strings --quiet 'validation-tooling-ok' "$VALIDATION_LOG_FILE" ||
+		die "default debugging tools were not all observed; inspect $VALIDATION_LOG_FILE"
 
 	if [[ -f "$OUTPUT_DIR/report.md" ]]; then
 		sed -i '/^## Validation result$/,$d' "$OUTPUT_DIR/report.md"
@@ -574,7 +602,7 @@ validate_profile() {
 
 - Passed: QEMU booted the generated image and emitted Linux $LINUX_VERSION with $TARGET_ARCHITECTURE identity.
 - Log: out/validation.log.
-- Scope: boot, rootfs, network setup, and identity only; no exploit or vendor behavior was tested.
+- Scope: boot, rootfs, network setup, identity, and default debugging tools only; no exploit or vendor behavior was tested.
 EOF
 	fi
 	printf 'Validation passed. Log: %s\n' "$VALIDATION_LOG_FILE"

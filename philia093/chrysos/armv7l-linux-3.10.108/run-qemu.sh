@@ -5,10 +5,14 @@ SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_NAME
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)"
 readonly ROOT_DIR
+PROFILE_DIR="$ROOT_DIR"
+export PROFILE_DIR
+# shellcheck disable=SC1091 # This static profile owns its descriptor.
+source "$ROOT_DIR/profile.env"
 readonly OUTPUT_DIR="$ROOT_DIR/out"
 readonly RUN_DIR="$OUTPUT_DIR/run"
 readonly PID_FILE="$RUN_DIR/qemu.pid"
-readonly TELNET_PORT="4545"
+readonly TELNET_PORT="$QEMU_PORT"
 readonly GUEST_TELNET_PORT="23"
 readonly SERIAL_LOG_FILE="$RUN_DIR/qemu-serial.log"
 
@@ -81,7 +85,7 @@ start_foreground() {
 	local -a qemu_args
 	local arg
 
-	qemu_args=(qemu-system-arm)
+	qemu_args=("$QEMU_SYSTEM_BINARY")
 	while IFS= read -r arg; do
 		qemu_args+=("$arg")
 	done < <(qemu_common_args "$share_path")
@@ -100,7 +104,7 @@ start_background() {
 		die "QEMU is already running with PID $pid"
 	fi
 	rm -f -- "$PID_FILE"
-	qemu_args=(qemu-system-arm)
+	qemu_args=("$QEMU_SYSTEM_BINARY")
 	while IFS= read -r arg; do
 		qemu_args+=("$arg")
 	done < <(qemu_common_args "$share_path")
@@ -127,7 +131,7 @@ main() {
 	local requested_share_path
 	local share_path=
 
-	require_command qemu-system-arm
+	require_command "$QEMU_SYSTEM_BINARY"
 	require_artifacts
 	while (($# > 0)); do
 		case "$1" in

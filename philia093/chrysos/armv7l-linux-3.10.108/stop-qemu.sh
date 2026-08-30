@@ -5,6 +5,10 @@ SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_NAME
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)"
 readonly ROOT_DIR
+PROFILE_DIR="$ROOT_DIR"
+export PROFILE_DIR
+# shellcheck disable=SC1091 # This static profile owns its descriptor.
+source "$ROOT_DIR/profile.env"
 readonly PID_FILE="$ROOT_DIR/out/run/qemu.pid"
 
 usage() {
@@ -53,7 +57,7 @@ main() {
 		return 0
 	fi
 	command_name=$(<"/proc/$pid/comm")
-	[[ "$command_name" == qemu-system-arm ]] ||
+	[[ "$command_name" == "${QEMU_SYSTEM_BINARY##*/}" ]] ||
 		die "PID $pid is not a QEMU process; refusing to stop it"
 
 	kill "$pid"

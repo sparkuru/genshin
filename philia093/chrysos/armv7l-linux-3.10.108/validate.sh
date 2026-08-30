@@ -5,6 +5,10 @@ SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_NAME
 ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)"
 readonly ROOT_DIR
+PROFILE_DIR="$ROOT_DIR"
+export PROFILE_DIR
+# shellcheck disable=SC1091 # This static profile owns its descriptor.
+source "$ROOT_DIR/profile.env"
 readonly OUTPUT_DIR="$ROOT_DIR/out"
 readonly LOG_FILE="$OUTPUT_DIR/validation.log"
 readonly REPORT_FILE="$OUTPUT_DIR/report.md"
@@ -46,7 +50,7 @@ main() {
 		;;
 	esac
 
-	require_command qemu-system-arm
+	require_command "$QEMU_SYSTEM_BINARY"
 	require_command timeout
 	[[ -f "$OUTPUT_DIR/zImage" ]] || die "missing $OUTPUT_DIR/zImage; run ./build.sh"
 	[[ -f "$OUTPUT_DIR/vexpress-v2p-ca9.dtb" ]] ||
@@ -55,14 +59,14 @@ main() {
 	: >"$LOG_FILE"
 
 	set +e
-	timeout --signal=TERM 30s qemu-system-arm \
-		-machine vexpress-a9 \
-		-cpu cortex-a9 \
-		-smp 4 \
-		-m 256M \
+	timeout --signal=TERM 30s "$QEMU_SYSTEM_BINARY" \
+		-machine "$QEMU_MACHINE" \
+		-cpu "$QEMU_CPU" \
+		-smp "$QEMU_SMP" \
+		-m "$QEMU_MEMORY" \
 		-kernel "$OUTPUT_DIR/zImage" \
 		-dtb "$OUTPUT_DIR/vexpress-v2p-ca9.dtb" \
-		-append 'console=ttyAMA0,115200 earlyprintk=serial,ttyAMA0,115200 rdinit=/init user.validate=1' \
+		-append "console=$KERNEL_CONSOLE earlyprintk=serial,$KERNEL_CONSOLE rdinit=/init user.validate=1" \
 		-nic 'user,model=lan9118,restrict=on' \
 		-no-reboot \
 		-audio none \
@@ -78,6 +82,8 @@ main() {
 		die "kernel release was not observed; inspect $LOG_FILE"
 	grep --extended-regexp --quiet 'armv7l|armv7' "$LOG_FILE" ||
 		die "ARMv7 identity was not observed; inspect $LOG_FILE"
+	grep --fixed-strings --quiet 'validation-tooling-ok' "$LOG_FILE" ||
+		die "static gdbserver validation was not observed; inspect $LOG_FILE"
 	grep --fixed-strings --quiet 'validation-init-ok' "$LOG_FILE" ||
 		die "validation init path was not observed; inspect $LOG_FILE"
 

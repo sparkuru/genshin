@@ -2,6 +2,9 @@
 /build/
 /downloads/
 /out/
+
+# Generated static debugger sidecar installed before the rootfs is packaged.
+/board/rootfs-overlay/usr/bin/gdbserver
 *.part
 *.swp
 *~

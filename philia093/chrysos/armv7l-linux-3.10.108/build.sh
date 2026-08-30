@@ -30,6 +30,12 @@ readonly ROOTFS_DIR="$BUILD_DIR/rootfs"
 readonly ROOTFS_DEVICE_LIST="$BUILD_DIR/rootfs-devices.list"
 readonly ROOTFS_SU_BINARY="$BUILD_DIR/busybox-su"
 readonly GENERATED_MARKER_NAME=".generated-by-user-qemu"
+PROFILE_DIR="$ROOT_DIR"
+export PROFILE_DIR
+# shellcheck disable=SC1091 # This static profile owns its descriptor.
+source "$ROOT_DIR/profile.env"
+readonly GDBSERVER_SCRIPT="$ROOT_DIR/../tools/gdbserver/build.sh"
+readonly GDBSERVER_ARTIFACT="$ROOTFS_INSTALL_DIR/gdbserver"
 
 if [[ -v JOBS ]]; then
 	build_jobs=$JOBS
@@ -226,6 +232,12 @@ build_busybox() {
 	file_type=$(file -b "$BUSYBOX_BUILD_DIR/busybox")
 	[[ "$file_type" == *ARM* && "$file_type" == *"statically linked"* ]] ||
 		die "BusyBox is not a static ARM binary: $file_type"
+}
+
+build_gdbserver() {
+	[[ -x "$GDBSERVER_SCRIPT" ]] || die "missing gdbserver builder: $GDBSERVER_SCRIPT"
+	"$GDBSERVER_SCRIPT" --profile "$PROFILE_NAME" --install-rootfs
+	[[ -x "$GDBSERVER_ARTIFACT" ]] || die "missing gdbserver artifact: $GDBSERVER_ARTIFACT"
 }
 
 prepare_rootfs() {
@@ -433,6 +445,7 @@ main() {
 
 	readonly CROSS_COMPILE="$TOOLCHAIN_ROOT/bin/arm-none-linux-gnueabihf-"
 	build_busybox
+	build_gdbserver
 	prepare_rootfs
 	build_kernel
 	write_outputs

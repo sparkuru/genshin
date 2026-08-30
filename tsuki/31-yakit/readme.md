@@ -10,7 +10,15 @@ The installer detects the host architecture, reads the latest Yakit version
 from the official OSS mirror, downloads the matching AppImage, extracts it,
 and links the adjusted `yakit.desktop` into
 `~/.local/share/applications/`. The desktop entry launches the extracted
-`AppRun` so Yakit keeps the AppImage runtime environment.
+`AppRun` through a generated launcher so Yakit keeps the AppImage runtime
+environment.
+
+The generated launcher uses `$XDG_DATA_HOME/yakit` when `XDG_DATA_HOME` is an
+absolute path, otherwise `$HOME/.local/share/yakit`, as both its working
+directory and `YAKIT_HOME`. This keeps relative runtime directories such as
+`yakit-project` and `build` out of the home-directory root. Set `YAKIT_HOME`
+before launching `yakit-launcher` to override the default location. Reinstall
+with `--force` to update an existing installation.
 
 Use a specific release or a local AppImage when testing:
 

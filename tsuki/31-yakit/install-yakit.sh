@@ -4,6 +4,7 @@ set -Eeuo pipefail
 readonly SCRIPT_NAME=${0##*/}
 readonly INSTALL_MARKER='install-yakit.sh'
 readonly DESKTOP_FILE_NAME='yakit.desktop'
+readonly LAUNCHER_FILE_NAME='yakit-launcher'
 readonly DEFAULT_OSS_DOMAIN='oss-qn.yaklang.com'
 readonly OSS_DOMAINS=(
 	'oss-qn.yaklang.com'
@@ -46,6 +47,7 @@ usage() {
 	printf '\nEnvironment:\n' >&2
 	printf '  YAKIT_VERSION        Default value for --version.\n' >&2
 	printf '  YAKIT_OSS_DOMAIN     Try this OSS host before the built-in mirrors.\n' >&2
+	printf '  YAKIT_HOME           Runtime data directory for the generated launcher.\n' >&2
 }
 
 color_text() {
@@ -325,6 +327,36 @@ escape_desktop_exec_arg() {
 	printf '"%s"' "$value"
 }
 
+write_launcher() {
+	local target_file=$1
+	local temporary_file="$tmp_dir/$LAUNCHER_FILE_NAME"
+
+	# shellcheck disable=SC2016  # Preserve runtime variable expansion in the generated launcher.
+	{
+		printf '%s\n' '#!/usr/bin/env bash'
+		printf '%s\n' 'set -Eeuo pipefail'
+		printf '\n'
+		printf '%s\n' 'launcher_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)'
+		printf '%s\n' 'if [[ -n "${YAKIT_HOME:-}" ]]; then'
+		printf '%s\n' 'data_dir=$YAKIT_HOME'
+		printf '%s\n' 'elif [[ "${XDG_DATA_HOME:-}" == /* ]]; then'
+		printf '%s\n' 'data_dir=$XDG_DATA_HOME/yakit'
+		printf '%s\n' 'else'
+		printf '%s\n' '[[ -n "${HOME:-}" ]] || { printf '\''Error: HOME is not set\n'\'' >&2; exit 1; }'
+		printf '%s\n' 'data_dir=$HOME/.local/share/yakit'
+		printf '%s\n' 'fi'
+		printf '%s\n' 'if [[ "$data_dir" != /* ]]; then'
+		printf '%s\n' 'data_dir=$PWD/$data_dir'
+		printf '%s\n' 'fi'
+		printf '%s\n' 'mkdir -p -- "$data_dir"'
+		printf '%s\n' 'cd -- "$data_dir"'
+		printf '%s\n' 'export YAKIT_HOME="$data_dir"'
+		printf '%s\n' 'exec "$launcher_dir/AppRun" "$@"'
+	} >"$temporary_file"
+	chmod +x -- "$temporary_file"
+	mv -- "$temporary_file" "$target_file"
+}
+
 write_desktop_entry() {
 	local source_file=$1
 	local target_file=$2
@@ -347,6 +379,7 @@ write_desktop_entry() {
 			printf 'Icon=%s\n' "$icon" >>"$temporary_file"
 			has_icon=true
 			;;
+		Path=*) ;;
 		X-Yakit-Installed-By=*) ;;
 		*)
 			printf '%s\n' "$line" >>"$temporary_file"
@@ -369,11 +402,18 @@ is_managed_link() {
 
 is_managed_desktop_entry() {
 	local desktop_file=$1
-	local executable=$2
+	shift
+	local executable
 	local escaped_executable
 
-	escaped_executable=$(escape_desktop_exec_arg "$executable")
-	grep -Fqx "X-Yakit-Installed-By=$INSTALL_MARKER" "$desktop_file" && grep -Fqx "Exec=$escaped_executable %U" "$desktop_file"
+	grep -Fqx "X-Yakit-Installed-By=$INSTALL_MARKER" "$desktop_file" || return 1
+	for executable in "$@"; do
+		escaped_executable=$(escape_desktop_exec_arg "$executable")
+		if grep -Fqx "Exec=$escaped_executable %U" "$desktop_file"; then
+			return 0
+		fi
+	done
+	return 1
 }
 
 install_yakit() {
@@ -416,7 +456,8 @@ install_yakit() {
 		die 'the AppImage does not contain a Yakit icon'
 	fi
 
-	write_desktop_entry "$source_desktop" "$staging_dir/$DESKTOP_FILE_NAME" "$install_dir/AppRun" "$install_dir/$icon_relative_path"
+	write_launcher "$staging_dir/$LAUNCHER_FILE_NAME"
+	write_desktop_entry "$source_desktop" "$staging_dir/$DESKTOP_FILE_NAME" "$install_dir/$LAUNCHER_FILE_NAME" "$install_dir/$icon_relative_path"
 
 	if [[ -e "$install_dir" || -L "$install_dir" ]]; then
 		rm -rf -- "$install_dir"
@@ -451,7 +492,7 @@ uninstall_yakit() {
 		else
 			warn "leaving desktop link unchanged: $desktop_link"
 		fi
-	elif [[ -f "$desktop_link" ]] && is_managed_desktop_entry "$desktop_link" "$install_dir/AppRun"; then
+	elif [[ -f "$desktop_link" ]] && is_managed_desktop_entry "$desktop_link" "$install_dir/$LAUNCHER_FILE_NAME" "$install_dir/AppRun"; then
 		rm -- "$desktop_link"
 		desktop_entry_removed=true
 	fi
