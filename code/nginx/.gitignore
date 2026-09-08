@@ -1,2 +1,5 @@
 
 *singbox.http.nginx
+
+# sync to vps
+sync.sh

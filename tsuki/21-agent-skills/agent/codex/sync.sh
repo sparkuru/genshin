@@ -12,6 +12,11 @@ script_dir_path="$(
 readonly SCRIPT_DIR="$script_dir_path"
 unset script_dir_path
 readonly CODEX_HOME="${HOME:?HOME is not set}/.codex"
+readonly -a MANAGED_LINK_TARGETS=(
+	"$CODEX_HOME/AGENTS.md"
+	"$CODEX_HOME/agents"
+	"$CODEX_HOME/rules/default.rules"
+)
 
 temp_dir=""
 
@@ -91,13 +96,18 @@ write_config() {
 link_path() {
 	local source_path=$1
 	local target_path=$2
+	local managed_target
+	local target_is_managed=false
 
 	[[ -e "$source_path" || -L "$source_path" ]] || die "source path not found: $source_path"
 
-	case "$target_path" in
-	"$CODEX_HOME/AGENTS.md" | "$CODEX_HOME/agents" | "$CODEX_HOME/rules/default.rules") ;;
-	*) die "refusing to replace unexpected target: $target_path" ;;
-	esac
+	for managed_target in "${MANAGED_LINK_TARGETS[@]}"; do
+		if [[ "$target_path" == "$managed_target" ]]; then
+			target_is_managed=true
+			break
+		fi
+	done
+	[[ "$target_is_managed" == true ]] || die "refusing to replace unexpected target: $target_path"
 
 	if [[ -e "$target_path" || -L "$target_path" ]]; then
 		rm -rf -- "$target_path"
@@ -123,7 +133,11 @@ main() {
 	local source_agents="$SCRIPT_DIR/agents"
 	local source_rules="$SCRIPT_DIR/codex.rules"
 	local source_agents_file="$SCRIPT_DIR/agents.md"
+	local source_deep_profile="$SCRIPT_DIR/deep.config.toml"
+	local source_luna_profile="$SCRIPT_DIR/luna.config.toml"
 	local target_config="$CODEX_HOME/config.toml"
+	local target_deep_profile="$CODEX_HOME/deep.config.toml"
+	local target_luna_profile="$CODEX_HOME/luna.config.toml"
 
 	for command_name in awk cat cp ln mkdir mktemp mv rm; do
 		require_command "$command_name"
@@ -133,13 +147,20 @@ main() {
 	[[ -d "$source_agents" ]] || die "source directory not found: $source_agents"
 	[[ -f "$source_rules" ]] || die "source file not found: $source_rules"
 	[[ -f "$source_agents_file" ]] || die "source file not found: $source_agents_file"
+	[[ -f "$source_deep_profile" ]] || die "source file not found: $source_deep_profile"
+	[[ -f "$source_luna_profile" ]] || die "source file not found: $source_luna_profile"
+
+	validate_dynamic_sections "$target_config"
+	validate_dynamic_sections "$target_deep_profile"
+	validate_dynamic_sections "$target_luna_profile"
 
 	mkdir -p -- "$CODEX_HOME/rules"
 	temp_dir=$(mktemp -d "$CODEX_HOME/.codex-sync.XXXXXXXXXX")
 	trap cleanup EXIT
 
-	validate_dynamic_sections "$target_config"
 	write_config "$source_config" "$target_config"
+	write_config "$source_deep_profile" "$target_deep_profile"
+	write_config "$source_luna_profile" "$target_luna_profile"
 	link_path "$source_agents" "$CODEX_HOME/agents"
 	link_path "$source_rules" "$CODEX_HOME/rules/default.rules"
 	link_path "$source_agents_file" "$CODEX_HOME/AGENTS.md"

@@ -1,4 +1,4 @@
-# 回滚方案（公共模板）
+# 回滚方案
 
 状态：模板；VPS WireGuard 采用 host-network Docker 的参考架构。执行前必须以目标机当前状态和本地 handoff 为准。
 

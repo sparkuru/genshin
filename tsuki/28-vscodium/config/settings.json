@@ -94,14 +94,16 @@
 		"**/__pycache__/**": true,
 		"**/node_modules/**": true,
 		"**/.venv/**": true,
-		"**/venv/**": true
+		"**/venv/**": true,
+		"**/chrysos/**/build/**": true
 	},
 	"search.exclude": {
 		"**/archive/**": true,
 		"**/__pycache__/**": true,
 		"**/node_modules/**": true,
 		"**/.venv/**": true,
-		"**/venv/**": true
+		"**/venv/**": true,
+		"**/chrysos/**/build/**": true
 	},
 	// "files.exclude": {
 	// 	"**/archive": true,

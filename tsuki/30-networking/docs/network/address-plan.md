@@ -1,4 +1,4 @@
-# Address plan（公开演示）
+# Address plan
 
 状态：本文使用 `10.90`–`10.93` 演示数据面和 road-warrior 地址池；生产地址不从公开文档推导。
 
@@ -73,7 +73,7 @@ TCP `51820` 可以继续开放，但 WireGuard 不使用 TCP。实际部署前�
 
 - c/g 的 WireGuard 用户态工具、内核模块和原生服务可用；VPS 的 host-network Docker WireGuard 容器已构建并运行。
 - c 的 fw3/legacy `NETMAP` 与 g 的 fw4/nft Prefix NAT 均已做语法及数据面验证。
-- Compose 演示中的 UDP `51820`、peer handshake、translated 路由、外出客户端的双站点访问和客户端策略路由可按 `compose.yaml` 验证。
+- Compose 演示中的 UDP `51820`、peer handshake、translated 路由、外出客户端的双站点访问和客户端策略路由可按 `wireguard/compose.yaml` 验证。
 
 ## 未完成
 
@@ -84,7 +84,7 @@ TCP `51820` 可以继续开放，但 WireGuard 不使用 TCP。实际部署前�
 - 客户端配置：`/etc/wireguard/<client>.conf`，默认不设为开机自动启动；需要时执行 `sudo wg-quick up <client>`。
 - VPS peer 登记表：`/etc/overlap-vpn/road-warriors.tsv`，只保存名称、`/32` 和公钥。
 - VPS 添加工具：`/usr/local/sbin/overlap-vpn-road-peer add <name> <address> <public-key>`。
-- 客户端模板：`vps/examples/road-warrior.conf.example`。移动端或简单 Linux 客户端可保留 `AllowedIPs`，去掉 Linux 专用的 `Table/PostUp/PostDown`。
+- 客户端模板：`configs/vps/road-warrior.conf.example`。移动端或简单 Linux 客户端可保留 `AllowedIPs`，去掉 Linux 专用的 `Table/PostUp/PostDown`。
 - road-warrior 默认只访问 `10.91.0.0/24`、`10.92.0.0/24` 和 VPS `10.90.0.1/32`，不使用 `0.0.0.0/0`，也不允许客户端之间默认互访。
 
 新增设备的最小流程：
@@ -99,4 +99,4 @@ wg pubkey < client-privatekey
 sudo /usr/local/sbin/overlap-vpn-road-peer add client-name 10.93.0.11/32 <CLIENT_PUBLIC_KEY>
 ```
 
-然后把 `vps/examples/road-warrior.conf.example` 中的地址、客户端私钥和 VPS 公钥填入新设备；私钥不上传 VPS，也不写入本项目。
+然后把 `configs/vps/road-warrior.conf.example` 中的地址、客户端私钥和 VPS 公钥填入新设备；私钥不上传 VPS，也不写入本项目。

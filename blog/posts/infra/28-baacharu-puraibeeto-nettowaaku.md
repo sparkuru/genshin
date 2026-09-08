@@ -77,7 +77,7 @@ $ sudo resolvconf -u
         v
       nginx
         |
-        +-- example.com / www.example.com -> Typecho / 静态站点
+        +-- example.com / www.example.com -> 静态站点
         +-- magic.example.com -> 127.0.0.1:9001 nginx iso Web fallback
         +-- iso.example.com -> 127.0.0.1:9001 nginx iso Web fallback
         +-- ftp.example.com -> 127.0.0.1:9002
@@ -474,7 +474,7 @@ $ tree
                 +-- support / image / ...
 ```
 
-首先明确 nginx 的 http 不能实现流量转发到 singbox，而 nginx stream 相较于 http，可以代理 raw 的 tcp / udp 流量，但是代价是得把原来的 http / tls 回退到内部网络，这样要比前面 nginx 在 singbox 后的处理方式要温和的多，但是来源变成 127.0.0.1 没辙
+首先明确 nginx 的 http 不能实现流量转发到 singbox，而 nginx stream 相较于 http，可以代理 raw 的 tcp / udp 流量，但是代价是得把原来的 http / tls 回退到内部网络，这样要比前面 nginx 在 singbox 后的处理方式要温和的多，不过来源变成 127.0.0.1 这件事没辙
 
 ## refer
 

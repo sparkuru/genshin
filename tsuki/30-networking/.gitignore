@@ -4,6 +4,7 @@
 # Local-only handoff and operational notes. These may contain private
 # hostnames, paths, topology details or other context not needed to reproduce.
 /handoff/
+**/handoff/
 
 # Real WireGuard/client credentials and rendered configurations. The example
 # files are intentionally named *.example and are not matched by these rules.

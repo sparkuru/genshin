@@ -276,6 +276,7 @@ pip_to_install_list=(
 	pyinstaller staticx
 	faker python-docx openpyxl
 	pillow markdown pygments playwright
+	pywifi pyside6
 )
 
 progress "Installing Python packages for configured users"

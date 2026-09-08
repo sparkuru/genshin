@@ -1,34 +1,22 @@
-model = "gpt-6-astra"
-model_reasoning_effort = "low"
+model = "gpt-5.6-luna"
+model_reasoning_effort = "max"
 service_tier = "default"
 personality = "pragmatic"
 approvals_reviewer = "auto_review"
 
-[tui]
-auto_recap = false
+developer_instructions = """
+Bounded-worker mode is active for this profile. Use `luna` as this profile's
+bounded worker.
+"""
 
-status_line = [
-    "current-dir",
-    "model-with-reasoning",
-    "context-remaining",
-    "used-tokens",
-    "weekly-limit"
-]
-
-[agents.sub_agent]
+[agents.luna]
 description = "Bounded low-risk worker for explicit small tasks that benefit from exhaustive checking and fast completion."
-config_file = "agents/sub_agent.toml"
+config_file = "agents/luna.toml"
 
 [features]
 hooks = true
-fast_mode = false
+fast_mode = true
 multi_agent = true
-
-[notice]
-hide_rate_limit_model_nudge = true
-
-[tui.model_availability_nux]
-gpt-6-astra = 4
 
 [hooks.state]
 
