@@ -71,13 +71,18 @@ write_config() {
 	cp -- "$source_config" "$source_copy"
 
 	awk '
-        /^[[:space:]]*\[(hooks[.]state|projects[.])/ { exit }
+        /^[[:space:]]*\[/ {
+            skip = ($0 ~ /^[[:space:]]*\[(hooks[.]state|projects[.])/)
+        }
+        skip { next }
         { print }
     ' "$source_copy" >"$managed_config"
 
 	if [[ -f "$target_config" ]]; then
 		awk '
-            /^[[:space:]]*\[(hooks[.]state|projects[.])/ { found = 1 }
+            /^[[:space:]]*\[/ {
+                found = ($0 ~ /^[[:space:]]*\[(hooks[.]state|projects[.])/)
+            }
             found { print }
         ' "$target_config" >"$preserved_config"
 	else
@@ -87,6 +92,10 @@ write_config() {
 	if [[ -s "$preserved_config" ]]; then
 		[[ ! -s "$managed_config" ]] || printf '\n' >>"$managed_config"
 		cat -- "$preserved_config" >>"$managed_config"
+	fi
+
+	if [[ -f "$target_config" ]]; then
+		chmod --reference="$target_config" "$managed_config"
 	fi
 
 	mv -- "$managed_config" "$temp_dir/config.toml"
@@ -134,12 +143,10 @@ main() {
 	local source_rules="$SCRIPT_DIR/codex.rules"
 	local source_agents_file="$SCRIPT_DIR/agents.md"
 	local source_deep_profile="$SCRIPT_DIR/deep.config.toml"
-	local source_luna_profile="$SCRIPT_DIR/luna.config.toml"
 	local target_config="$CODEX_HOME/config.toml"
 	local target_deep_profile="$CODEX_HOME/deep.config.toml"
-	local target_luna_profile="$CODEX_HOME/luna.config.toml"
 
-	for command_name in awk cat cp ln mkdir mktemp mv rm; do
+	for command_name in awk cat chmod cp ln mkdir mktemp mv rm; do
 		require_command "$command_name"
 	done
 
@@ -148,11 +155,9 @@ main() {
 	[[ -f "$source_rules" ]] || die "source file not found: $source_rules"
 	[[ -f "$source_agents_file" ]] || die "source file not found: $source_agents_file"
 	[[ -f "$source_deep_profile" ]] || die "source file not found: $source_deep_profile"
-	[[ -f "$source_luna_profile" ]] || die "source file not found: $source_luna_profile"
 
 	validate_dynamic_sections "$target_config"
 	validate_dynamic_sections "$target_deep_profile"
-	validate_dynamic_sections "$target_luna_profile"
 
 	mkdir -p -- "$CODEX_HOME/rules"
 	temp_dir=$(mktemp -d "$CODEX_HOME/.codex-sync.XXXXXXXXXX")
@@ -160,7 +165,6 @@ main() {
 
 	write_config "$source_config" "$target_config"
 	write_config "$source_deep_profile" "$target_deep_profile"
-	write_config "$source_luna_profile" "$target_luna_profile"
 	link_path "$source_agents" "$CODEX_HOME/agents"
 	link_path "$source_rules" "$CODEX_HOME/rules/default.rules"
 	link_path "$source_agents_file" "$CODEX_HOME/AGENTS.md"

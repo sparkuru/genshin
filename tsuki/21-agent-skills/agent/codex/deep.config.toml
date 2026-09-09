@@ -1,5 +1,5 @@
 model = "gpt-6-astra"
-model_reasoning_effort = "high"
+model_reasoning_effort = "medium"
 service_tier = "default"
 personality = "pragmatic"
 approvals_reviewer = "auto_review"
