@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "uniszip-analysis"
-source: "online/46-uniszip-analysis.md"
 ---
 
 # Uniszip query analysis

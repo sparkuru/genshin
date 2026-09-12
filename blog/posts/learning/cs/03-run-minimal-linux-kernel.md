@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "run-minimal-linux-kernel"
-source: "online/07-run-minimal-linux-kernel.md"
 ---
 
 # build and run a minimal linux kernel

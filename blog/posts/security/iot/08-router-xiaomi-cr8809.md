@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "router-xiaomi-cr8809"
-source: "online/12-router-xiaomi-cr8809.md"
 ---
 
 两种办法都搞一下：降级拿 ssh、uart 进 uboot 刷

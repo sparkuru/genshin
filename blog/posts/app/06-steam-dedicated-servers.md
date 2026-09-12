@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "steam-dedicated-servers"
-source: "online/42-steam-dedicated-server-build-up-record.md"
 ---
 
 steam 平台常见游戏服务器构建记录

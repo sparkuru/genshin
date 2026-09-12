@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "bitcomet-docker"
-source: "online/34-bitcomet-in-docker-for-linux.md"
 ---
 
 ## bitcomet in docker for linux

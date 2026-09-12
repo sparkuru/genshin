@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "unix-boot"
-source: "online/23-unix-boot.md"
 ---
 
 新装、重装 unix 系统，一般都是按照以下流程来走的：

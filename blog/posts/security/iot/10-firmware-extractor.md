@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "firmware-extractor"
-source: "online/17-firmware-extractor.md"
 ---
 
 ## binwalk

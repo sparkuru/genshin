@@ -6,7 +6,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "vmware-workstation-pro-linux"
-source: "online/28-vmware.md"
 ---
 
 get vmware workstation pro for personal use here (login require): https://support.broadcom.com/group/ecx/productdownloads?subfamily=VMware%20Workstation%20Pro&freeDownloads=true

@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "openwrt"
-source: "online/29-openwrt.md"
 ---
 
 选择 `immortalwrt-24.10.4-x86-64-generic-ext4-combined-efi.img.tar`

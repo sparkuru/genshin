@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "dpdk"
-source: "online/18-dpdk.md"
 ---
 
 # dpdk

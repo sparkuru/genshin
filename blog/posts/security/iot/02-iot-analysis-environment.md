@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "iot-analysis-environment"
-source: "online/01-iot.md#02-iot-environment-configuration"
 ---
 
 ## Environment Configuration

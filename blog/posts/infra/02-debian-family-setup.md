@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "debian-family-setup"
-source: "online/13-init-my-dpkg.md"
 ---
 
 ## init-my-dpkg

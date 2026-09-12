@@ -6,7 +6,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "docker-image-to-vm"
-source: "online/32-docker-image-to-vm.md"
 ---
 
 将 Docker 镜像转换为可直接用 QEMU 启动的 qcow2 磁盘镜像

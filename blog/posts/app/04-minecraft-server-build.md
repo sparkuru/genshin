@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "minecraft-server-build"
-source: "online/43-minecraft-selfhost-server-build-up-record.md"
 ---
 
 ## minecraft-server-build-record

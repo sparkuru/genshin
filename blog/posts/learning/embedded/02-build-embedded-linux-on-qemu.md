@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "build-embedded-linux-on-qemu"
-source: "online/08-build-embedded-linux-on-qemu.md"
 ---
 
 # build embedded linux on qemu

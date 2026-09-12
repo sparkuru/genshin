@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "snipaste-kde-wayland"
-source: "online/30-snipaste-quiz-on-kde6.md"
 ---
 
 ## snipaste quiz on kde6 with wayland

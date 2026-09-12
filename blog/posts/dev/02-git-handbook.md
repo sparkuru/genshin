@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "git-handbook"
-source: "online/06-git.md"
 ---
 
 ```bash

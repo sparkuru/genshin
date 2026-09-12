@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "building-an-understanding-of-mdns"
-source: "online/16-building-an-understanding-of-mdns.md"
 ---
 
 # building an understanding of mdns

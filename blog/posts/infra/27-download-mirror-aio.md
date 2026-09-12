@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "download-mirror-aio"
-source: "online/31-download-mirror-aio.md"
 ---
 
 ```

@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "tplink-wr1042nd-firmware-analysis"
-source: "online/02-router-tplink-wr1042nd.md"
 ---
 
 ## Analysis tplink wr1042ndv1

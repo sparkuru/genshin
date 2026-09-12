@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "dhcp-troubleshooting-tshark"
-source: "online/40-handle-a-dhcp-problem-with-tshark.md"
 ---
 
 ## handle a dhcp promblem with tshark

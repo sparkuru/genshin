@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "nat-traversal"
-source: "online/25-nat-traversal.md"
 ---
 
 # NAT Traversal

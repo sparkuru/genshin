@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "iot-security-introduction"
-source: "online/01-iot.md#01-iot-introduction"
 ---
 
 ## online-introduction

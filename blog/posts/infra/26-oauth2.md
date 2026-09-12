@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "oauth2"
-source: "online/27-oauth2.md"
 ---
 
 LDAP, OAuth2, OIDC

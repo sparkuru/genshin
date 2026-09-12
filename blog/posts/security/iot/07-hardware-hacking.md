@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "hardware-hacking"
-source: "online/11-hardware-hacking.md"
 ---
 
 # hardware

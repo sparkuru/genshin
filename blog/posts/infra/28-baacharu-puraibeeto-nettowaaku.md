@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "baacharu-puraibeeto-nettowaaku"
-source: "online/33-baacharu-puraibeeto-nettowaaku.md"
 ---
 
 # baacharu puraibeeto nettowaaku

@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "boeing-787"
-source: "online/35-boeing-787.md"
 ---
 
 ![boeing 787 information system](https://cimg2.ibsrv.net/gimg/pprune.org-vbulletin/1689x1060/image_23338113b60cb02e6b18d7a65ac0884b05ddb614.png)

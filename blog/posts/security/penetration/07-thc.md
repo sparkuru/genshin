@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "thc"
-source: "online/19-thc.md"
 ---
 
 # The Hacker's Choice

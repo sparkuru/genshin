@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "tenda-backdoor-elf-analysis"
-source: "online/04-replicate-cve-2023-1389.md"
 ---
 
 ## a tenda router sample analysis

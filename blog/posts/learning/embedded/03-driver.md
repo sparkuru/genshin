@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "driver"
-source: "online/22-driver.md"
 ---
 
 # 常用驱动

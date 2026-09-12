@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "os-network-bridge"
-source: "online/45-os-network-bridge.md"
 ---
 
 # os network bridge

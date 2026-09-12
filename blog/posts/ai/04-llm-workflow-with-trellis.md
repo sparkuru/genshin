@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "llm-workflow-with-trellis"
-source: "online/41-llm-workflow-with-trellis.md"
 ---
 
 ## llm workflow with trellis

@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "rtos-notes"
-source: "online/20-rtos.md"
 ---
 
 ## RTOS

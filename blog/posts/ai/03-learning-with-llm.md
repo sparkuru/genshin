@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "learning-with-llm"
-source: "online/36-learning-with-llm.md"
 ---
 
 >   我在使用 claude code 辅助写一个主流 python api 框架时，提到了以下需求：

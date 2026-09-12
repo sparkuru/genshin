@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "firmware-emulation-over-docker"
-source: "online/14-firmware-emulation-over-docker.md"
 ---
 
 # emulation over docker

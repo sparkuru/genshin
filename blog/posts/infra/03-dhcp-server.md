@@ -6,7 +6,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "dhcp-server"
-source: "online/37-dhcp-delievery.md"
 ---
 
 ## dhcp delivery

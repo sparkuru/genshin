@@ -1,6 +1,8 @@
 # This directory contains reproducible source files. Keep public docs,
 # examples, scripts and compose.yaml visible to Git by default.
 
+topo.txt
+
 # Local-only handoff and operational notes. These may contain private
 # hostnames, paths, topology details or other context not needed to reproduce.
 /handoff/

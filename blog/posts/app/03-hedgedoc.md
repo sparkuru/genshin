@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "hedgedoc"
-source: "online/15-hedgedoc-offline-with-mdns.md"
 ---
 
 ## HedgeDoc

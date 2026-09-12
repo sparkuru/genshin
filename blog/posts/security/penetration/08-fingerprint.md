@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "fingerprint"
-source: "online/21-fingerprint.md"
 ---
 
 ```plaintext

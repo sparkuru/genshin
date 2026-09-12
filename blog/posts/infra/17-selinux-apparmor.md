@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "selinux-apparmor"
-source: "online/38-selinux-and-apparmor.md"
 ---
 
 ## selinux & apparmor

@@ -6,7 +6,6 @@ tags: []
 draft: false
 layout: "page"
 slug: "online"
-source: "online/readme.md"
 ---
 
 # Earth Online™

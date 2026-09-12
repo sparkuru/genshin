@@ -7,7 +7,6 @@ tags: []
 draft: false
 layout: "post"
 slug: "router-device-introduction"
-source: "online/01-iot.md#04-router-device-introduction"
 ---
 
 ## Router device introduction

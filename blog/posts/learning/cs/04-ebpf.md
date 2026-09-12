@@ -6,7 +6,6 @@ tags: []
 draft: true
 layout: "post"
 slug: "ebpf"
-source: "online/09-ebpf.md"
 ---
 
 eBPF(extended Berkeley Packet Filter)，一种 hook 技术，运作在内核态，在不需要重启和修改内核的情况下处理实现内核级数据
