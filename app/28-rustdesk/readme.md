@@ -1,11 +1,10 @@
 # RustDesk Server OSS
 
-This package runs the official RustDesk Server OSS backend on the `lan1` host
-`192.168.9.3`. It contains the ID/rendezvous server (`hbbs`) and relay server
+This package runs the official RustDesk Server OSS backend on a configurable
+host. It contains the ID/rendezvous server (`hbbs`) and relay server
 (`hbbr`) for native RustDesk clients.
 
-The stack publishes only the ports needed by the Windows, macOS, Debian, and
-iPad clients:
+The stack publishes only the ports needed by native RustDesk clients:
 
 | Port | Protocol | Purpose |
 | --- | --- | --- |
@@ -19,7 +18,8 @@ not published because it is for the Pro API.
 
 ## First start
 
-The remote host currently uses the legacy `docker-compose` command:
+The examples below use the legacy `docker-compose` command. If the host
+provides Compose v2, use `docker compose` instead.
 
 ```sh
 cp .env.example .env
@@ -29,6 +29,10 @@ docker-compose -p rustdesk -f rustdesk.yml config
 docker-compose -p rustdesk -f rustdesk.yml pull
 docker-compose -p rustdesk -f rustdesk.yml up -d
 ```
+
+Before starting, replace the example server addresses in `.env` with a
+hostname or IP address reachable by clients. `RUSTDESK_BIND_IP` controls the
+local interface used for published ports; `0.0.0.0` listens on all interfaces.
 
 The first start creates `data/id_ed25519` and
 `data/id_ed25519.pub`. Keep `data/id_ed25519` private. The data directory and
@@ -50,24 +54,24 @@ docker-compose -p rustdesk -f rustdesk.yml logs --tail=100 hbbs hbbr
 cat data/id_ed25519.pub
 ```
 
-## Client configuration on lan1
+## Client configuration
 
-Install the official RustDesk client for [Windows, macOS, Linux/Debian, or
-iPad](https://rustdesk.com/docs/en/client/). In each client, open
+Install the official RustDesk client for your platform from the
+[RustDesk client documentation](https://rustdesk.com/docs/en/client/). In each client, open
 `Settings -> Network -> Unlock Network Settings` and set:
 
-- ID Server: `192.168.9.3`
-- Relay Server: leave blank (or use `192.168.9.3:21117`)
+- ID Server: the value of `RUSTDESK_CLIENT_ID_SERVER` in `.env`
+- Relay Server: leave blank (or use the value of `RUSTDESK_RELAY_SERVER` in `.env`)
 - API Server: leave blank; it is only needed by RustDesk Server Pro
 - Key: the complete contents of `data/id_ed25519.pub`
 
 The iPad client can connect to and control desktop clients, but the official
 client documentation notes that iOS devices cannot be controlled remotely.
 
-For devices outside `lan1`, use a stable public DNS name and configure the
-router/firewall to forward the same TCP/UDP ports. Do not expose the WebSocket
-ports directly; use a correctly configured reverse proxy if the web client is
-needed.
+For devices outside the local network, use a stable public DNS name and
+configure the router/firewall to forward the same TCP/UDP ports. Do not expose
+the WebSocket ports directly; use a correctly configured reverse proxy if the
+web client is needed.
 
 ## Operations
 
