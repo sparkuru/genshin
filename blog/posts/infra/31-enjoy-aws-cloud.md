@@ -3,7 +3,7 @@ title: "enjoy AWS Cloud"
 description: "enjoy aws cloud services."
 date: "2026-09-13T17:15:43+08:00"
 tags: []
-draft: true
+draft: false
 layout: "post"
 slug: "enjoy-aws-cloud"
 ---

@@ -3,7 +3,7 @@ title: "os network bridge"
 description: "QEMU and Linux bridge networking notes."
 date: "2026-07-28T17:15:43+08:00"
 tags: []
-draft: true
+draft: false
 layout: "post"
 slug: "os-network-bridge"
 ---

@@ -3,7 +3,7 @@ title: "Connect to windows via terminal"
 description: "introduce openssh server and winrm in windows."
 date: "2026-09-12T17:15:43+08:00"
 tags: []
-draft: true
+draft: false
 layout: "post"
 slug: "connect-to-windows-via-terminal"
 ---
