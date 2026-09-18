@@ -5,6 +5,8 @@ date: "2026-09-12T17:15:43+08:00"
 tags: []
 draft: false
 layout: "post"
+presentation: "semantic"
+contentTheme: "paper"
 slug: "connect-to-windows-via-terminal"
 ---
 

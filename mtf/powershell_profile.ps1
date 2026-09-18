@@ -149,6 +149,272 @@ function env { Start-Process powershell "-Command & {rundll32 sysdm.cpl,EditEnvi
 function magnet { echo magnet:?xt=urn:btih:$args }
 function code { & $software_base_path/visual-studio-code/binary/Code.exe --extensions-dir "$software_base_path/visual-studio-code/extension" $args }
 function rmrf { Remove-Item -Recurse -Force $args }
+function unlock {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "High")]
+    param(
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+        [Alias("FullName")]
+        [string[]] $Path,
+
+        [switch] $Force
+    )
+
+    begin {
+        if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
+            throw "unlock is only available on Windows."
+        }
+
+        if (-not ([System.Management.Automation.PSTypeName]"Genshin.FileUnlock.NativeMethods").Type) {
+            Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+namespace Genshin.FileUnlock
+{
+    public static class NativeMethods
+    {
+        private const int ErrorMoreData = 234;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RmUniqueProcess
+        {
+            public int ProcessId;
+            public System.Runtime.InteropServices.ComTypes.FILETIME ProcessStartTime;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct RmProcessInfo
+        {
+            public RmUniqueProcess Process;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+            public string ApplicationName;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
+            public string ServiceShortName;
+
+            public int ApplicationType;
+            public uint AppStatus;
+            public uint TssSessionId;
+
+            [MarshalAs(UnmanagedType.Bool)]
+            public bool Restartable;
+        }
+
+        public sealed class LockingProcess
+        {
+            public int ProcessId { get; set; }
+            public string ApplicationName { get; set; }
+            public string ServiceName { get; set; }
+        }
+
+        [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)]
+        private static extern int RmStartSession(
+            out uint sessionHandle,
+            int sessionFlags,
+            string sessionKey);
+
+        [DllImport("rstrtmgr.dll", CharSet = CharSet.Unicode)]
+        private static extern int RmRegisterResources(
+            uint sessionHandle,
+            uint fileCount,
+            string[] fileNames,
+            uint applicationCount,
+            RmUniqueProcess[] applications,
+            uint serviceCount,
+            string[] serviceNames);
+
+        [DllImport("rstrtmgr.dll")]
+        private static extern int RmGetList(
+            uint sessionHandle,
+            out uint processInfoNeeded,
+            ref uint processInfoCount,
+            [Out] RmProcessInfo[] processInfo,
+            out uint rebootReasons);
+
+        [DllImport("rstrtmgr.dll")]
+        private static extern int RmShutdown(
+            uint sessionHandle,
+            uint shutdownFlags,
+            IntPtr status);
+
+        [DllImport("rstrtmgr.dll")]
+        private static extern int RmEndSession(uint sessionHandle);
+
+        public static LockingProcess[] GetLockingProcesses(string[] paths)
+        {
+            uint sessionHandle = StartSession();
+
+            try
+            {
+                RegisterResources(sessionHandle, paths);
+                return GetProcessList(sessionHandle);
+            }
+            finally
+            {
+                RmEndSession(sessionHandle);
+            }
+        }
+
+        public static int Shutdown(string[] paths, uint shutdownFlags)
+        {
+            uint sessionHandle = StartSession();
+
+            try
+            {
+                RegisterResources(sessionHandle, paths);
+                return RmShutdown(sessionHandle, shutdownFlags, IntPtr.Zero);
+            }
+            finally
+            {
+                RmEndSession(sessionHandle);
+            }
+        }
+
+        private static uint StartSession()
+        {
+            uint sessionHandle;
+            int result = RmStartSession(
+                out sessionHandle,
+                0,
+                Guid.NewGuid().ToString());
+
+            ThrowOnError(result, "RmStartSession");
+            return sessionHandle;
+        }
+
+        private static void RegisterResources(uint sessionHandle, string[] paths)
+        {
+            int result = RmRegisterResources(
+                sessionHandle,
+                (uint)paths.Length,
+                paths,
+                0,
+                null,
+                0,
+                null);
+
+            ThrowOnError(result, "RmRegisterResources");
+        }
+
+        private static LockingProcess[] GetProcessList(uint sessionHandle)
+        {
+            uint processInfoNeeded;
+            uint processInfoCount = 0;
+            uint rebootReasons;
+            int result = RmGetList(
+                sessionHandle,
+                out processInfoNeeded,
+                ref processInfoCount,
+                null,
+                out rebootReasons);
+
+            if (result != 0 && result != ErrorMoreData)
+            {
+                ThrowOnError(result, "RmGetList");
+            }
+
+            if (processInfoNeeded == 0)
+            {
+                return new LockingProcess[0];
+            }
+
+            RmProcessInfo[] processInfo = new RmProcessInfo[processInfoNeeded];
+            processInfoCount = processInfoNeeded;
+            result = RmGetList(
+                sessionHandle,
+                out processInfoNeeded,
+                ref processInfoCount,
+                processInfo,
+                out rebootReasons);
+            ThrowOnError(result, "RmGetList");
+
+            LockingProcess[] processes = new LockingProcess[processInfoCount];
+            for (int i = 0; i < processInfoCount; i++)
+            {
+                processes[i] = new LockingProcess
+                {
+                    ProcessId = processInfo[i].Process.ProcessId,
+                    ApplicationName = processInfo[i].ApplicationName,
+                    ServiceName = processInfo[i].ServiceShortName
+                };
+            }
+
+            return processes;
+        }
+
+        private static void ThrowOnError(int result, string operation)
+        {
+            if (result != 0)
+            {
+                throw new InvalidOperationException(
+                    operation + " failed with Windows error code " + result + ".");
+            }
+        }
+    }
+}
+'@
+        }
+    }
+
+    process {
+        [string[]]$fullPaths = foreach ($pathItem in $Path) {
+            try {
+                if (Test-Path -LiteralPath $pathItem) {
+                    (Get-Item -LiteralPath $pathItem -ErrorAction Stop).FullName
+                } else {
+                    [System.IO.Path]::GetFullPath($pathItem)
+                }
+            } catch {
+                Write-Error "unlock: cannot resolve '$pathItem': $($_.Exception.Message)"
+            }
+        }
+
+        if (-not $fullPaths) {
+            return
+        }
+
+        try {
+            $processes = @([Genshin.FileUnlock.NativeMethods]::GetLockingProcesses($fullPaths))
+        } catch {
+            Write-Error "unlock: cannot inspect '$($fullPaths -join ', ')': $($_.Exception.Message)"
+            return
+        }
+
+        if ($processes.Count -eq 0) {
+            Write-Host "No process is locking: $($fullPaths -join ', ')" -ForegroundColor Green
+            return
+        }
+
+        $processes |
+            Select-Object @{Name = "PID"; Expression = { $_.ProcessId } },
+                @{Name = "Process"; Expression = { $_.ApplicationName } },
+                @{Name = "Service"; Expression = { $_.ServiceName } } |
+            Format-Table -AutoSize
+
+        $action = if ($Force) { "force close locking processes" } else { "close locking processes" }
+        if (-not $PSCmdlet.ShouldProcess(($fullPaths -join ", "), $action)) {
+            return
+        }
+
+        [uint32]$shutdownFlags = 0
+        if ($Force) {
+            $shutdownFlags = $shutdownFlags -bor [uint32]0x1
+        }
+
+        try {
+            $result = [Genshin.FileUnlock.NativeMethods]::Shutdown($fullPaths, $shutdownFlags)
+            if ($result -eq 0) {
+                Write-Host "Locking processes closed." -ForegroundColor Green
+            } else {
+                $forceHint = if ($Force) { "" } else { " Try -Force if needed." }
+                Write-Error "unlock: unable to close all locking processes (Windows error code $result).$forceHint"
+            }
+        } catch {
+            Write-Error "unlock: cannot close locking processes: $($_.Exception.Message)"
+        }
+    }
+}
 function chown {
     $recursive = $false
     $username = $null
