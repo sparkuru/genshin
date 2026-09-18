@@ -33,6 +33,24 @@ require_command() {
 	command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
+preserve_file_mode() {
+	local source_path=$1
+	local target_path=$2
+	local file_mode
+
+	if file_mode=$(stat -c '%a' "$source_path" 2>/dev/null); then
+		chmod "$file_mode" "$target_path"
+		return 0
+	fi
+
+	if file_mode=$(stat -f '%Lp' "$source_path" 2>/dev/null); then
+		chmod "$file_mode" "$target_path"
+		return 0
+	fi
+
+	die "unable to determine file mode: $source_path"
+}
+
 cleanup() {
 	if [[ -n "$temp_dir" && -d "$temp_dir" ]]; then
 		case "$temp_dir" in
@@ -54,7 +72,7 @@ validate_dynamic_sections() {
             sub(/^[[:space:]]*/, "", header)
             sub(/[[:space:]]*$/, "", header)
             if (seen[header]++) {
-                printf "Error: duplicate user-managed TOML table on line %d\\n", NR > "/dev/stderr"
+                printf "Error: duplicate user-managed TOML table on line %d\n", NR > "/dev/stderr"
                 exit 1
             }
         }
@@ -95,7 +113,7 @@ write_config() {
 	fi
 
 	if [[ -f "$target_config" ]]; then
-		chmod --reference="$target_config" "$managed_config"
+		preserve_file_mode "$target_config" "$managed_config"
 	fi
 
 	mv -- "$managed_config" "$temp_dir/config.toml"
@@ -146,7 +164,7 @@ main() {
 	local target_config="$CODEX_HOME/config.toml"
 	local target_deep_profile="$CODEX_HOME/deep.config.toml"
 
-	for command_name in awk cat chmod cp ln mkdir mktemp mv rm; do
+	for command_name in awk cat chmod cp ln mkdir mktemp mv rm stat; do
 		require_command "$command_name"
 	done
 
