@@ -905,6 +905,7 @@ ggit() {
 			;;
 		''|status)
 			git status
+			git remote -v
 			;;
         size)
             if ! command -v git >/dev/null 2>&1 || ! command -v du >/dev/null 2>&1; then
