@@ -1458,10 +1458,15 @@ export PATH=$export_path
 #     source $HOME/.config/agent-cli-env
 # fi
 
+# bun completions
+[ -s "/home/wkyuu/.bun/_bun" ] && source "/home/wkyuu/.bun/_bun"
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+
 # alias
 ## condition alias
-if [[ -f "$HOME/$leader_path_name/game/minecraft/tool/rcon.py" ]]; then
-    alias mc="python $HOME/$leader_path_name/game/minecraft/tool/rcon.py"
+if [[ -d "$HOME/$leader_path_name/try" ]]; then
+    alias try="cd $HOME/$leader_path_name/try"
 fi
 
 if [[ -d "$HOME/$leader_path_name/repo" ]]; then
@@ -1519,10 +1524,3 @@ alias 7za="7z a -r -t7z -mx=9 -m0=lzma2 -mfb=273 -md=32m -ms=on -mhe=on"
     # unzip with password: `7z x -p<password> archive_name.7z`
     # specific uncompress output directory: `7z x -o<output_directory> archive_name.7z`
 ## end_alias_anchor
-
-# bun completions
-[ -s "/home/wkyuu/.bun/_bun" ] && source "/home/wkyuu/.bun/_bun"
-
-# bun
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"

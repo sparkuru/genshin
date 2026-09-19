@@ -4,7 +4,7 @@ mode: rule
 log-level: info
 ipv6: false
 external-controller: 0.0.0.0:1081
-secret: "FG3d8MqOkGBMTCvo"
+secret: "jScD3MGvywqSK9-G"
 unified-delay: true
 sniffer:
   sniff:
@@ -211,6 +211,8 @@ proxy-groups:
       - DIRECT
       - REJECT
 rules:
+- DST-PORT,21/22/23,DIRECT
+- AND,((DOMAIN,43.207.2.93),(DST-PORT,22/23/9440-9480/10001-10020/11001-11020)),DIRECT
 - DOMAIN-SUFFIX,wd-purple.com,DIRECT
 - DOMAIN-SUFFIX,wd-gold.net,DIRECT
 - DOMAIN-SUFFIX,toshiba-nvme.com,DIRECT
@@ -26397,6 +26399,7 @@ rules:
 - DOMAIN,y.qq.com,DIRECT
 - DOMAIN,china-img.soulapp.cn,DIRECT
 - DOMAIN,img.soulapp.cn,DIRECT
+- AND,((DST-PORT,22101/22102),(NETWORK,udp)),DIRECT
 - DOMAIN-SUFFIX,uploadstatic.mihoyo.com,DIRECT
 - DOMAIN-SUFFIX,h5collector.mihoyo.com,DIRECT
 - DOMAIN-SUFFIX,public-data-api.mihoyo.com,DIRECT
