@@ -15,8 +15,8 @@
           "password": "<full-access-password>"
         },
         {
-          "name": "guest",
-          "password": "<guest-password>"
+          "name": "limit-access",
+          "password": "<limit-access-password>"
         }
       ],
       "tls": {
@@ -45,14 +45,14 @@
     "rules": [
       {
         "auth_user": [
-          "guest"
+          "limit-access"
         ],
         "action": "sniff",
         "timeout": "300ms"
       },
       {
         "auth_user": [
-          "guest"
+          "limit-access"
         ],
         "domain_suffix": [
           "chatgpt.com",
@@ -77,7 +77,7 @@
       },
       {
         "auth_user": [
-          "guest"
+          "limit-access"
         ],
         "domain": [
           "www.gstatic.com",
@@ -97,7 +97,7 @@
       },
       {
         "auth_user": [
-          "guest"
+          "limit-access"
         ],
         "action": "reject",
         "method": "default"

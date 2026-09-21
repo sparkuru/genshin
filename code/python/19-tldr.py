@@ -2,11 +2,13 @@
 # pip install toml
 # get *.tldr from https://github.com/sparkuru/tldr.git
 
-import os
-import sys
 import argparse
+import os
+import re
+import shlex
+import sys
 import toml
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 if sys.platform == "win32":
     from colorama import init as colorama_init
@@ -27,6 +29,42 @@ GLOBAL_OPTIONS_WITH_VALUE = {
 }
 GLOBAL_OPTIONS_WITHOUT_VALUE = {
     "--log",
+}
+SHELL_ASSIGNMENT_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+SHELL_COMMAND_WRAPPERS = {
+    "command",
+    "doas",
+    "env",
+    "exec",
+    "nice",
+    "nohup",
+    "sudo",
+    "time",
+}
+SHELL_WRAPPER_OPTIONS_WITH_VALUE = {
+    "doas": {"-u"},
+    "env": {"-C", "--chdir", "-S", "--split-string", "-u", "--unset"},
+    "exec": {"-a", "--argv0"},
+    "nice": {"-n", "--adjustment"},
+    "sudo": {
+        "-C",
+        "--chdir",
+        "--close-from",
+        "-D",
+        "-g",
+        "--group",
+        "-p",
+        "--prompt",
+        "-R",
+        "--chroot",
+        "-r",
+        "--role",
+        "-t",
+        "--type",
+        "-u",
+        "--user",
+    },
+    "time": {"-f", "--format", "-o", "--output"},
 }
 
 
@@ -234,20 +272,235 @@ class TLDRParser:
         self.config_dir = resolve_config_dir(config_dir)
         debug("Initialized TLDRParser", config_dir=self.config_dir)
 
-    def format_command(self, command: str) -> str:
-        """Format command with highlighted command name"""
+    @staticmethod
+    def _tokenize_shell_command(
+        command: str,
+    ) -> List[Tuple[str, int, int, str]]:
+        """Tokenize shell syntax while preserving source positions."""
+        tokens: List[Tuple[str, int, int, str]] = []
+        token_start: Optional[int] = None
+        quote: Optional[str] = None
+        index = 0
+
+        while index < len(command):
+            char = command[index]
+
+            if quote:
+                if char == "\\" and quote == '"':
+                    index += 2 if index + 1 < len(command) else 1
+                elif char == quote:
+                    quote = None
+                    index += 1
+                else:
+                    index += 1
+                continue
+
+            if char in ("'", '"'):
+                if token_start is None:
+                    token_start = index
+                quote = char
+                index += 1
+                continue
+
+            if char == "\\":
+                if token_start is None:
+                    token_start = index
+                index += 2 if index + 1 < len(command) else 1
+                continue
+
+            if char == "\n":
+                if token_start is not None:
+                    tokens.append((command[token_start:index], token_start, index, "word"))
+                    token_start = None
+                tokens.append((char, index, index + 1, "separator"))
+                index += 1
+                continue
+
+            if char.isspace():
+                if token_start is not None:
+                    tokens.append((command[token_start:index], token_start, index, "word"))
+                    token_start = None
+                index += 1
+                continue
+
+            if char in ";|&()":
+                if token_start is not None:
+                    tokens.append((command[token_start:index], token_start, index, "word"))
+                    token_start = None
+
+                operator_end = index + 1
+                if command[index : index + 2] in ("&&", "||", "|&"):
+                    operator_end = index + 2
+                tokens.append((command[index:operator_end], index, operator_end, "separator"))
+                index = operator_end
+                continue
+
+            if char in "<>":
+                if token_start is not None:
+                    tokens.append((command[token_start:index], token_start, index, "word"))
+                    token_start = None
+
+                operator_end = index + 1
+                while operator_end < len(command) and command[operator_end] in "<>":
+                    operator_end += 1
+                if operator_end < len(command) and command[operator_end] == "&":
+                    operator_end += 1
+                    if operator_end < len(command) and command[operator_end] == "-":
+                        operator_end += 1
+                tokens.append(
+                    (command[index:operator_end], index, operator_end, "redirection")
+                )
+                index = operator_end
+                continue
+
+            if token_start is None:
+                token_start = index
+            index += 1
+
+        if token_start is not None:
+            tokens.append((command[token_start:], token_start, len(command), "word"))
+
+        return tokens
+
+    @staticmethod
+    def _decode_shell_word(token: str) -> str:
+        """Decode one shell word for exact command-name comparison."""
+        try:
+            words = shlex.split(token, posix=True)
+        except ValueError:
+            return token
+        return words[0] if len(words) == 1 else token
+
+    @staticmethod
+    def _matches_command(token: str, target_command: str) -> bool:
+        """Return whether a shell word names the target command."""
+        token_value = TLDRParser._decode_shell_word(token)
+        target_value = target_command.strip()
+        if not token_value or not target_value:
+            return False
+        if token_value == target_value:
+            return True
+        return "/" not in target_value and os.path.basename(token_value) == target_value
+
+    @staticmethod
+    def _is_redirection_file_descriptor(
+        tokens: List[Tuple[str, int, int, str]], index: int
+    ) -> bool:
+        """Return whether a numeric word prefixes a shell redirection."""
+        token, _, token_end, token_type = tokens[index]
+        if token_type != "word" or not token.isdigit() or index + 1 >= len(tokens):
+            return False
+
+        _, next_start, _, next_type = tokens[index + 1]
+        return next_type == "redirection" and token_end == next_start
+
+    @staticmethod
+    def _wrapper_option_requires_value(wrapper: str, token: str) -> bool:
+        """Return whether a wrapper option consumes the next shell word."""
+        for option in SHELL_WRAPPER_OPTIONS_WITH_VALUE.get(wrapper, set()):
+            if token == option:
+                return True
+        return False
+
+    @classmethod
+    def _find_command_spans(
+        cls, command: str, target_command: str
+    ) -> List[Tuple[int, int]]:
+        """Find matching executable spans in a shell command line."""
+        tokens = cls._tokenize_shell_command(command)
+        spans: List[Tuple[int, int]] = []
+        at_command_start = True
+        skip_redirection_word = False
+        wrapper_name: Optional[str] = None
+        skip_wrapper_word = False
+
+        for index, (token, start, end, token_type) in enumerate(tokens):
+            if token_type == "separator":
+                at_command_start = True
+                skip_redirection_word = False
+                wrapper_name = None
+                skip_wrapper_word = False
+                continue
+
+            if token_type == "redirection":
+                skip_redirection_word = True
+                continue
+
+            if token_type != "word":
+                continue
+
+            if cls._is_redirection_file_descriptor(tokens, index):
+                continue
+
+            if skip_redirection_word:
+                skip_redirection_word = False
+                continue
+
+            if not at_command_start:
+                continue
+
+            token_value = cls._decode_shell_word(token)
+            if SHELL_ASSIGNMENT_PATTERN.match(token_value):
+                continue
+
+            if wrapper_name and skip_wrapper_word:
+                skip_wrapper_word = False
+                continue
+
+            if wrapper_name and token_value == "--":
+                continue
+
+            if wrapper_name and token_value.startswith("-"):
+                skip_wrapper_word = cls._wrapper_option_requires_value(
+                    wrapper_name, token_value
+                )
+                continue
+
+            if cls._matches_command(token, target_command):
+                spans.append((start, end))
+                at_command_start = False
+                continue
+
+            wrapper_candidate = os.path.basename(token_value)
+            if wrapper_candidate in SHELL_COMMAND_WRAPPERS:
+                wrapper_name = wrapper_candidate
+                continue
+
+            at_command_start = False
+
+        return spans
+
+    def format_command(
+        self, command: str, target_command: Optional[str] = None
+    ) -> str:
+        """Format a command and highlight only its matching executable."""
         if not command:
             return ""
 
-        parts = command.split(None, 1)
-        cmd_name = parts[0]
-        rest = parts[1] if len(parts) > 1 else ""
+        target = target_command or ""
+        spans = self._find_command_spans(command, target)
+        if not spans:
+            formatted = CLIStyle.color(command, CLIStyle.COLORS["EXAMPLE"])
+            return f"`{formatted}`"
 
-        formatted = CLIStyle.color(cmd_name, CLIStyle.COLORS["WARNING"])
-        if rest:
-            formatted += " " + CLIStyle.color(rest, CLIStyle.COLORS["EXAMPLE"])
+        formatted_parts: List[str] = []
+        cursor = 0
+        for start, end in spans:
+            if cursor < start:
+                formatted_parts.append(
+                    CLIStyle.color(command[cursor:start], CLIStyle.COLORS["EXAMPLE"])
+                )
+            formatted_parts.append(
+                CLIStyle.color(command[start:end], CLIStyle.COLORS["WARNING"])
+            )
+            cursor = end
 
-        return f"`{formatted}`"
+        if cursor < len(command):
+            formatted_parts.append(
+                CLIStyle.color(command[cursor:], CLIStyle.COLORS["EXAMPLE"])
+            )
+
+        return f"`{''.join(formatted_parts)}`"
 
     def find_config_file(self, command: str) -> Optional[str]:
         """Locate configuration file for specified command"""
@@ -330,7 +583,7 @@ class TLDRParser:
                 output.append(
                     CLIStyle.color(f"{i}. {desc}", CLIStyle.COLORS["CONTENT"])
                 )
-                output.append("  " + self.format_command(command))
+                output.append("  " + self.format_command(command, name))
                 output.append("")
 
         output.append(CLIStyle.color("usage:", CLIStyle.COLORS["SUB_TITLE"]))
@@ -344,7 +597,7 @@ class TLDRParser:
             output.append(CLIStyle.color(f"{i}. {title}", CLIStyle.COLORS["CONTENT"]))
             if desc:
                 output.append(CLIStyle.color(f"   {desc}", CLIStyle.COLORS["CONTENT"]))
-            output.append(self.format_command(command))
+            output.append(self.format_command(command, name))
             output.append("")
 
         return "\n".join(output)

@@ -204,7 +204,7 @@ repo: https://github.com/p4gefau1t/trojan-go.git
     }
     ```
 
-4.  本地的 `clash.yml`：
+4.  本地的 `config.yml`：
 
     ```yaml
     proxies:
@@ -349,7 +349,7 @@ $ tree
 3 directories, 5 files
 ```
 
->   nice try，不用看
+#### nice try，不用看
 
 通过对前面网络拓扑结构的描述，可以很明显的发现 sing-box + trojan 架构的规律：
 
@@ -474,6 +474,129 @@ $ tree
 ```
 
 首先明确 nginx 的 http 不能实现流量转发到 singbox，而 nginx stream 相较于 http，可以代理 raw 的 tcp / udp 流量，但是代价是得把原来的 http / tls 回退到内部网络，这样要比前面 nginx 在 singbox 后的处理方式要温和的多，不过来源变成 127.0.0.1 这件事没辙
+
+## behind the mTLS
+
+参考 mTLS 常用于企业级 API、零信任系统的最外层防护机制：为开放在公网的服务提供按特定证书实现访问控制
+
+### what is mTLS
+
+设计一套 mTLS + PROXY PROTOCOL 的架构解决方案如下：
+
+涉及到 3 个对象
+
+- CA；可以是自建 CA、也可以是付费/公益 CA
+- SERVER；提供 singbox 的服务器
+- CLIENT；各访问终端
+
+这里简单说明 mTLS 的作用
+
+> TLS
+
+解决客户端想要确认：我连接的是不是正确的服务器
+
+1. client 连接 server；
+2. server 提供服务器证书 cert；该 cert 由受信任的 CA 签发，而每台终端基本都有这些 CA 根证书；
+3. client 验证 cert 可信；
+4. client 建立 TLS 加密连接；
+
+```
+client
+   |
+   | 验证 cert-server
+   | 信任依据：公共 CA / 自建 CA
+   v
+server
+```
+
+server 通常不需要验证 client 身份
+
+> mTLS
+
+解决服务端、客户端互认身份的需求
+
+1. client 连接 server；
+2. server 提供 cert-server；该 cert-server 可以由受信任的 CA 签发，也可以由自建 CA 签发；
+3. client 验证 server 合法身份；
+4. server 要求 client 提供 cert-client；但是该 cert-client 一般由自建 CA 签发（可以与签发 server 证书的是同一个）；
+5. server 验证 client 合法身份；
+6. 双方建立 TLS 加密连接
+
+```
+client
+   |
+   | 验证 cert-server
+   | 信任依据：公共 CA / 自建 CA
+   v
+server
+   |
+   | 验证 cert-client
+   | 信任依据：通常为自建 CA
+   v
+client
+```
+
+显然，mTLS 的流程对比 TLS 就是多了一个 「server 验证 client 身份」 的流程
+
+这里有一个倾向，即一般 「使用自建 CA 签发 client 的证书」 以及 「使用公共 CA 签发 server 的证书」，因为
+
+- client 连接 server，是希望确认 server 可信，可以使用公共 CA 证书证明 server 身份
+- server 允许 client 连接，则需要 client 证明自己拥有接入的权限，所以需要自建 CA 服务器
+
+本质上来讲，自建 CA 实际上定义了一个 「私有的信任域」，即只有架构自己签发、认可的身份，才允许存在于架构中
+
+因此，设计出的架构如下：
+
+```
+                     公共 CA
+                        |
+                        v
+                  cert-server
+                        |
+                        v
+client  ----------->  server
+   ^                    |
+   |                    |
+   |                    | 验证 client 身份
+   |                    v
+   |                 自建 CA
+   |                    |
+   |                    +--> cert-client-A
+   |                    +--> cert-client-B
+   |                    +--> cert-client-C
+   |                         ...
+   |
+   +------ 验证 server 身份
+```
+
+整个信任关系可以归结为：
+
+```
+公共 CA
+   |
+   +--> 解决「这个 server 是不是可信 server」
+
+
+自建 CA
+   |
+   +--> 解决「这个 client 是不是我允许的 client」
+
+
+mTLS
+   |
+   +--> TLS server 身份验证
+   |
+   +--> client 身份验证
+   |
+   +--> 双方验证通过
+            |
+            v
+       建立加密连接
+```
+
+### sing-box with mTLS
+
+设计这个结构，主要还是
 
 ## refer
 
