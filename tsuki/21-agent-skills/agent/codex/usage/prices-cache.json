@@ -1,0 +1,301 @@
+{
+  "models": {
+    "gpt-6-astra": {
+      "input": 10.0,
+      "cached": 1.0,
+      "write": 12.5,
+      "output": 50.0
+    },
+    "gpt-6-sol": {
+      "input": 2.0,
+      "cached": 0.2,
+      "write": 2.5,
+      "output": 10.0
+    },
+    "gpt-6-luna": {
+      "input": 0.1,
+      "cached": 0.01,
+      "write": 0.125,
+      "output": 0.5
+    },
+    "gpt-5.6-sol": {
+      "input": 4.0,
+      "cached": 0.4,
+      "write": 5.0,
+      "output": 20.0
+    },
+    "gpt-5.6-terra": {
+      "input": 2.0,
+      "cached": 0.2,
+      "write": 2.5,
+      "output": 12.0
+    },
+    "gpt-5.6-luna": {
+      "input": 0.2,
+      "cached": 0.02,
+      "write": 0.25,
+      "output": 1.2
+    },
+    "gpt-5.5": {
+      "input": 5.0,
+      "cached": 0.5,
+      "write": null,
+      "output": 30.0
+    },
+    "gpt-5.5-pro": {
+      "input": 30.0,
+      "cached": null,
+      "write": null,
+      "output": 180.0
+    },
+    "gpt-5.4": {
+      "input": 2.5,
+      "cached": 0.25,
+      "write": null,
+      "output": 15.0
+    },
+    "gpt-5.4-mini": {
+      "input": 0.75,
+      "cached": 0.075,
+      "write": null,
+      "output": 4.5
+    },
+    "gpt-5.4-nano": {
+      "input": 0.2,
+      "cached": 0.02,
+      "write": null,
+      "output": 1.25
+    },
+    "gpt-5.4-pro": {
+      "input": 30.0,
+      "cached": null,
+      "write": null,
+      "output": 180.0
+    },
+    "gpt-5.2": {
+      "input": 1.75,
+      "cached": 0.175,
+      "write": null,
+      "output": 14.0
+    },
+    "gpt-5.2-pro": {
+      "input": 21.0,
+      "cached": null,
+      "write": null,
+      "output": 168.0
+    },
+    "gpt-5.1": {
+      "input": 1.25,
+      "cached": 0.125,
+      "write": null,
+      "output": 10.0
+    },
+    "gpt-5": {
+      "input": 1.25,
+      "cached": 0.125,
+      "write": null,
+      "output": 10.0
+    },
+    "gpt-5-mini": {
+      "input": 0.25,
+      "cached": 0.025,
+      "write": null,
+      "output": 2.0
+    },
+    "gpt-5-nano": {
+      "input": 0.05,
+      "cached": 0.005,
+      "write": null,
+      "output": 0.4
+    },
+    "gpt-5-pro": {
+      "input": 15.0,
+      "cached": null,
+      "write": null,
+      "output": 120.0
+    },
+    "gpt-4.1": {
+      "input": 2.0,
+      "cached": 0.5,
+      "write": null,
+      "output": 8.0
+    },
+    "gpt-4.1-mini": {
+      "input": 0.4,
+      "cached": 0.1,
+      "write": null,
+      "output": 1.6
+    },
+    "gpt-4.1-nano": {
+      "input": 0.1,
+      "cached": 0.025,
+      "write": null,
+      "output": 0.4
+    },
+    "gpt-4o": {
+      "input": 2.5,
+      "cached": 1.25,
+      "write": null,
+      "output": 10.0
+    },
+    "gpt-4o-2024-05-13": {
+      "input": 5.0,
+      "cached": null,
+      "write": null,
+      "output": 15.0
+    },
+    "gpt-4o-mini": {
+      "input": 0.15,
+      "cached": 0.075,
+      "write": null,
+      "output": 0.6
+    },
+    "o1": {
+      "input": 15.0,
+      "cached": 7.5,
+      "write": null,
+      "output": 60.0
+    },
+    "o1-pro": {
+      "input": 150.0,
+      "cached": null,
+      "write": null,
+      "output": 600.0
+    },
+    "o3-pro": {
+      "input": 20.0,
+      "cached": null,
+      "write": null,
+      "output": 80.0
+    },
+    "o3": {
+      "input": 2.0,
+      "cached": 0.5,
+      "write": null,
+      "output": 8.0
+    },
+    "o4-mini": {
+      "input": 1.1,
+      "cached": 0.275,
+      "write": null,
+      "output": 4.4
+    },
+    "o3-mini": {
+      "input": 1.1,
+      "cached": 0.55,
+      "write": null,
+      "output": 4.4
+    },
+    "gpt-4-turbo-2024-04-09": {
+      "input": 10.0,
+      "cached": null,
+      "write": null,
+      "output": 30.0
+    },
+    "gpt-4-0613": {
+      "input": 30.0,
+      "cached": null,
+      "write": null,
+      "output": 60.0
+    },
+    "gpt-3.5-turbo": {
+      "input": 0.5,
+      "cached": null,
+      "write": null,
+      "output": 1.5
+    },
+    "gpt-3.5-turbo-0125": {
+      "input": 0.5,
+      "cached": null,
+      "write": null,
+      "output": 1.5
+    },
+    "gpt-3.5-turbo-1106": {
+      "input": 1.0,
+      "cached": null,
+      "write": null,
+      "output": 2.0
+    },
+    "gpt-3.5-turbo-instruct": {
+      "input": 1.5,
+      "cached": null,
+      "write": null,
+      "output": 2.0
+    },
+    "davinci-002": {
+      "input": 2.0,
+      "cached": null,
+      "write": null,
+      "output": 2.0
+    },
+    "babbage-002": {
+      "input": 0.4,
+      "cached": null,
+      "write": null,
+      "output": 0.4
+    },
+    "chat-latest": {
+      "input": 5.0,
+      "cached": 0.5,
+      "write": null,
+      "output": 30.0
+    },
+    "gpt-5.3-codex": {
+      "input": 1.75,
+      "cached": 0.175,
+      "write": null,
+      "output": 14.0
+    },
+    "gpt-rosalind-research": {
+      "input": 5.0,
+      "cached": 0.5,
+      "write": null,
+      "output": 25.0
+    },
+    "gpt-5-search-api": {
+      "input": 1.25,
+      "cached": 0.125,
+      "write": null,
+      "output": 10.0
+    },
+    "o4-mini-2025-04-16": {
+      "input": 4.0,
+      "cached": 1.0,
+      "write": null,
+      "output": 16.0
+    },
+    "gpt-4.1-2025-04-14": {
+      "input": 3.0,
+      "cached": 0.75,
+      "write": null,
+      "output": 12.0
+    },
+    "gpt-4.1-mini-2025-04-14": {
+      "input": 0.8,
+      "cached": 0.2,
+      "write": null,
+      "output": 3.2
+    },
+    "gpt-4.1-nano-2025-04-14": {
+      "input": 0.2,
+      "cached": 0.05,
+      "write": null,
+      "output": 0.8
+    },
+    "gpt-4o-2024-08-06": {
+      "input": 3.75,
+      "cached": 1.875,
+      "write": null,
+      "output": 15.0
+    },
+    "gpt-4o-mini-2024-07-18": {
+      "input": 0.3,
+      "cached": 0.15,
+      "write": null,
+      "output": 1.2
+    }
+  },
+  "source": "https://developers.openai.com/api/docs/pricing.md",
+  "fetched_at": "2026-09-23T09:43:40.013264+00:00",
+  "status": "live"
+}

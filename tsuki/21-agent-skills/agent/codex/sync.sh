@@ -161,8 +161,10 @@ main() {
 	local source_rules="$SCRIPT_DIR/codex.rules"
 	local source_agents_file="$SCRIPT_DIR/agents.md"
 	local source_deep_profile="$SCRIPT_DIR/deep.config.toml"
+	local source_sol_profile="$SCRIPT_DIR/sol.config.toml"
 	local target_config="$CODEX_HOME/config.toml"
 	local target_deep_profile="$CODEX_HOME/deep.config.toml"
+	local target_sol_profile="$CODEX_HOME/sol.config.toml"
 
 	for command_name in awk cat chmod cp ln mkdir mktemp mv rm stat; do
 		require_command "$command_name"
@@ -173,9 +175,11 @@ main() {
 	[[ -f "$source_rules" ]] || die "source file not found: $source_rules"
 	[[ -f "$source_agents_file" ]] || die "source file not found: $source_agents_file"
 	[[ -f "$source_deep_profile" ]] || die "source file not found: $source_deep_profile"
+	[[ -f "$source_sol_profile" ]] || die "source file not found: $source_sol_profile"
 
 	validate_dynamic_sections "$target_config"
 	validate_dynamic_sections "$target_deep_profile"
+	validate_dynamic_sections "$target_sol_profile"
 
 	mkdir -p -- "$CODEX_HOME/rules"
 	temp_dir=$(mktemp -d "$CODEX_HOME/.codex-sync.XXXXXXXXXX")
@@ -183,6 +187,7 @@ main() {
 
 	write_config "$source_config" "$target_config"
 	write_config "$source_deep_profile" "$target_deep_profile"
+	write_config "$source_sol_profile" "$target_sol_profile"
 	link_path "$source_agents" "$CODEX_HOME/agents"
 	link_path "$source_rules" "$CODEX_HOME/rules/default.rules"
 	link_path "$source_agents_file" "$CODEX_HOME/AGENTS.md"

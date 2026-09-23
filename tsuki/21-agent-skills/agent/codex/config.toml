@@ -27,9 +27,6 @@ multi_agent = true
 [notice]
 hide_rate_limit_model_nudge = true
 
-[tui.model_availability_nux]
-gpt-6-astra = 4
-
 [hooks.state]
 
 [hooks.state."/home/wkyuu/.codex/hooks.json:session_start:0:0"]

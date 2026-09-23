@@ -1,7 +1,13 @@
 
-`curl -fsSL https://herdr.dev/install.sh | sh`
+paste this
 
 ```
+Help me understand and set up Herdr. Read https://herdr.dev/agent-guide.md first, then walk me through it step by step.
+```
+
+usage:
+
+```bash
 $ ./install-herdr.sh --path /home/wkyuu/cargo/bin/herdr --force
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
