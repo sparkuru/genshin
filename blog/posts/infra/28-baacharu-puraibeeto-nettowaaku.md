@@ -3,7 +3,7 @@ title: "Virtual Private Network"
 description: "VPN, WireGuard, OpenVPN, and proxy networking notes."
 date: "2026-07-03T10:58:34+08:00"
 tags: []
-draft: true
+draft: false
 layout: "post"
 slug: "baacharu-puraibeeto-nettowaaku"
 ---
