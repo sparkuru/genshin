@@ -147,6 +147,9 @@ if has('termguicolors') && $COLORTERM =~? 'truecolor\|24bit'
   set termguicolors
 endif
 colorscheme zellner
+highlight DiffAdd guifg=#000000
+highlight DiffChange guifg=#000000
+highlight DiffDelete guifg=#000000
 highlight PreviewTerminal ctermfg=15 ctermbg=0 guifg=#f5f5f5 guibg=#1f1f1f
 
 let g:gitgutter_enabled = 1

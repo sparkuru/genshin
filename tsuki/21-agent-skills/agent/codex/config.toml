@@ -1,6 +1,6 @@
-model = "gpt-6-luna"
-model_reasoning_effort = "max"
-service_tier = "fast"
+model = "gpt-6-sol"
+model_reasoning_effort = "high"
+service_tier = "default"
 personality = "pragmatic"
 approvals_reviewer = "auto_review"
 

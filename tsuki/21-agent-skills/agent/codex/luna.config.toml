@@ -1,17 +1,8 @@
-model = "gpt-6-sol"
-model_reasoning_effort = "high"
-service_tier = "default"
+model = "gpt-6-luna"
+model_reasoning_effort = "max"
+service_tier = "fast"
 personality = "pragmatic"
 approvals_reviewer = "auto_review"
-
-developer_instructions = """
-High-capability orchestration mode is active for this profile.
-
-Do not select the `sub_agent` agent. Delegate independently useful work to the
-built-in `default`, `worker`, or `explorer` agents when it helps; let them
-inherit this profile's model and reasoning effort unless explicitly overridden.
-Wait for delegated results and verify their evidence before relying on them.
-"""
 
 [tui]
 auto_recap = false
@@ -24,11 +15,17 @@ status_line = [
     "weekly-limit"
 ]
 
+[agents.sub_agent]
+description = "Bounded low-risk worker for explicit small tasks that benefit from exhaustive checking and fast completion."
+config_file = "agents/sub_agent.toml"
+
 [features]
 hooks = true
-fast_mode = false
+fast_mode = true
 multi_agent = true
 
+[notice]
+hide_rate_limit_model_nudge = true
 
 [hooks.state]
 
