@@ -30,5 +30,5 @@
 SKILL.md
 
 # dont git
-!.trellis/tasks/archive
-!.trellis/tasks/archive/**
+!**/.trellis/tasks/archive/
+!**/.trellis/tasks/archive/**
