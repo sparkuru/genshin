@@ -1,0 +1,19 @@
+{
+  "gpu_name": "AMD Radeon RX 9070 XT",
+  "asr_model": "models/qwen3-asr-1.7b-q4_k.gguf",
+  "translation_model": "models/Hy-MT2-1.8B-UD-Q3_K_XL.gguf",
+  "source_language": "Auto Detect",
+  "target_language": "Simplified Chinese",
+  "audio_device": "default",
+  "autostart": true,
+  "stream_step_ms": 1500,
+  "stream_context_ms": 12000,
+  "final_silence_ms": 700,
+  "partial_translation_interval_ms": 1800,
+  "translation_context_sentences": 2,
+  "translation_max_tokens": 384,
+  "llm_context": 2048,
+  "llm_batch": 512,
+  "threads": 8,
+  "translation_temperature": 0.1
+}

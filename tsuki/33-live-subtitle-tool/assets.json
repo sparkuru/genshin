@@ -1,0 +1,55 @@
+{
+  "package_version": "1.0.0",
+  "audited_at": "2026-09-27",
+  "software": [
+    {
+      "id": "live-subtitle",
+      "version": "v2.1",
+      "file": "live_subtitle.exe",
+      "url": "https://github.com/kw4356/Live-subtitle-tool/releases/download/v2.1/live_subtitle.exe",
+      "sha256": "b4c67623f6f12d28b55042f7afb0319ecc9d9c9cef7b0f207e62926053cafd60"
+    },
+    {
+      "id": "crispasr",
+      "version": "v0.8.37",
+      "file": "crispasr-windows-x86_64-vulkan.zip",
+      "url": "https://github.com/CrispStrobe/CrispASR/releases/download/v0.8.37/crispasr-windows-x86_64-vulkan.zip",
+      "sha256": "de82af0b5cdb3aca9a4666ec4ac18ab1f283dd2d108c65f37eac354f9fb2088c"
+    },
+    {
+      "id": "build-python",
+      "version": "3.11.9",
+      "file": "python-3.11.9-embed-amd64.zip",
+      "url": "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip",
+      "sha256": "009d6bf7e3b2ddca3d784fa09f90fe54336d5b60f0e0f305c37f400bf83cfd3b"
+    },
+    {
+      "id": "msvc-runtime",
+      "version": "14.44.35211.0",
+      "file": "vc_redist.x64.exe",
+      "url": "https://aka.ms/vs/17/release/vc_redist.x64.exe",
+      "sha256": "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b",
+      "mutable_url": true
+    }
+  ],
+  "models": [
+    {
+      "role": "asr",
+      "file": "qwen3-asr-1.7b-q4_k.gguf",
+      "repository": "https://huggingface.co/cstr/qwen3-asr-1.7b-GGUF",
+      "revision": "674df5d44b50a63e7102a18895ed20e3f91de301",
+      "url": "https://huggingface.co/cstr/qwen3-asr-1.7b-GGUF/resolve/674df5d44b50a63e7102a18895ed20e3f91de301/qwen3-asr-1.7b-q4_k.gguf?download=true",
+      "size": 1490915200,
+      "sha256": "ec197cef7ccc589fdcae1becc3f4a3de119d0a41e790b898b519b1a048dad8d4"
+    },
+    {
+      "role": "translation",
+      "file": "Hy-MT2-1.8B-UD-Q3_K_XL.gguf",
+      "repository": "https://huggingface.co/unsloth/Hy-MT2-1.8B-GGUF",
+      "revision": "0378cc2780f462f0fd397d0cdd244d2f769de40e",
+      "url": "https://huggingface.co/unsloth/Hy-MT2-1.8B-GGUF/resolve/0378cc2780f462f0fd397d0cdd244d2f769de40e/Hy-MT2-1.8B-UD-Q3_K_XL.gguf?download=true",
+      "size": 989983712,
+      "sha256": "bf575b6238c6ae3c35db73af36bc0a749aedf8de17426c1b506e2d332dd9c9ca"
+    }
+  ]
+}

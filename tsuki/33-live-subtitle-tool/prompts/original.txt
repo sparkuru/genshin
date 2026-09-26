@@ -1,0 +1,523 @@
+
+本地模型实时对电脑音频做同声传译
+
+LiveSubtitleTool + RTX 9070XT + qwen3-asr-1.7b-q4_k.gguf + Hy-MT2-1.8B-UD-Q3_K_XL.gguf
+
+---
+
+我要你在我的 Windows 电脑上部署并配置最新版 **Live Subtitle Tool**：
+
+GitHub：
+[https://github.com/kw4356/Live-subtitle-tool](https://github.com/kw4356/Live-subtitle-tool)
+
+## 我的环境
+
+- 操作系统：Windows 10/11 x64
+- 显卡：AMD Radeon RX 9070 XT
+- 显存：16GB
+- 目标用途：
+  - 捕获 Windows 正在播放的系统音频
+  - 实时语音识别
+  - 实时翻译为简体中文
+  - 显示原文 + 中文字幕
+- 必须尽量使用 GPU 加速
+- AMD 显卡优先使用 **Vulkan**
+- 不要配置 CUDA
+- 不要因为 AMD 显卡而默认使用 CPU
+- 安装目标：$INSTALL_TARGET_DIR = "D:\software\live-subtitle"
+
+## 最重要的要求：Portable
+
+我要尽可能做成真正的绿色便携版本。
+
+目标目录例如：
+
+$INSTALL_TARGET_DIR
+
+所有东西尽量放在这个目录下面，包括：
+
+- 主程序
+- CrispASR
+- Python 环境（如果确实需要）
+- Python 第三方库
+- GGUF 模型
+- 配置文件
+- 缓存
+- 日志
+- 临时文件
+- 启动脚本
+
+要求：
+
+1. 优先使用官方 standalone / release 二进制。
+2. 如果官方 exe 可以直接运行，就不要为了方便而安装系统级 Python。
+3. 如果必须使用 Python：
+   - 优先采用 portable Python / embeddable Python / 项目目录内独立 venv。
+   - 不修改系统 Python。
+   - 不污染全局 pip。
+   - 不修改系统 PATH。
+4. 除 AMD 显卡驱动等不可避免的系统组件外，尽量不要安装系统级依赖。
+5. 不要安装 Conda。
+6. 不要安装 CUDA。
+7. 不要把模型放进：
+   - AppData
+   - 用户目录
+   - Program Files
+8. 尽量让程序换一台 Windows PC 后，只要 GPU 驱动满足要求，复制整个目录即可运行。
+9. 最理想状态：
+   - 安装 = 解压目录
+   - 卸载 = 删除目录
+
+如果某个组件无法做到完全 portable，明确说明原因，再选择对系统侵入最小的方案。
+
+---
+
+# 第一步：先调查项目当前状态
+
+不要直接照搬旧教程。
+
+先检查：
+
+- GitHub 最新代码
+- 最新 Release
+- README
+- 当前 v2.x 的目录结构
+- 当前 CrispASR 接入方式
+- 当前模型要求
+- 当前 Windows + AMD Vulkan 支持状态
+
+尤其注意：
+
+这个项目历史上使用过：
+
+- whisper.cpp
+- llama.cpp
+- whisper-vulkan
+
+但新版本已经开始使用 **CrispASR**。
+
+因此必须根据当前最新版代码判断实际应该使用哪套架构。
+
+不要因为 README 里面残留旧版说明，就混用旧版 whisper-vulkan 和新版 CrispASR。
+
+---
+
+# 第二步：GPU 配置
+
+我的显卡：
+
+AMD Radeon RX 9070 XT 16GB
+
+优先选择：
+
+Vulkan
+
+而不是：
+
+CUDA
+
+部署完成后必须验证程序实际上调用了 RX 9070 XT。
+
+如果 CrispASR 支持类似：
+
+\--gpu-backend vulkan
+
+则优先使用 Vulkan。
+
+如果存在 GPU device 参数，例如：
+
+-dev 0
+
+请检测实际 Vulkan 设备并确保选中 RX 9070 XT。
+
+不要仅仅因为程序能启动就认为 GPU 加速成功。
+
+需要从：
+
+- 控制台输出
+- 日志
+- GPU 使用率
+- 显存使用情况
+
+至少一种方式确认 Vulkan GPU backend 已启用。
+
+如果系统 AMD 驱动已经包含 Vulkan Runtime，就不要额外安装完整 Vulkan SDK。
+
+只有“必须从源码编译 Vulkan 后端”的情况下才考虑 Vulkan SDK。
+
+---
+
+# 第三步：模型
+
+我的 RX 9070 XT 有 16GB 显存，不需要为了省显存使用最小模型。
+
+优先采用项目 v2.1 推荐组合：
+
+ASR：
+
+qwen3-asr-1.7b-q4_k.gguf
+
+翻译模型：
+
+Hy-MT2-1.8B-UD-Q3_K_XL.gguf
+
+目标语言：
+
+简体中文
+
+如果模型名称、地址或格式已经发生变化，以项目当前最新版实际兼容情况为准。
+
+模型统一放在：
+
+$INSTALL_TARGET_DIR\models\
+
+类似：
+
+LiveSubtitle
+├─ models
+│  ├─ qwen3-asr-1.7b-q4_k.gguf
+│  └─ Hy-MT2-1.8B-UD-Q3_K_XL.gguf
+
+如果软件要求固定文件名，可以：
+
+- 修改配置指向具体文件
+- 或建立启动脚本自动设置
+
+不要随意重命名导致以后无法辨认模型。
+
+优先保证：
+
+1. 实时性
+2. 英语 → 简体中文翻译质量
+3. 日语 → 简体中文翻译质量
+4. 较长句子的上下文连续性
+
+不需要为了节省 2～3GB 显存牺牲质量。
+
+---
+
+# 第四步：音频
+
+使用 Windows 系统输出音频：
+
+WASAPI Loopback
+
+而不是麦克风。
+
+目标：
+
+浏览器 / YouTube / 本地播放器 / 游戏 / 视频软件正在播放的声音
+↓
+系统音频捕获
+↓
+ASR
+↓
+原文字幕
+↓
+本地 LLM 翻译
+↓
+简体中文字幕
+
+确保软件默认捕获当前 Windows 默认播放设备。
+
+如果存在多个设备，需要能够选择：
+
+- 扬声器
+- 耳机
+- HDMI
+- USB DAC
+
+不要使用“Stereo Mix”作为首选方案。
+
+---
+
+# 第五步：Portable 目录规划
+
+尽量整理成：
+
+$INSTALL_TARGET_DIR
+
+
+结构建议：
+
+LiveSubtitle
+│
+├─ LiveSubtitle.exe
+│
+├─ start.bat
+├─ start-debug.bat
+│
+├─ app
+│
+├─ CrispASR
+│  ├─ crispasr.exe
+│  └─ 相关 DLL
+│
+├─ models
+│  ├─ qwen3-asr-1.7b-q4_k.gguf
+│  └─ Hy-MT2-1.8B-UD-Q3_K_XL.gguf
+│
+├─ python
+│  └─ 如果确实需要 Python，则使用本地环境
+│
+├─ config
+│
+├─ cache
+│
+├─ logs
+│
+└─ temp\
+
+
+路径处理必须使用：
+
+%\~dp0
+
+不要把：
+
+$INSTALL_TARGET_DIR
+
+硬编码进启动脚本。
+
+这样整个目录移动到其他盘符后仍然能够工作。
+
+---
+
+# 第六步：环境变量隔离
+
+如果相关程序支持，请在 start.bat 中把缓存和配置重定向到程序目录。
+
+例如根据实际组件需要设置：
+
+TEMP
+TMP
+HF_HOME
+HUGGINGFACE_HUB_CACHE
+XDG_CACHE_HOME
+PYTHONPYCACHEPREFIX
+
+等。
+
+但不要机械设置无用环境变量。
+
+目标是：
+
+运行程序后尽可能不要在：
+
+%USERPROFILE%
+%APPDATA%
+%LOCALAPPDATA%
+
+留下大量程序数据。
+
+如果某些 Windows / Qt / Python 组件必须写 AppData，可以接受，但请明确指出。
+
+---
+
+# 第七步：启动脚本
+
+最终至少生成两个启动文件。
+
+## start.bat
+
+日常运行。
+
+要求：
+
+- 自动定位自己的目录
+- 设置所需环境变量
+- 启动正确的 exe / Python
+- 使用 Vulkan GPU
+- 使用指定 ASR 模型
+- 使用指定翻译模型
+- 默认翻译成简体中文
+
+执行结束不留下多余 CMD 窗口更好。
+
+## start-debug.bat
+
+排错版本。
+
+要求：
+
+- 保留控制台窗口
+- 显示：
+  - Vulkan backend
+  - GPU 名称
+  - 模型加载结果
+  - 音频设备
+  - ASR 初始化结果
+  - LLM 初始化结果
+- 程序崩溃后 pause
+
+---
+
+# 第八步：性能优化
+
+针对 RX 9070 XT 16GB 优化。
+
+原则：
+
+- ASR 尽量 GPU 加速
+- 翻译模型尽量 GPU 加速
+- 尽量让模型常驻显存
+- 不要每句话重新加载模型
+- 不要每段音频重复初始化 Vulkan
+- 控制延迟
+- 避免 CPU/GPU 来回拷贝造成不必要延迟
+
+目标不是最低显存占用，而是：
+
+低延迟 + 稳定 + 翻译质量。
+
+如果存在：
+
+- GPU layers
+- context size
+- batch size
+- threads
+- VAD
+- chunk length
+- overlap
+- translation context
+
+等参数，根据实时字幕场景进行合理配置。
+
+---
+
+# 第九步：检查 Vulkan
+
+部署完成后验证：
+
+1. AMD 驱动正常。
+2. Vulkan 能识别 RX 9070 XT。
+3. CrispASR / GGML 实际使用 Vulkan。
+4. 翻译 GGUF 模型实际使用 GPU。
+5. 运行字幕时 RX 9070 XT 有明显 GPU/显存占用。
+
+如果需要检测工具，优先使用无需安装或 portable 的工具。
+
+不要为了检测 Vulkan 就强制安装大型开发环境。
+
+---
+
+# 第十步：实际测试
+
+部署完成后进行真实测试。
+
+测试音频：
+
+播放一段英语视频。
+
+确认链路：
+
+Windows 系统音频
+→ WASAPI Loopback
+→ Qwen3-ASR
+→ 英文原文
+→ Hy-MT2
+→ 简体中文
+→ 双语悬浮字幕
+
+检查：
+
+- 有没有漏字
+- 有没有重复字幕
+- 延迟是否异常
+- 翻译是否不断句
+- GPU 是否工作
+- 音频设备切换是否正常
+- 软件关闭后是否残留后台进程
+
+---
+
+# 遇到问题时的处理原则
+
+不要一遇到 Vulkan 问题就改成 CPU。
+
+排错顺序：
+
+1. AMD 驱动
+2. Vulkan Runtime
+3. Vulkan 设备枚举
+4. CrispASR 是否为 Vulkan build
+5. GGML Vulkan backend
+6. 相关 DLL
+7. 模型兼容性
+8. 程序配置
+
+只有确认 Vulkan 当前版本确实无法工作，才临时使用 CPU 做诊断。
+
+不要安装 CUDA。
+
+---
+
+# 编译原则
+
+尽量避免自行编译。
+
+优先顺序：
+
+1. 项目官方 portable / standalone Release
+2. 官方预编译 CrispASR Vulkan Windows binary
+3. 官方预编译依赖
+4. 本地 Python portable 环境
+5. 最后才是从源码编译
+
+如果必须编译：
+
+- 编译完成后，把运行所需 exe / DLL 提取进 portable 目录
+- 编译工具不要成为最终运行依赖
+- 最终运行目录不能依赖 Visual Studio 开发环境
+- 尽可能避免要求永久安装 CMake / Ninja / Vulkan SDK
+
+---
+
+# 安全要求
+
+不要：
+
+- 随意执行来源不明的 exe
+- 使用第三方网盘里的二进制
+- 使用来历不明的 DLL
+- 关闭 Windows Defender
+- 添加整个磁盘 Defender 白名单
+- 使用破解文件
+
+优先下载：
+
+- 项目官方 GitHub Releases
+- 模型作者官方 Hugging Face 页面
+- AMD 官方驱动
+- 上游项目官方 Releases
+
+如果下载文件提供 SHA256，进行校验。
+
+---
+
+# 最终交付
+
+不要只告诉我“应该怎么做”。
+
+直接完成能够完成的部署工作。
+
+结束时给我一份简洁报告：
+
+1. 最终使用的软件版本
+2. CrispASR 版本
+3. ASR 模型
+4. 翻译模型
+5. GPU backend
+6. 是否确认识别出 RX 9070 XT
+7. 实际目录结构
+8. start.bat 内容
+9. start-debug.bat 内容
+10. 哪些东西是 portable
+11. 哪些东西仍然写入 Windows 系统目录/AppData
+12. 如何升级程序
+13. 如何升级模型
+14. 如何彻底卸载
+
+最重要的验收标准：
+
+**我以后应该能够直接把 LiveSubtitle 整个文件夹复制到另一个目录/盘符，双击 start.bat 就运行，而不是重新安装一堆环境。**
