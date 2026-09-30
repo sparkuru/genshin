@@ -1,0 +1,130 @@
+{
+  "aaaaronzhou.nginx-config-formatter-vscode-extension": {
+    "url": "https://open-vsx.org/api/aaaaronzhou/nginx-config-formatter-vscode-extension",
+    "version": "1.4.5"
+  },
+  "akamud.vscode-theme-onedark": {
+    "url": "https://open-vsx.org/api/akamud/vscode-theme-onedark",
+    "version": "2.3.0"
+  },
+  "bierner.markdown-mermaid": {
+    "url": "https://open-vsx.org/api/bierner/markdown-mermaid",
+    "version": "1.32.1"
+  },
+  "charliermarsh.ruff": {
+    "url": "https://open-vsx.org/api/charliermarsh/ruff",
+    "version": "2026.84.0"
+  },
+  "christian-kohler.path-intellisense": {
+    "url": "https://open-vsx.org/api/christian-kohler/path-intellisense",
+    "version": "2.8.0"
+  },
+  "cschlosser.doxdocgen": {
+    "url": "https://open-vsx.org/api/cschlosser/doxdocgen",
+    "version": "1.4.0"
+  },
+  "donjayamanne.python-extension-pack": {
+    "url": "https://open-vsx.org/api/donjayamanne/python-extension-pack",
+    "version": "1.7.0"
+  },
+  "ecmel.vscode-html-css": {
+    "url": "https://open-vsx.org/api/ecmel/vscode-html-css",
+    "version": "2.0.14"
+  },
+  "foxundermoon.shell-format": {
+    "url": "https://open-vsx.org/api/foxundermoon/shell-format",
+    "version": "7.2.8"
+  },
+  "jeanp413.open-remote-ssh": {
+    "url": "https://open-vsx.org/api/jeanp413/open-remote-ssh",
+    "version": "0.3.1"
+  },
+  "llvm-vs-code-extensions.vscode-clangd": {
+    "url": "https://open-vsx.org/api/llvm-vs-code-extensions/vscode-clangd",
+    "version": "0.6.0"
+  },
+  "maziac.asm-code-lens": {
+    "url": "https://open-vsx.org/api/maziac/asm-code-lens",
+    "version": "2.6.3"
+  },
+  "mechatroner.rainbow-csv": {
+    "url": "https://open-vsx.org/api/mechatroner/rainbow-csv",
+    "version": "3.24.1"
+  },
+  "mgesbert.python-path": {
+    "url": "https://open-vsx.org/api/mgesbert/python-path",
+    "version": "0.0.14"
+  },
+  "mkhl.shfmt": {
+    "url": "https://open-vsx.org/api/mkhl/shfmt",
+    "version": "1.5.2"
+  },
+  "ms-azuretools.vscode-containers": {
+    "url": "https://open-vsx.org/api/ms-azuretools/vscode-containers",
+    "version": "2.4.5"
+  },
+  "ms-azuretools.vscode-docker": {
+    "url": "https://open-vsx.org/api/ms-azuretools/vscode-docker",
+    "version": "2.0.0"
+  },
+  "ms-ceintl.vscode-language-pack-zh-hans": {
+    "url": "https://open-vsx.org/api/ms-ceintl/vscode-language-pack-zh-hans",
+    "version": "1.99.0"
+  },
+  "ms-python.python": {
+    "url": "https://open-vsx.org/api/ms-python/python",
+    "version": "2026.4.0"
+  },
+  "ms-python.vscode-python-envs": {
+    "url": "https://open-vsx.org/api/ms-python/vscode-python-envs",
+    "version": "1.38.0"
+  },
+  "ms-vscode.hexeditor": {
+    "url": "https://open-vsx.org/api/ms-vscode/hexeditor",
+    "version": "1.11.1"
+  },
+  "njpwerner.autodocstring": {
+    "url": "https://open-vsx.org/api/njpwerner/autodocstring",
+    "version": "0.6.1"
+  },
+  "openai.chatgpt": {
+    "url": "https://open-vsx.org/api/openai/chatgpt",
+    "version": "26.5908.31748"
+  },
+  "pkief.material-icon-theme": {
+    "url": "https://open-vsx.org/api/pkief/material-icon-theme",
+    "version": "5.38.1"
+  },
+  "prometheus.prometheus": {
+    "url": "https://open-vsx.org/api/prometheus/prometheus",
+    "version": "0.0.1"
+  },
+  "redhat.vscode-xml": {
+    "url": "https://open-vsx.org/api/redhat/vscode-xml",
+    "version": "0.29.2026091508"
+  },
+  "redhat.vscode-yaml": {
+    "url": "https://open-vsx.org/api/redhat/vscode-yaml",
+    "version": "1.25.2026092908"
+  },
+  "sketchbuch.vsc-workspace-sidebar": {
+    "url": "https://open-vsx.org/api/sketchbuch/vsc-workspace-sidebar",
+    "version": "2.1.1"
+  },
+  "sst-dev.opencode": {
+    "url": "https://open-vsx.org/api/sst-dev/opencode",
+    "version": "0.0.13"
+  },
+  "tamasfe.even-better-toml": {
+    "url": "https://open-vsx.org/api/tamasfe/even-better-toml",
+    "version": "0.21.2"
+  },
+  "wholroyd.jinja": {
+    "url": "https://open-vsx.org/api/wholroyd/jinja",
+    "version": "0.0.10"
+  },
+  "yzhang.markdown-all-in-one": {
+    "url": "https://open-vsx.org/api/yzhang/markdown-all-in-one",
+    "version": "3.6.2"
+  }
+}

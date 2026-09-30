@@ -24,6 +24,15 @@ Refresh `config/extensions.txt` from the extensions currently installed in VSCod
 ./sync-extensions.sh
 ```
 
+Check or update the Linux VSCodium extensions listed in `config/extension.txt`:
+
+```bash
+./config/update-extensions.sh --check
+./config/update-extensions.sh
+```
+
+`config/extension.txt` is the source of truth for which extensions to check. A normal run synchronizes `config/extension.json` with that list, preserving known URLs and versions, removing deleted IDs, and adding new IDs; `--check` leaves the JSON file untouched. A `null` version means the extension was not found locally when it was added. The updater checks installed versions in `~/.vscode-oss/extensions`, validates each downloaded VSIX in a temporary directory, and restores the previous extension and index if installation fails. If VSCodium rejects an incompatible version, the updater asks whether to skip it (`[Y/n]`, default yes) and continues; noninteractive runs skip it automatically. Use `--extensions-dir DIR` for a different extension directory. An extension missing from Open VSX is reported and skipped; the command exits with an error after checking the rest.
+
 The installer creates `~/.local/bin/codium` and `~/.local/share/applications/com.vscodium.codium.desktop`. The settings and keybindings link to `~/.config/VSCodium/User/`.
 
 Remove that installation:

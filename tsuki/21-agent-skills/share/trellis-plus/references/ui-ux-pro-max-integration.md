@@ -95,7 +95,12 @@ it. Add a personal/local platform pointer only when the platform cannot load
 the shared spec. Do not patch `.trellis/workflow.md`, Trellis runtime files, or
 generated Trellis platform skills.
 
-Do not duplicate the full procedure in every target. Keep the detailed rules in this reference and add phase-specific pointers.
+Materialize the applicable Plan, Implement, Check, and Update Spec actions and
+repository-confirmed commands in one shared project detail file. Link it from
+the index and required task contexts instead of duplicating it in every target.
+The generated project rules must not require access to this Trellis Plus
+installation; a pointer to the actual project-local UUPM skill is appropriate
+for UUPM's own procedures. Verify loading using `SKILL.md`.
 
 ### Plan
 
@@ -110,7 +115,7 @@ For every frontend task whose scope affects user-visible UI:
    ```
 
 4. Convert selected decisions, constraints, states, and acceptance criteria into `<TASK-DIRECTORY>/design.md`. `design.md` is the approved task decision record, not a dump of search results.
-5. Define responsive behavior, loading, empty, error, disabled, success, keyboard, reduced-motion, and accessibility expectations before implementation.
+5. Define responsive behavior, loading, empty, error, disabled, success, keyboard, reduced-motion, and accessibility expectations before implementation. Classify mobile applicability using the browser validation profile; document required mobile flows or an evidenced desktop-only exclusion.
 
 Example command shape, adapted to the installed UUPM path and detected stack:
 
@@ -152,7 +157,7 @@ The implementation agent must read the task's approved design decisions, UUPM re
 
 The check agent must verify the implementation against both the task acceptance criteria and the approved UUPM decisions. At minimum inspect:
 
-- responsive behavior at the project's supported breakpoints and narrow mobile width
+- responsive behavior at the project's supported breakpoints and applicable narrow-mobile/device settings; honor documented desktop-only exclusions
 - typography, spacing, color contrast, focus states, keyboard navigation, and accessible names
 - loading, empty, error, disabled, success, and permission states
 - touch target size and interaction feedback

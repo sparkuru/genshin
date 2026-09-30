@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
+import traceback
 from dataclasses import dataclass
 from datetime import datetime
 from functools import reduce
@@ -14,7 +16,7 @@ from hashlib import md5
 import re
 from pathlib import Path
 import time
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, BinaryIO, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlencode
 
 if sys.platform == "win32":
@@ -43,11 +45,15 @@ PLAYER_API_URL = "https://api.bilibili.com/x/player/wbi/playurl"
 VIDEO_DETAIL_API_URL = "https://api.bilibili.com/x/web-interface/view"
 NAV_API_URL = "https://api.bilibili.com/x/web-interface/nav"
 ENV_SESSDATA_KEY = "BILIBILI_SESSDATA"
+ENV_COOKIE_KEY = "BILIBILI_COOKIE"
 CONFIG_FILE_NAME = ".bilibili-downloader.env"
 CONFIG_FILE_ENV_KEY = "BILIBILI_DOWNLOADER_ENV"
 DEFAULT_VIDEO_QUALITY = 64
 DEFAULT_REQUEST_TIMEOUT = 25
-CHUNK_SIZE = 1024 * 1024
+DEFAULT_RETRIES = 4
+DEFAULT_RETRY_DELAY = 2.0
+RANGE_SIZE = 1024 * 1024
+CHUNK_SIZE = 256 * 1024
 BV_ID_REGEX = re.compile(r"BV[0-9A-Za-z]{10}")
 MIXIN_KEY_TABLE: Tuple[int, ...] = (
     46,
@@ -249,6 +255,9 @@ def create_example_text(script_name: str) -> str:
         f"Use --config or {CONFIG_FILE_ENV_KEY} to choose another credential file.",
         f"SESSDATA can also be provided through --sessdata or {ENV_SESSDATA_KEY}.",
         "Quality levels: 16 (360p), 32 (480p), 64 (720p), 80 (1080p).",
+        "Interrupted downloads keep .part files and resume automatically on rerun.",
+        "Use --resume for an old incomplete mp4; select the same video and quality.",
+        "init preserves the full browser Cookie when supplied, including device cookies.",
     ]
 
     text = f"\n{CLIStyle.color('Examples:', CLIStyle.COLORS['TITLE'])}"
@@ -310,6 +319,10 @@ class VideoDetails:
         }
 
 
+class BilibiliRiskControlError(RuntimeError):
+    """A request was rejected by Bilibili's risk-control system."""
+
+
 class BilibiliClient:
     """
     Thin client around the Bilibili HTTP APIs.
@@ -320,13 +333,130 @@ class BilibiliClient:
     ```
     """
 
-    def __init__(self, sessdata: str, timeout: int = DEFAULT_REQUEST_TIMEOUT) -> None:
+    def __init__(
+        self,
+        sessdata: str,
+        timeout: int = DEFAULT_REQUEST_TIMEOUT,
+        retries: int = DEFAULT_RETRIES,
+        retry_delay: float = DEFAULT_RETRY_DELAY,
+        cookie: str = "",
+    ) -> None:
+        if timeout <= 0 or retries < 0 or retry_delay < 0:
+            raise ValueError(
+                "Timeout must be positive; retries and retry delay cannot be negative."
+            )
         self.timeout = timeout
+        self.retries = retries
+        self.retry_delay = retry_delay
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)
+        for name, value in parse_cookie_header(cookie).items():
+            self.session.cookies.set(name, value, domain=".bilibili.com", path="/")
         if sessdata:
-            self.session.cookies.set("SESSDATA", sessdata)
+            self.session.cookies.set(
+                "SESSDATA", sessdata, domain=".bilibili.com", path="/"
+            )
         self._wbi_keys: Optional[Tuple[str, str]] = None
+
+    def _wait_before_retry(
+        self, attempt: int, reason: str, response: Optional[requests.Response] = None
+    ) -> None:
+        """Back off between retries, respecting a bounded Retry-After delay."""
+        delay = min(self.retry_delay * 2 ** (attempt - 1), 30.0)
+        if response is not None and response.status_code in {412, 429}:
+            delay = max(delay, 5.0)
+        if response is not None:
+            retry_after = response.headers.get("Retry-After", "")
+            if retry_after.isdigit():
+                delay = max(delay, min(float(retry_after), 60.0))
+        print(
+            CLIStyle.color(
+                f"\n{reason}; retry {attempt}/{self.retries} in {delay:g}s...",
+                CLIStyle.COLORS["WARNING"],
+            )
+        )
+        time.sleep(delay)
+
+    def _refresh_site_cookies(self) -> None:
+        """Let the website supply session cookies after a risk-control response."""
+        try:
+            with self.session.get(
+                "https://www.bilibili.com/",
+                headers={"Accept": "text/html"},
+                timeout=min(self.timeout, 10),
+                stream=True,
+            ) as response:
+                response.raise_for_status()
+        except requests.RequestException:
+            debug("Website cookie refresh was unavailable")
+
+    def _request_json(
+        self,
+        url: str,
+        params: Optional[Dict[str, Any]] = None,
+        allow_logged_out: bool = False,
+        retry_risk_control: bool = True,
+    ) -> Dict[str, Any]:
+        """Retry transient API failures and report API error codes explicitly."""
+        for attempt in range(self.retries + 1):
+            response = None
+            try:
+                response = self.session.get(url, params=params, timeout=self.timeout)
+                response.raise_for_status()
+                payload = response.json()
+                code = payload.get("code", 0)
+                if code in {-352, -412, -509}:
+                    raise requests.HTTPError(
+                        "Bilibili API request was rate limited", response=response
+                    )
+                if code != 0 and not (allow_logged_out and code == -101):
+                    raise RuntimeError(
+                        f"Bilibili API error {code}: {payload.get('message', 'unknown error')}"
+                    )
+                if not isinstance(payload.get("data"), dict):
+                    raise RuntimeError("Bilibili API returned no usable data.")
+                return payload
+            except (
+                requests.ConnectionError,
+                requests.Timeout,
+                requests.exceptions.ChunkedEncodingError,
+                requests.HTTPError,
+            ) as exc:
+                status = response.status_code if response is not None else None
+                retryable = status is None or status in {
+                    200,
+                    408,
+                    412,
+                    429,
+                    500,
+                    502,
+                    503,
+                    504,
+                }
+                if not retryable:
+                    raise
+                risk_control = status == 412 or (
+                    status == 200 and isinstance(exc, requests.HTTPError)
+                )
+                if attempt == self.retries or (risk_control and not retry_risk_control):
+                    if risk_control:
+                        raise BilibiliRiskControlError(
+                            "Bilibili rejected the request after retries (risk control). "
+                            "Wait before trying again and refresh the full browser Cookie with init. "
+                            "An IP restriction cannot be fixed by download retries."
+                        ) from exc
+                    raise
+                if attempt == 0 and status in {200, 412}:
+                    self._refresh_site_cookies()
+                self._wait_before_retry(
+                    attempt + 1,
+                    f"API request failed ({status or type(exc).__name__})",
+                    response,
+                )
+            finally:
+                if response is not None:
+                    response.close()
+        raise RuntimeError("API retry budget exhausted.")
 
     def fetch_video_details(self, bvid: str) -> VideoDetails:
         """
@@ -336,14 +466,20 @@ class BilibiliClient:
         details = client.fetch_video_details("BV1xx")
         ```
         """
-        response = self.session.get(
-            VIDEO_DETAIL_API_URL,
-            params={"bvid": bvid},
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
-        payload = response.json()
-        data = payload["data"]
+        self.session.headers["Referer"] = f"https://www.bilibili.com/video/{bvid}/"
+        try:
+            payload = self._request_json(
+                VIDEO_DETAIL_API_URL, {"bvid": bvid}, retry_risk_control=False
+            )
+            data = payload["data"]
+        except BilibiliRiskControlError:
+            print(
+                CLIStyle.color(
+                    "Metadata API was rejected; reading metadata from the video page...",
+                    CLIStyle.COLORS["WARNING"],
+                )
+            )
+            data = self._fetch_video_page_data(bvid)
         debug("video details fetched", bvid=bvid)
         return VideoDetails(
             bvid=bvid,
@@ -361,6 +497,28 @@ class BilibiliClient:
             },
         )
 
+    def _fetch_video_page_data(self, bvid: str) -> Dict[str, Any]:
+        """Read public page metadata when the view API is unavailable."""
+        with self.session.get(
+            f"https://www.bilibili.com/video/{bvid}/", timeout=self.timeout
+        ) as response:
+            response.raise_for_status()
+            match = re.search(r"window\.__INITIAL_STATE__\s*=\s*", response.text)
+            if not match:
+                raise BilibiliRiskControlError(
+                    "Metadata API was rejected and the video page has no embedded metadata. "
+                    "Wait before trying again or refresh the full browser Cookie with init."
+                )
+            state, _ = json.JSONDecoder().raw_decode(
+                response.text[match.end() :].lstrip()
+            )
+        data = state.get("videoData")
+        if not isinstance(data, dict) or data.get("bvid") != bvid:
+            raise RuntimeError(
+                "Video page metadata does not match the requested BV id."
+            )
+        return data
+
     def fetch_streams(self, bvid: str, cid: int, quality: int) -> List[Dict[str, Any]]:
         """
         Lazily fetch available stream segments for a video.
@@ -370,74 +528,235 @@ class BilibiliClient:
         ```
         """
         signed_params = self._sign_params({"bvid": bvid, "cid": cid, "qn": quality})
-        response = self.session.get(
-            PLAYER_API_URL,
-            params=signed_params,
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
-        payload = response.json()
-        debug("streams fetched", segment_count=len(payload["data"]["durl"]))
-        return payload["data"]["durl"]
+        payload = self._request_json(PLAYER_API_URL, signed_params)
+        streams = payload["data"].get("durl")
+        if not streams:
+            raise RuntimeError(
+                "Bilibili returned no downloadable segments for this quality."
+            )
+        debug("streams fetched", segment_count=len(streams))
+        return streams
 
     def download_streams(
         self,
         streams: Iterable[Dict[str, Any]],
         target_path: Path,
         referer: str,
+        resume: bool = False,
+        identity: str = "",
     ) -> None:
-        """
-        Download stream segments sequentially into a single file.
-
-        ```python
-        client.download_streams(streams, Path("video.mp4"), referer_url)
-        ```
-        """
+        """Keep validated partial data and publish the file only after completion."""
+        entries = list(streams)
+        sizes = [int(entry.get("size", 0)) for entry in entries]
+        if not entries or any(size <= 0 for size in sizes):
+            raise RuntimeError(
+                "Stream metadata must include a positive size for every segment."
+            )
+        total_size = sum(sizes)
         target_path.parent.mkdir(parents=True, exist_ok=True)
-        headers = {
-            **self.session.headers,
-            "Referer": referer,
-            "Range": "bytes=0-",
-        }
+        partial_path = target_path.with_name(target_path.name + ".part")
+        state_path = partial_path.with_name(partial_path.name + ".json")
+        state = {"identity": identity, "sizes": sizes}
+        if partial_path.exists():
+            if not state_path.exists() or json.loads(state_path.read_text()) != state:
+                raise RuntimeError(
+                    f"Partial download does not match this video/quality: {partial_path}"
+                )
+        else:
+            if resume and target_path.exists():
+                if target_path.stat().st_size > total_size:
+                    raise RuntimeError(
+                        "Existing file is larger than the selected stream; cannot resume."
+                    )
+                shutil.copyfile(target_path, partial_path)
+            else:
+                partial_path.touch()
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+        initial_size = partial_path.stat().st_size
+        if initial_size > total_size:
+            raise RuntimeError(
+                "Partial file is larger than the selected stream; cannot resume."
+            )
+        if initial_size:
+            print(
+                CLIStyle.color(
+                    f"Resuming from {format_size(initial_size)}",
+                    CLIStyle.COLORS["CONTENT"],
+                )
+            )
+        start_time = time.monotonic()
+        segment_start = 0
+        with partial_path.open("r+b") as destination:
+            destination.seek(0, os.SEEK_END)
+            for entry, size in zip(entries, sizes):
+                if destination.tell() < segment_start + size:
+                    self._download_segment(
+                        destination,
+                        entry,
+                        segment_start,
+                        size,
+                        referer,
+                        total_size,
+                        start_time,
+                        initial_size,
+                    )
+                segment_start += size
+            if destination.tell() != total_size:
+                raise RuntimeError(
+                    "Downloaded size does not match the selected stream."
+                )
+        os.replace(partial_path, target_path)
+        state_path.unlink()
+        print(CLIStyle.color(""))
 
-        stream_entries = list(streams)
-
-        with open(target_path, "wb") as destination:
-            sizes = [
-                int(stream.get("size", 0))
-                for stream in stream_entries
-                if stream.get("size")
-            ]
-            total_size = sum(sizes) if sizes else None
-            downloaded = 0
-            start_time = time.monotonic()
-            for index, stream in enumerate(stream_entries, start=1):
-                url = stream["url"]
-                debug("downloading segment", index=index, url=url)
-                with self.session.get(
-                    url,
-                    headers=headers,
+    def _download_segment(
+        self,
+        destination: BinaryIO,
+        entry: Dict[str, Any],
+        segment_start: int,
+        size: int,
+        referer: str,
+        total_size: int,
+        start_time: float,
+        initial_size: int,
+    ) -> None:
+        """Fetch bounded byte ranges, retrying from the last byte written."""
+        urls = list(dict.fromkeys([entry["url"], *(entry.get("backup_url") or [])]))
+        failures = 0
+        while destination.tell() < segment_start + size:
+            offset = destination.tell() - segment_start
+            end = min(offset + RANGE_SIZE, size) - 1
+            response = None
+            try:
+                response = self.session.get(
+                    urls[failures % len(urls)],
+                    headers={
+                        "Referer": referer,
+                        "Range": f"bytes={offset}-{end}",
+                        "Accept-Encoding": "identity",
+                    },
                     stream=True,
                     timeout=self.timeout,
-                ) as response:
-                    response.raise_for_status()
-                    for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
-                        if chunk:
-                            destination.write(chunk)
-                            downloaded += len(chunk)
-                            progress_line = build_progress_line(
-                                downloaded, total_size, start_time
-                            )
-                            print(
-                                "\r"
-                                + CLIStyle.color(
-                                    progress_line, CLIStyle.COLORS["CONTENT"]
-                                ),
-                                end="",
-                                flush=True,
-                            )
-            if downloaded:
-                print()
+                )
+                response.raise_for_status()
+                expected = self._validate_range(response, offset, end, size)
+                if response.status_code == 200:
+                    # A server ignoring Range must never append a full response to a suffix.
+                    destination.seek(segment_start)
+                    destination.truncate()
+                self._write_response(
+                    response,
+                    destination,
+                    expected,
+                    total_size,
+                    start_time,
+                    initial_size,
+                )
+            except (
+                requests.ConnectionError,
+                requests.Timeout,
+                requests.exceptions.ChunkedEncodingError,
+                requests.HTTPError,
+            ) as exc:
+                status = response.status_code if response is not None else None
+                retryable = status is None or status in {
+                    200,
+                    206,
+                    403,
+                    408,
+                    412,
+                    416,
+                    429,
+                    500,
+                    502,
+                    503,
+                    504,
+                }
+                if not retryable or failures >= self.retries:
+                    raise RuntimeError(
+                        f"Download failed; partial data is preserved. Rerun to resume. "
+                        f"Last failure: {type(exc).__name__} (HTTP {status or 'unavailable'})."
+                    ) from exc
+                failures += 1
+                self._wait_before_retry(
+                    failures,
+                    f"Stream interrupted at {format_size(destination.tell())}",
+                    response,
+                )
+            finally:
+                if response is not None:
+                    response.close()
+
+    @staticmethod
+    def _validate_range(
+        response: requests.Response, offset: int, end: int, size: int
+    ) -> int:
+        """Reject mismatched range responses before writing any bytes."""
+        if response.headers.get("Content-Encoding", "identity").lower() != "identity":
+            raise RuntimeError(
+                "Server returned compressed data for a byte-range download."
+            )
+        if response.status_code == 200:
+            length = response.headers.get("Content-Length")
+            if length is not None and int(length) != size:
+                raise RuntimeError("Full stream response size does not match metadata.")
+            return size
+        if response.status_code != 206:
+            raise RuntimeError(f"Unexpected stream status: {response.status_code}")
+        match = re.fullmatch(
+            r"bytes (\d+)-(\d+)/(\d+)", response.headers.get("Content-Range", "")
+        )
+        if not match:
+            raise RuntimeError(
+                "Missing or invalid Content-Range; partial file was preserved."
+            )
+        actual_start, actual_end, actual_size = map(int, match.groups())
+        if (
+            actual_start != offset
+            or not offset <= actual_end <= end
+            or actual_size != size
+        ):
+            raise RuntimeError(
+                "Content-Range does not match the requested stream; partial file was preserved."
+            )
+        expected = actual_end - actual_start + 1
+        length = response.headers.get("Content-Length")
+        if length is not None and int(length) != expected:
+            raise RuntimeError("Content-Length does not match Content-Range.")
+        return expected
+
+    @staticmethod
+    def _write_response(
+        response: requests.Response,
+        destination: BinaryIO,
+        expected: int,
+        total_size: int,
+        start_time: float,
+        initial_size: int,
+    ) -> None:
+        """Verify each response length, including clean but premature EOFs."""
+        received = 0
+        for chunk in response.iter_content(chunk_size=CHUNK_SIZE):
+            if not chunk:
+                continue
+            if received + len(chunk) > expected:
+                raise RuntimeError(
+                    "Stream response contains more data than its declared range."
+                )
+            destination.write(chunk)
+            received += len(chunk)
+            progress = build_progress_line(
+                destination.tell(), total_size, start_time, initial_size
+            )
+            print(
+                "\r" + CLIStyle.color(progress, CLIStyle.COLORS["CONTENT"]),
+                end="",
+                flush=True,
+            )
+        if received != expected:
+            raise requests.exceptions.ChunkedEncodingError(
+                f"Incomplete response: received {received} of {expected} bytes"
+            )
 
     def _sign_params(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -470,9 +789,7 @@ class BilibiliClient:
         if self._wbi_keys:
             return self._wbi_keys
 
-        response = self.session.get(NAV_API_URL, timeout=self.timeout)
-        response.raise_for_status()
-        content = response.json()
+        content = self._request_json(NAV_API_URL, allow_logged_out=True)
         img_url: str = content["data"]["wbi_img"]["img_url"]
         sub_url: str = content["data"]["wbi_img"]["sub_url"]
         img_key = img_url.rsplit("/", 1)[1].split(".")[0]
@@ -735,7 +1052,34 @@ def save_sessdata(cookie_value: str, config_path: Path) -> None:
     sessdata = extract_sessdata_from_cookie(cookie_value)
     values = parse_env_file(config_path)
     values[ENV_SESSDATA_KEY] = sessdata
+    if "SESSDATA" in parse_cookie_header(cookie_value):
+        values[ENV_COOKIE_KEY] = cookie_value.strip()
+    else:
+        values.pop(ENV_COOKIE_KEY, None)
     write_env_file(config_path, values)
+
+
+def parse_cookie_header(raw_cookie: str) -> Dict[str, str]:
+    """Parse browser Cookie pairs without exposing their values in logs."""
+    values: Dict[str, str] = {}
+    for item in raw_cookie.split(";"):
+        if "=" in item:
+            name, value = item.strip().split("=", 1)
+            if name and value:
+                values[name] = value
+    return values
+
+
+def resolve_cookie(cli_value: Optional[str], config_path: Path) -> str:
+    """Use full Cookie values only from the selected credential source."""
+    if cli_value:
+        return cli_value if "SESSDATA" in parse_cookie_header(cli_value) else ""
+    if os.getenv(ENV_SESSDATA_KEY):
+        return ""
+    env_cookie = os.getenv(ENV_COOKIE_KEY)
+    if env_cookie:
+        return env_cookie
+    return parse_env_file(config_path).get(ENV_COOKIE_KEY, "")
 
 
 def resolve_sessdata(
@@ -756,8 +1100,15 @@ def resolve_sessdata(
     if env_value:
         return extract_sessdata_from_cookie(env_value)
 
+    env_cookie = os.getenv(ENV_COOKIE_KEY)
+    if env_cookie:
+        return extract_sessdata_from_cookie(env_cookie)
+
     credential_path = config_path or default_config_path()
-    config_value = parse_env_file(credential_path).get(ENV_SESSDATA_KEY)
+    config_values = parse_env_file(credential_path)
+    config_value = config_values.get(ENV_SESSDATA_KEY) or config_values.get(
+        ENV_COOKIE_KEY
+    )
     if config_value:
         return extract_sessdata_from_cookie(config_value)
 
@@ -871,7 +1222,10 @@ def format_duration(seconds: float) -> str:
 
 
 def build_progress_line(
-    downloaded: int, total: Optional[int], start_time: float
+    downloaded: int,
+    total: Optional[int],
+    start_time: float,
+    initial_downloaded: int = 0,
 ) -> str:
     """
     Construct a progress line containing size, speed, and ETA.
@@ -881,7 +1235,7 @@ def build_progress_line(
     ```
     """
     elapsed = max(time.monotonic() - start_time, 1e-6)
-    speed = downloaded / elapsed
+    speed = max(downloaded - initial_downloaded, 0) / elapsed
     parts = [
         f"{format_size(downloaded)}",
     ]
@@ -974,6 +1328,31 @@ def add_download_arguments(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=DEFAULT_REQUEST_TIMEOUT,
         help=CLIStyle.color("Request timeout in seconds", CLIStyle.COLORS["CONTENT"]),
+    )
+    parser.add_argument(
+        "--retries",
+        type=int,
+        default=DEFAULT_RETRIES,
+        help=CLIStyle.color(
+            "Retry count after a network failure (default: 4)",
+            CLIStyle.COLORS["CONTENT"],
+        ),
+    )
+    parser.add_argument(
+        "--retry-delay",
+        type=float,
+        default=DEFAULT_RETRY_DELAY,
+        help=CLIStyle.color(
+            "Initial retry delay in seconds (default: 2)", CLIStyle.COLORS["CONTENT"]
+        ),
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help=CLIStyle.color(
+            "Resume an existing mp4 from an older interrupted download",
+            CLIStyle.COLORS["CONTENT"],
+        ),
     )
     parser.add_argument(
         "--metadata",
@@ -1097,7 +1476,13 @@ def main() -> int:
     sessdata = resolve_sessdata(args.sessdata, config_path)
     initial_path, explicit_filename = resolve_storage_path(args.output, bvid)
 
-    client = BilibiliClient(sessdata=sessdata, timeout=args.timeout)
+    client = BilibiliClient(
+        sessdata=sessdata,
+        timeout=args.timeout,
+        retries=args.retries,
+        retry_delay=args.retry_delay,
+        cookie=resolve_cookie(args.sessdata, config_path),
+    )
     print(
         CLIStyle.color(
             "Fetching video metadata...",
@@ -1110,7 +1495,7 @@ def main() -> int:
         safe_title = sanitize_filename(details.title, bvid)
         output_path = output_path.with_name(f"{safe_title}{output_path.suffix}")
 
-    if output_path.exists():
+    if output_path.exists() and not args.resume:
         resolved_path = handle_existing_file(output_path)
         if resolved_path is None:
             print(
@@ -1138,14 +1523,20 @@ def main() -> int:
         )
     )
 
-    referer = f"{VIDEO_DETAIL_API_URL}?bvid={details.bvid}"
+    referer = f"https://www.bilibili.com/video/{details.bvid}/"
     print(
         CLIStyle.color(
             "Downloading video...",
             CLIStyle.COLORS["CONTENT"],
         )
     )
-    client.download_streams(streams, output_path, referer)
+    client.download_streams(
+        streams,
+        output_path,
+        referer,
+        resume=args.resume,
+        identity=f"{details.bvid}:{details.cid}:{args.quality}",
+    )
 
     print(
         CLIStyle.color(
@@ -1180,8 +1571,6 @@ if __name__ == "__main__":
         sys.exit(0)
     except Exception as exc:  # pylint: disable=broad-except
         if DEBUG_MODE:
-            import traceback
-
             traceback.print_exc()
         print(CLIStyle.color(f"\nError: {exc}", CLIStyle.COLORS["ERROR"]))
         sys.exit(1)

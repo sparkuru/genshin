@@ -1,219 +1,127 @@
-# ChatGPT/Codex Commit Completion Summary And Co-Author Trailer
+# Task-Archive Completion Summary And Codex Co-Author Trailer
 
-## Goal
+## Goal And Trigger
 
-Record a durable project rule so work commits created by ChatGPT/Codex during Trellis Phase 3.4 decide whether they deserve a detailed task completion summary and AI co-author trailer, following selective AI-attribution behavior.
+Record Codex attribution once per task, at successful task archival. The archive
+commit is the attribution anchor for the completed task, regardless of task
+size. Ordinary implementation, fix, checkpoint, and separate journal commits
+do not acquire a trailer through this rule.
 
-Default trailer:
+Use this exact trailer in the commit message, separated from its body by a
+blank line:
 
 ```text
 Co-authored-by: OpenAI Codex <codex@openai.com>
 ```
 
-Use this exact default when attribution is warranted, unless the project already has a clear project convention for Codex/OpenAI attribution.
+This rule applies to tasks completed with ChatGPT/Codex participation. Do not
+attribute someone else's historical work merely because Codex later inspects
+or moves its task record. An explicit user attribution instruction takes
+precedence. Keep the user's Git author/committer identity unchanged.
 
-## Background
+## Discover The Actual Archive Path
 
-Trellis itself does not add AI co-author footers. Trellis puts work commits in `.trellis/workflow.md` Phase 3.4: inspect dirty state, learn recent commit style, classify AI-edited vs unrecognized files, draft a batched commit plan, ask for one-shot confirmation, then run `git add` and `git commit`.
+Read the installed workflow and archive command implementation/help before
+choosing commands. Do not assume a Trellis version, phase number, option name,
+automatic staging scope, or commit-message extension point.
 
-`finish-work` is later bookkeeping. It refuses to replace Phase 3.4 when current-task code is still dirty, then archives tasks and records the journal with the work-commit hashes.
+Record in the project-owned commit policy:
 
-Therefore, record this rule in the shared `.trellis/spec/trellis-plus/`
-configuration and read it before the Phase 3.4 commit plan. Do not inject it by
-modifying `.trellis/workflow.md`.
+- archive command and whether it commits automatically;
+- supported way to supply the archive commit message, or to disable its
+  automatic commit and create the archive commit explicitly;
+- exact archive paths and other task bookkeeping paths it changes/stages;
+- separate journal command and its commit behavior;
+- the command used to inspect the resulting commit message and paths.
 
-Do not apply AI attribution to every work commit by default. Prefer it for larger task commits with substantial bodies, non-trivial implementation reasoning, cross-layer changes, or explicit validation narratives. Small follow-up feature/fix commits, task archive commits, and journal commits should usually omit it. Match the target project's recent attribution pattern when one is present.
+Choose the first supported route:
 
-The long body matters as much as the trailer. Those commits read like a compact task-completion report: what broke or was requested, what changed, which architectural boundary was preserved, how it was validated, and what remains out of scope. The user can approve the commit after skimming that report instead of re-deriving the whole task from the diff.
+1. If the normal archive command accepts a message or trailer through a
+   documented interface, supply the completion message through that interface.
+2. Otherwise, if the command supports disabling its auto-commit, use that mode,
+   verify successful archive state, and commit only the explicit archive and
+   related project-owned task paths with the prepared message.
+3. If neither route exists, report `archive-attribution-blocked` before running
+   the archive command. Name the missing capability and continue any independent
+   authorized work. Obtain direction for this specific integration gap; do not
+   silently archive without the promised attribution or claim it succeeded.
 
-## Trailer Selection
+Never invent flags, patch protected Trellis runtime, install a global Git hook,
+rewrite an existing commit, or create an empty attribution-only commit to make
+the rule appear implemented. A runtime fork or history rewrite requires a
+separate explicit request. An existing supported project adapter may be reused.
 
-Use GitHub's standard co-author trailer shape:
+## Archive Procedure
 
-```text
-Co-authored-by: Name <email@example.com>
-```
+1. Read the shared policy, task PRD, actual validation results, work-commit
+   references, Git status, and archive evidence. Finish the normal task checks
+   and any required review before archiving. Honor existing commit/archive
+   authorization; do not request it again when already granted.
+2. Confirm the task is not already archived and attributed. Prepare one archive
+   commit per task. If the installed command batches tasks, use its supported
+   single-task path or report that limitation rather than fabricating commits.
+3. Draft a task completion summary: requested outcome, delivered behavior,
+   relevant validation and limitations, task identity, and work-commit links
+   when available. Scale the body to the task; a small task may need only one
+   sentence. Attribution does not require a long body or a contribution-size
+   threshold.
+4. Show the message and explicit candidate paths as part of the normal archive
+   plan. Check the license-safe staging boundary, including any paths staged
+   internally by the archive command. Do not collect unrelated dirty files.
+5. Execute the supported archive route. Only successful archive state may
+   receive the task's archive attribution commit. On partial failure, inspect
+   state and commits before retrying; do not repeat the archive blindly.
+6. Inspect the resulting commit message and changed paths. Verify exactly one
+   matching Codex trailer, the correct task, and successful archive evidence.
+   Update mainline evidence with the archive path and commit reference. A later
+   mainline or journal-only commit does not repeat the trailer.
 
-Observed public Codex/OpenAI commit trailers include:
+Do not amend old work commits to add task-level attribution. Preserve other
+valid co-author trailers, and deduplicate an already present matching trailer.
+Re-running finish-work for an already archived task must not produce another
+attribution commit when its archive commit already exists. If archival succeeded
+with auto-commit disabled but the explicit commit failed, inspect the recorded
+attempt, archived task, pending archive changes, and Git history. Resume only
+the pending explicit commit after verifying it has not already been created;
+do not rerun archive or collect new unrelated changes. If an archive commit
+already exists without a trailer, report the missing attribution without
+repairing history automatically.
 
-- `Co-authored-by: OpenAI Codex <codex@openai.com>`
-- `Co-authored-by: Codex <codex@openai.com>`
-- `Co-authored-by: Codex <noreply@openai.com>`
+## Message Shape
 
-Prefer `OpenAI Codex <codex@openai.com>` because it is explicit, vendor-scoped, and appears in public Codex-authored commit history. Preserve a project's existing convention if recent commits already use a different Codex/OpenAI trailer.
-
-Do not use the user's Git identity for the AI trailer.
-
-## Attribution Threshold
-
-For each proposed Phase 3.4 work commit, classify AI attribution as `yes`, `no`, or `ask`.
-
-Use `yes` when ChatGPT/Codex made a substantial author-level contribution, such as:
-
-- implementing a full Trellis task or a meaningful slice of a larger task
-- changing behavior across multiple files, packages, layers, protocols, schemas, or UI states
-- designing or debugging non-obvious logic, not merely applying a direct edit
-- producing a commit body that explains rationale, edge cases, and validation results
-- adding significant tests, validation strategy, or research-backed implementation
-- generating or restructuring enough code that omitting AI attribution would hide material authorship
-- the user explicitly asks for AI attribution
-
-Use `no` when the change is small or mostly mechanical, such as:
-
-- one-shot typo, formatting, copy, comment, or trivial docs changes
-- narrow config tweaks, dependency metadata, ignore-list changes, or simple script edits
-- small follow-up fixes after the main task is already committed
-- Trellis template/skill housekeeping that does not materially change project behavior
-- exact user-directed edits where the agent mostly executed instructions
-- commits containing only user-authored or unrecognized dirty files
-- Trellis auto-commits created by `task.py archive`
-- Trellis auto-commits created by `add_session.py`
-- commits the user says they will make manually
-
-Use `ask` only when recent project history has a clear but ambiguous attribution convention and the current commit sits near the threshold. Otherwise, prefer `no` over noisy over-attribution.
-
-Do not equate "ChatGPT/Codex touched a file" with "add the trailer". The threshold is material authorship, not file edit involvement.
-
-## Completion Summary Body
-
-When attribution is `yes`, write a commit body that summarizes the completed Trellis task. Keep it dense and reviewable, not ceremonial.
-
-Include the parts that apply:
-
-- original problem, product request, or bug symptom
-- root cause or key design reason when non-obvious
-- implementation summary grouped by subsystem, layer, or user-visible behavior
-- important constraints preserved, such as no protocol change, no store mutation, no auth bypass, or no UI regression
-- tests, lint, type-check, build, manual/browser/device validation, and known skipped checks
-- explicit out-of-scope or known follow-up only when it affects future work
-
-Match project commit style:
-
-- If recent large AI-assisted commits use Chinese bodies, write Chinese bodies.
-- If they use English bodies, write English bodies.
-- If they use terse bullets, use terse bullets.
-- If they use dense paragraphs, use dense paragraphs.
-
-Do not pad small commits into fake summaries. If the body would only say "updated file X", keep the commit subject-only and omit the trailer.
-
-## Body Length Guidance
-
-Use the smallest body that preserves review value:
-
-- **Small/no attribution**: subject only, or one short body paragraph if project style requires it.
-- **Medium attribution**: 1-3 short paragraphs or 3-5 bullets covering change and validation.
-- **Large task attribution**: multi-paragraph body like recent substantial AI-assisted commits, covering problem/root cause, implementation, boundaries, and validation.
-
-The body should explain why this commit is complete, not narrate every edit.
-
-## When To Add The Trailer
-
-Add the trailer only to work commits classified `yes`.
-
-Do not add the trailer to:
-
-- Trellis auto-commits created by `task.py archive`
-- Trellis auto-commits created by `add_session.py`
-- commits the user says they will make manually
-
-If a commit mixes AI-edited and user-edited files after explicit user confirmation, include the AI trailer only when the AI contribution still meets the threshold. Keep the user as the primary git author/committer.
-
-## Commit Plan Behavior
-
-When drafting the Phase 3.4 commit plan, show attribution only where it matters:
-
-- For `yes`, show the trailer, a short attribution reason, and a commit body preview.
-- For `ask`, ask one concise question before committing.
-- For `no`, omit the trailer line unless the user asked for an attribution audit.
-- Show the explicit staged project paths and exclude personal/local paths.
-- Run the license-safe path check before `git add`; if a protected Trellis path
-  changed, stop and report it instead of hiding it in a broad commit.
-
-Recommended plan shape:
-
-```markdown
-Proposed commits (in order):
-  1. <message>
-     - <file>
-     - <file>
-     AI attribution: yes - substantial cross-layer implementation
-     body: includes problem/root cause, implementation summary, validation, and preserved boundaries
-     trailer: Co-authored-by: OpenAI Codex <codex@openai.com>
-
-  2. <message>
-     - <file>
-     - <file>
-
-Unrecognized dirty files (NOT in any commit - confirm include/exclude):
-  - <file>
-
-Protected or personal/local files (NOT staged by Trellis Plus):
-  - <file>
-
-Reply 'ok' / '行' to execute. Reply with edits, or '我自己来' / 'manual' to abort.
-```
-
-If a project already uses multi-line commit bodies, place the trailer after the body with one blank line before the trailer.
-
-## Command Form
-
-Prefer a command form that cannot lose body paragraphs or the blank line before the trailer.
-
-For an attributed commit with no body beyond the trailer:
-
-```bash
-git commit -m "<subject>" -m "Co-authored-by: OpenAI Codex <codex@openai.com>"
-```
-
-For a commit with a body:
-
-```bash
-git commit -m "<subject>" -m "<body>" -m "Co-authored-by: OpenAI Codex <codex@openai.com>"
-```
-
-Do not append the trailer into the subject line.
-
-For a longer structured summary, use a commit message file when quoting would be fragile:
-
-```bash
-git commit -F TEMP-COMMIT-MESSAGE-PATH
-```
-
-The file content should be:
+Use the repository's language and subject style. Prefer a temporary message
+file with `git commit -F` when explicitly creating the archive commit; keep the
+file outside tracked project paths and remove it after use.
 
 ```text
-<subject>
+<archive subject identifying TASK-ID>
 
-<task completion summary body>
+<completed outcome; actual validation and any material limitation>
+<work-commit references when available>
 
 Co-authored-by: OpenAI Codex <codex@openai.com>
 ```
 
-## Suggested Template Block
+Implementation commits can still carry useful change and validation summaries;
+the absence of a trailer does not require subject-only commits.
 
-Adapt this block to the project-owned `.trellis/spec/trellis-plus/index.md` and
-the installed Trellis Phase 3.4 terminology. Keep it as a project rule that
-Trellis Plus reads before proposing a commit:
+## Project Injection And Verification
 
-```markdown
-**AI co-author trailer**:
-Before creating each Phase 3.4 work commit, decide whether ChatGPT/Codex made a substantial author-level contribution. For commits above that threshold, write a useful task completion summary body and add this trailer:
+Write the rule and repository-confirmed archive route to
+`.trellis/spec/trellis-plus/commit-policy.md`, linked by the shared index. Reuse
+an existing equivalent project-owned detail file instead of duplicating it.
+The main session reads it before archive; add its path to existing task context
+when another agent performs completion work. A spec is guidance, not a Git
+hook: verify the loading path described in `SKILL.md`.
 
-`Co-authored-by: OpenAI Codex <codex@openai.com>`
+Before reporting integration complete, check these scenarios:
 
-The body should summarize the problem/request, root cause or design rationale when relevant, implementation by subsystem, preserved boundaries, and validation results. Show a commit body preview, the trailer, and a short attribution reason in the proposed commit plan before asking for confirmation. Do not add attribution merely because Codex touched a file, and do not invent a long body for small commits. Omit it for small/mechanical follow-ups, user-authored/unrecognized files, and `/finish-work` archive or journal commits. Preserve any existing project-specific Codex/OpenAI trailer convention if recent history already uses one.
-```
-
-## Verification After Injection
-
-After recording, verify:
-
-- the rule is in `.trellis/spec/trellis-plus/`
-- the active task context references the shared rule when delegated commit work needs it
-- `.trellis/workflow.md` and other protected Trellis files were not modified
-- the rule applies before `git commit`
-- the rule has a threshold and does not add trailers to every Codex-touched commit
-- substantial attributed commits get a task completion summary body, not just a trailer
-- the default trailer is exactly `Co-authored-by: OpenAI Codex <codex@openai.com>`
-- archive and journal commits are excluded
-- the commit plan shows the body preview and trailer only when attribution is warranted
+- several work commits followed by one task archive: only the archive commit
+  receives the trailer;
+- a small Codex-assisted task: archive attribution still applies;
+- separate archive and journal commits: only the archive commit is attributed;
+- a failed archive or unavailable message interface: no false success;
+- repeated finish-work: no second archive or duplicate trailer;
+- an unrelated user-authored task: no invented Codex authorship;
+- protected runtime, unrelated work, Git identity, and existing history remain
+  unchanged.

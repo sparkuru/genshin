@@ -10,13 +10,13 @@ script_dir=$(dirname -- "$0")
 SCRIPT_DIR=$(cd -- "$script_dir" && pwd)
 readonly SCRIPT_DIR
 readonly CONFIG_DIR="$SCRIPT_DIR"
-readonly EXTENSIONS_FILE="$CONFIG_DIR/extensions.txt"
+readonly EXTENSIONS_FILE="$CONFIG_DIR/extension.txt"
 
 tmp_file=''
 
 usage() {
 	printf 'Usage: %s [--help]\n' "$SCRIPT_NAME" >&2
-	printf '\nRefresh config/extensions.txt from installed VSCodium extensions.\n' >&2
+	printf '\nRefresh config/extension.txt from installed VSCodium extension.\n' >&2
 }
 
 color_text() {
@@ -81,7 +81,7 @@ main() {
 	require_command sort
 	require_command wc
 
-	tmp_file=$(mktemp "$CONFIG_DIR/.extensions.txt.XXXXXXXX")
+	tmp_file=$(mktemp "$CONFIG_DIR/.extension.txt.XXXXXXXX")
 	trap cleanup EXIT
 	"$codium_bin" --list-extensions | LC_ALL=C sort -u >"$tmp_file"
 	extension_count=$(wc -l <"$tmp_file")

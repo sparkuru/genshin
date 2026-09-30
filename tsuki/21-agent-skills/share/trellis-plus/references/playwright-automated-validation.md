@@ -14,7 +14,7 @@ Use this matrix before consulting external Playwright documentation. Resolve the
 | --- | --- | --- |
 | Page, route, form, or interaction changed | Add or extend a focused Playwright Test using semantic locators | Test name, exact command, covered flow |
 | Loading, empty, error, disabled, permission, or success state changed | Drive the state with the project's fixture, seed, or network mock | State setup and assertion |
-| Responsive behavior changed | Run the target flow at the supported desktop and narrow-mobile viewports | Viewports and assertions |
+| Mobile-supported page, layout, navigation, form, or interaction changed | Run the target flow on supported desktop and narrow-mobile viewports, even without responsive CSS edits | Mobile applicability, viewports, assertions, and adaptation result |
 | API or third-party service is unavailable | Reuse an approved fixture or route mock; do not use production credentials | Fixture/mock boundary |
 | Semantic, label, focus, or keyboard behavior changed | Assert roles, accessible names, focus, and keyboard flow; run configured accessibility scan | Assertions and scan result |
 | Stable visual baseline exists | Run the approved screenshot assertion without silently updating snapshots | Baseline name and review reason for changes |
@@ -58,6 +58,40 @@ Inspect repository evidence before changing test infrastructure:
 
 Record the command that will run during final validation. Prefer an existing narrow command such as `pnpm test:e2e -- --grep "checkout"` over the whole suite when the task has a focused, stable test selection.
 
+## Mobile Applicability And Adaptation
+
+Desktop remains the primary development surface; mobile is a secondary,
+explicitly supported surface where applicable, not an optional final screenshot.
+For each affected UI task, classify mobile coverage before implementation:
+
+- `mobile-required`: the product supports mobile use, the user requests it, or
+  changed general-purpose browser pages are expected to work on narrow screens.
+  In the absence of an explicit desktop-only constraint, use this for normal
+  browser pages and core flows.
+- `mobile-not-applicable`: an evidenced desktop-only product/task, a non-UI
+  change, or another concrete scope exclusion. Record that reason; missing
+  mobile tests alone is not evidence of exclusion.
+- `mobile-unavailable`: mobile coverage is required but the needed automation
+  or real device cannot be used. Record the blocked checks and remaining work;
+  desktop success does not count as mobile success.
+
+For required coverage, specify supported narrow width/device settings and the
+changed flow's expected layout, navigation, input, and final state in task
+acceptance/design context. Reuse the existing viewport matrix; avoid adding a
+large device fleet. Fix actual mobile failures within the affected surface:
+overflow or clipping, unreadable/reordered content, inaccessible navigation,
+unusable touch controls, hover-only actions, obscured forms or dialogs, and
+broken mutation/confirmation paths. Test portrait/landscape or virtual-keyboard
+effects only where the requirement or observed issue warrants them.
+
+Use the existing Playwright browser projects and device/touch emulation for
+reproducible coverage. State what was emulated; it does not prove behavior on
+physical phones, mobile browser engines, or native apps. Request a targeted
+real-device check only for a remaining issue automation cannot exercise.
+Native-only surfaces use their existing device test workflow, not Web
+Playwright as a substitute. Preserve diagnostic screenshots when useful, and
+assert interaction and final state rather than relying on screenshots alone.
+
 ## Durable Project Profile
 
 For every project where this enhancement applies, create or update one durable
@@ -80,6 +114,7 @@ The profile must contain only repository-confirmed values and these fields:
 - full/CI browser command: <exact command or CI job name>
 - test location and config: <path(s)>
 - browser projects and supported viewports: <names and sizes>
+- mobile applicability and coverage: <supported flows, device/touch settings, exact command, exclusions and real-device limits>
 - fixtures and test-data boundary: <seed, mock, test account, storage state, or none>
 - accessibility policy: <configured scan/assertions, or not configured>
 - visual baseline policy: <approved snapshot command/environment, or diagnostic-only>
@@ -115,7 +150,7 @@ For each `playwright-required` task, implement only the assertions justified by 
 - primary user action and expected navigation, mutation, or confirmation
 - changed loading, empty, error, disabled, permission, and success states
 - relevant keyboard/focus behavior and accessible control names
-- supported desktop viewport and a narrow mobile viewport when responsive behavior changed
+- supported desktop viewport and applicable narrow-mobile/device configuration for changed pages and interactions, including layout and final-state assertions
 - request/response behavior with deterministic mocks or fixtures when the UI depends on unavailable services
 
 Use semantic locators (`getByRole`, labels, and visible user-facing text) rather than fragile DOM structure or CSS selectors, unless no stable semantic surface exists.
@@ -127,7 +162,7 @@ Use screenshot assertions only when the repository can control the OS, browser v
 Before submit-ready:
 
 1. Run the narrow focused Playwright test, then any required broader browser suite or CI-equivalent command.
-2. Preserve the exact command, selected browser project, result, and whether fixtures/mocks were used in the task's check evidence.
+2. Preserve the exact command, selected browser project, result, and whether fixtures/mocks were used in the task's check evidence. Record desktop and mobile outcomes separately, including mobile applicability, device/viewport settings, adaptations made, and any remaining real-device limitation.
 3. On failure, retain the reporter output, console/network evidence, screenshot, and Playwright trace when configured. Use traces on first retry or failure rather than collecting them for every passing run unless the project requires otherwise.
 4. Fix the implementation or the test only after comparing the failure with the PRD and approved design decisions. Do not mask failures by increasing timeouts, broadening selectors, suppressing assertions, or accepting changed screenshots without a reason.
 
@@ -161,6 +196,8 @@ Adapt this block to the project's existing check or verification phase:
 
 For every browser-accessible UI change, decide whether Playwright can exercise the changed acceptance criteria. When it can, implement and run focused, reproducible browser coverage before submit-ready. Reuse the project's browser-test convention; when no equivalent runner exists, add the smallest Playwright Test setup justified by the task.
 
+Classify mobile applicability before implementation. For mobile-supported pages and core flows, adapt and verify both desktop and narrow-mobile behavior even when the diff does not change responsive CSS. Record mobile exclusions or blockers explicitly; emulation is not evidence of real-device validation.
+
 Record the exact command, covered routes/states/viewports, fixture strategy, and result. Preserve traces, screenshots, and logs on failure. Do not ask the user for a generic browser smoke test after relevant Playwright checks pass. Request human review only for the specific subjective, real-device, private-environment, or otherwise unautomatable risk that remains.
 ```
 
@@ -192,6 +229,7 @@ After patching, verify:
 - eligible work requires an implemented, runnable focused browser test rather than a generic manual smoke-test request
 - unavailable automation records the exact failed prerequisite and does not count as a pass
 - test evidence includes the exact command and covered user-facing behavior
+- mobile-supported UI changes include an adaptation decision and separate desktop/mobile results; desktop-only exclusions cite scope evidence
 - snapshot changes require intentional review and failure artifacts are retained
 - human review requests name only residual risks that automation cannot resolve
 - protected Trellis files were not modified or staged

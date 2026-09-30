@@ -20,7 +20,9 @@ readonly -a DEVICE_PROFILES=(
 
 usage() {
 	printf 'Usage: %s [IP_ADDRESS[:PORT]]\n' "$SCRIPT_NAME" >&2
+	printf '       %s --show [IP_ADDRESS[:PORT]]\n' "$SCRIPT_NAME" >&2
 	printf 'An existing ADB device is used; IP_ADDRESS[:PORT] is required when none is connected.\n' >&2
+	printf '  --show  print all parameters and resolved configuration without launching scrcpy.\n' >&2
 }
 
 die() {
@@ -80,42 +82,63 @@ find_connected_device() {
 }
 
 main() {
-	local device connected_device device_identifier profile_config window_width window_height keyboard_mode
+	local device connected_device device_identifier profile_config window_width window_height keyboard_mode show_mode=0 device_arg=""
 
-	case "${1:-}" in
-	--help | -h)
-		usage
-		return 0
-		;;
-	esac
+	for arg in "$@"; do
+		case "$arg" in
+		--help | -h)
+			usage
+			return 0
+			;;
+		--show)
+			show_mode=1
+			;;
+		*)
+			if [[ -n "$device_arg" ]]; then
+				die "expected at most one device argument"
+			fi
+			device_arg=$arg
+			;;
+		esac
+	done
 
-	[[ $# -le 1 ]] || die "expected at most one device argument"
 	require_command adb
-	require_command scrcpy
+	if (( !show_mode )); then
+		require_command scrcpy
+	fi
 
-	if [[ $# -eq 1 && -n "$1" ]]; then
-		device=$1
+	if [[ -n "$device_arg" ]]; then
+		device=$device_arg
 
 		case "$device" in
 		*:*) ;;
 		*) device="$device:$DEFAULT_PORT" ;;
 		esac
 
-		if ! adb connect "$device"; then
-			return 1
+		if (( show_mode )); then
+			printf 'Using supplied IP address: %s\n' "$device"
+		else
+			if ! adb connect "$device"; then
+				return 1
+			fi
+			printf 'Using supplied IP address: %s\n' "$device"
 		fi
-		printf 'Using supplied IP address: %s\n' "$device"
 	elif connected_device=$(find_connected_device); then
 		device=$connected_device
 		printf 'Using connected device: %s\n' "$device"
 	else
-		die "no connected ADB device found; provide an IP address"
+		if (( show_mode )); then
+			device="<none>"
+			printf 'No connected ADB device found.\n'
+		else
+			die "no connected ADB device found; provide an IP address"
+		fi
 	fi
 
 	window_width=$DEFAULT_WINDOW_WIDTH
 	window_height=$DEFAULT_WINDOW_HEIGHT
 	keyboard_mode=$DEFAULT_KEYBOARD_MODE
-	if device_identifier=$(get_device_identifier "$device"); then
+	if [[ "$device" != "<none>" ]] && device_identifier=$(get_device_identifier "$device"); then
 		printf 'Detected device identifier: %s\n' "$device_identifier"
 		if profile_config=$(find_device_profile "$device_identifier"); then
 			IFS='|' read -r window_width window_height keyboard_mode <<<"$profile_config"
@@ -124,7 +147,40 @@ main() {
 			printf 'Using default configuration.\n'
 		fi
 	else
-		printf 'Device identifier unavailable; using default configuration.\n'
+		if [[ "$device" == "<none>" ]]; then
+			printf 'No device to identify; using default configuration.\n'
+		else
+			printf 'Device identifier unavailable; using default configuration.\n'
+		fi
+	fi
+
+	if (( show_mode )); then
+		printf '\n========== All Parameters ==========\n'
+		printf 'DEFAULT_PORT=%s\n' "$DEFAULT_PORT"
+		printf 'DEFAULT_WINDOW_WIDTH=%s\n' "$DEFAULT_WINDOW_WIDTH"
+		printf 'DEFAULT_WINDOW_HEIGHT=%s\n' "$DEFAULT_WINDOW_HEIGHT"
+		printf 'DEFAULT_KEYBOARD_MODE=%s\n' "$DEFAULT_KEYBOARD_MODE"
+		printf 'DEVICE_IDENTIFIER_PROPERTIES=(%s)\n' "${DEVICE_IDENTIFIER_PROPERTIES[*]}"
+		printf 'DEVICE_PROFILES:\n'
+		for profile in "${DEVICE_PROFILES[@]}"; do
+			printf '  %s\n' "$profile"
+		done
+		printf -- '------------------------------------\n'
+		printf 'Resolved device=%s\n' "$device"
+		printf 'Resolved window_width=%s\n' "$window_width"
+		printf 'Resolved window_height=%s\n' "$window_height"
+		printf 'Resolved keyboard_mode=%s\n' "$keyboard_mode"
+		if [[ -n "${device_identifier:-}" ]]; then
+			printf 'Resolved device_identifier=%s\n' "$device_identifier"
+		else
+			printf 'Resolved device_identifier=<unknown>\n'
+		fi
+		printf -- '------------------------------------\n'
+		printf 'scrcpy command:\n'
+		printf '  scrcpy --serial "%s" --keyboard="%s" --turn-screen-off --stay-awake --no-audio --no-audio-playback --window-width="%s" --window-height="%s"\n' \
+			"$device" "$keyboard_mode" "$window_width" "$window_height"
+		printf '====================================\n'
+		return 0
 	fi
 
 	exec scrcpy \

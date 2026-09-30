@@ -1,163 +1,94 @@
-# Docker Dev-Command Bootstrap
+# Docker Development And Preview Bootstrap
 
-## Goal
+## Goal And Source
 
-Integrate the base `dev-it-in-docker` skill into a Trellis project so development commands can run through a repo-local Docker wrapper, usually `./hako`, without repeatedly asking for agent approval.
+Make development commands and user previews reproducible through the existing
+project runtime. Read `dev-it-in-docker` before generating a Docker wrapper.
+That skill owns toolchain detection, container lifecycle, labels, `.devhome`,
+permissions, and script validation. Do not copy its implementation into this
+reference or maintain another set of agent permission recipes here.
 
-This is a Trellis Plus sub-enhancement. It connects the existing base skill to
-the shared Trellis Plus project policy; it does not reimplement the full
-wrapper generation logic or modify Trellis's upstream workflow.
+This enhancement is a bootstrap/before-development checkpoint, not a new phase
+in every task. Keep its project-specific result in
+`.trellis/spec/trellis-plus/development.md`, or an existing equivalent detail
+file linked from the shared index. Follow `environment-configuration.md` for
+configuration setup and `development-principles.md` for dev defaults.
 
-## Required Source Skill
+## Discovery
 
-Before applying this enhancement, read skill `dev-it-in-docker`
+Inspect manifests, actual service commands, framework and Compose settings,
+existing `hako`/equivalent wrappers, `dev.sh`, `preview.sh`, `.gitignore`, and
+the configured development environment. Read README for evidence without
+editing it. Determine which services the user needs together, their readiness
+checks, host/container ports, environment inputs, and stop mechanism.
 
-That path is a symlink to the maintained base skill. Follow its rules for toolchain detection, `hako` generation, `.devhome`, `.gitignore`, agent registration, and verification.
+- Reuse an existing development wrapper. Create `hako` through the base skill
+  only when the project needs it and no equivalent exists.
+- Reuse the service lifecycle already provided by `dev.sh` or the project's
+  equivalent. Repair only task-relevant gaps; do not build a parallel runtime.
+- For a previewable service, create root `preview.sh` if absent. It is a thin,
+  executable convenience entry that calls the existing service lifecycle,
+  normally `./dev.sh`, with the configured host/port environment. Preserve an
+  existing preview script and adapt it only as needed.
+- For a library or CLI without a previewable service, record `preview: not
+  applicable` and the evidence; do not invent a Web server.
 
-Before copying or committing any generated wrapper content, confirm the base
-skill's source and license. If that provenance is unavailable, write only a
-small project-authored wrapper or keep the generated wrapper local; do not
-present unknown third-party content as project-owned.
+## Preview Contract
 
-## Trellis Placement
+Generate shell scripts under `code-shellscript`. Keep Docker arguments, service
+commands, process ownership, and cleanup in one underlying implementation.
 
-Do not add this as a new required phase in every task's plan -> execute -> finish loop.
+- `./preview.sh` or `./preview.sh start` starts the actual development services;
+  `./preview.sh down` stops only services owned by that lifecycle. Pass through
+  exit status and signals, preferably with `exec` when forwarding to `dev.sh`.
+- Resolve the repository directory from the script location, so invocation
+  from another working directory works.
+- Expose host/port overrides consistently with `hako` and `dev.sh`. Respect an
+  explicit loopback-only or Docker-network-only project constraint.
+- For normal trusted-LAN development, configure service listening and host
+  publishing for cross-device access, normally `0.0.0.0`. This project-specific
+  choice overrides the base wrapper's loopback default for this enhancement;
+  it does not change the base skill globally. All-interface binding may include
+  public interfaces: honor known deployment/network constraints before starting
+  the service. Do not change firewall rules or expose extra ports.
+- Distinguish container bind address, host bind address, and browser URL. Print
+  the localhost URL and a known reachable LAN address when available; otherwise
+  state which host address to use. Never present `0.0.0.0` as the browser URL or
+  invent a reachable IP. For Docker-network-only mode, report the existing
+  internal access/probe command instead of publishing ports.
+- Missing dependencies or required configuration produce an actionable message
+  and failure status. Do not install dependencies, build, or run tests on every
+  preview start. Use actual readiness evidence before saying the service is
+  ready; distinguish a starting process from a working user flow.
 
-Treat it as project bootstrap and before-development readiness. Record the
-checkpoint in the shared `.trellis/spec/trellis-plus/index.md` (or a detail
-file beside it). Add a short pointer to a personal/local before-dev adapter
-only when the active platform cannot load the shared spec.
+Do not overwrite an existing `preview` command's production-build semantics.
+If the repository already uses that name differently, preserve it and record
+how the new root convenience entry relates to the existing command.
 
-Do not patch `.trellis/workflow.md`, `.trellis/scripts/**`, Trellis agents, or
-installed platform Trellis skills just to add this checkpoint.
+## Execution Permissions
 
-Keep the wording as a pointer to the base skill. Do not paste the full `dev-it-in-docker` instructions into Trellis workflow files.
+Follow the base skill's current mechanism for the active agent. Reuse granted
+authorization, preserve narrower existing policies, and keep local adapters
+untracked. A wrapper is not permission to expand sandbox or network access.
+Do not introduce a separate automatic allowlist for `preview.sh`, raw Docker,
+shells, or package managers. Report an unavailable execution capability without
+claiming that a generated policy file granted it.
 
-## Detection
+## Project Record And Validation
 
-Before patching, inspect:
+Record actual wrapper and preview paths, startup/stop commands, services,
+host/container ports, address overrides, configuration prerequisites, readiness
+probe, and agent execution constraints. A future task must be able to start,
+validate, and stop the project from this record without reading the skill's
+installation directory. Keep commands in the spec and script help, not README.
 
-- `hako`, `agent`, `dev`, or similar wrapper scripts
-- `.devhome` and `.gitignore`
-- manifests: `bun.lockb`, `bunfig.toml`, `pnpm-lock.yaml`, `package-lock.json`, `package.json`, `pyproject.toml`, `requirements.txt`, `go.mod`, `Cargo.toml`
-- `.claude/settings.local.json`
-- `.codex/rules/default.rules`
-- `.codex/config.toml`
-- `opencode.json`
+Validate changed scripts using the base and shell skills. When execution is
+available, perform a short startup/readiness/stop check with a free test port,
+confirm the expected service is reachable, and confirm only owned services are
+stopped. A readiness response alone does not prove feature acceptance. Preserve
+existing services; record unavailable Docker, network, or application checks
+precisely. Keep a preview running only when the user's request calls for it.
 
-If a wrapper already exists, do not create a competing wrapper. Update the
-shared project rule and missing personal/local allow rule only.
-
-## Auto-Allow Targets
-
-Write the narrow wrapper allow rule for the agent(s) present in the target project. Merge and deduplicate; never overwrite existing user rules.
-
-### Claude Code
-
-Target:
-
-```text
-.claude/settings.local.json
-```
-
-Add:
-
-```json
-"Bash(./hako *)"
-```
-
-If the project uses another wrapper name, substitute that name, such as `Bash(./agent *)`.
-
-### Codex
-
-Primary target:
-
-```text
-.codex/rules/default.rules
-```
-
-Add:
-
-```python
-prefix_rule(pattern=["./hako"], decision="allow")
-```
-
-If a project keeps Codex rules in another project-level rules file, use that existing file and report the path. Do not add broad `docker`, `bash`, `sh`, or package-manager allow rules for this enhancement; `hako` is the approval boundary.
-
-### Docker Socket Escalation
-
-The wrapper rule is also the correct response when a Docker-backed command is blocked because access to the Docker socket would leave the sandbox. Keep the rule scoped to the wrapper actually used by the project, for example:
-
-```python
-prefix_rule(
-    pattern=["./hako"],
-    decision="allow",
-    justification="Run project development commands through the Docker wrapper.",
-)
-```
-
-Never replace this with an `allow` rule for raw `docker`: Docker commands can mount arbitrary host paths or start privileged containers. Project-local Codex rules load only for trusted projects and after a Codex restart. Verify the rule before relying on it:
-
-```bash
-codex execpolicy check --pretty --rules .codex/rules/<rule-file>.rules -- ./hako <command>
-```
-
-Rules allow an eligible sandbox escape; they do not override a higher-precedence managed policy or grant a running session new permissions retroactively.
-
-Optional hook target:
-
-```text
-.codex/config.toml
-```
-
-Only add hooks when the project already uses Codex hooks or the user asks for policy/audit. If hooks are added, remind the user they may need to review and trust them through `/hooks`.
-
-### OpenCode
-
-Target:
-
-```text
-opencode.json
-```
-
-Add or merge under `permission.bash`:
-
-```json
-"./hako *": "allow"
-```
-
-Keep this after any catch-all `"*": "ask"` rule because OpenCode is last-match-wins.
-
-## Suggested Trellis Patch Block
-
-Adapt this block to the project-owned `.trellis/spec/trellis-plus/index.md` or
-its detail file. It must not be pasted into Trellis's upstream workflow:
-
-```markdown
-### Trellis Plus: Docker dev-command bootstrap
-
-Before implementation or validation, check whether this repository has a dev-command wrapper such as `./hako`.
-
-If no wrapper exists and the task needs install/lint/typecheck/test/build/dev-server commands, apply the `dev-it-in-docker` skill first:
-
-- detect the project toolchain and dev-server ports
-- create or update the repo-local `hako` wrapper
-- ensure `.devhome` is gitignored
-- register the narrow wrapper allow rule in the active agent config (`Bash(./hako *)`, `prefix_rule(pattern=["./hako"], decision="allow")`, or `./hako *`)
-- verify with the cheapest available `./hako <tool> --version` command
-
-Do not broaden allow rules to raw `docker`, `bash`, `sh`, or package-manager commands just to make validation convenient.
-```
-
-## Verification
-
-After patching, verify:
-
-- the shared Trellis Plus spec points to `dev-it-in-docker`
-- existing wrapper scripts were reused instead of duplicated
-- `.gitignore` contains `.devhome` when `hako` uses it
-- the active agent has a narrow wrapper allow rule
-- no broad Docker/package-manager allow rule was introduced by this enhancement
-- protected Trellis files were not modified or staged
-- any generated wrapper has a reviewed source/license provenance, or remains local
-- any generated wrapper remains executable
+Before copying or committing generated third-party material, follow the
+license-safe file policy. Record wrapper provenance and retain applicable
+notices in `third_party/`; unknown provenance is not project ownership.

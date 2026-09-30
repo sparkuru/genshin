@@ -4,7 +4,7 @@
 
 Record a durable project rule for the moment a task has been implemented, checked, and appears ready to commit.
 
-At that point, the agent must decide whether human review is required, optional, or unnecessary. When human input is needed, the agent must ask for specific feedback before committing.
+At that point, the agent must decide whether human review is required, optional, or unnecessary. When human input is needed, the agent must ask for specific feedback before committing. Reuse explicit decisions and commit/archive authorization already granted; this gate does not require repeating an approval request.
 
 ## Trigger Point
 
@@ -22,6 +22,7 @@ This gate belongs before commit, not after commit.
 Require human review when any of these apply:
 
 - A material UI change was not browser-validated even though it was browser-automatable, or Playwright could not run because a required dependency, browser binary, fixture, service, permission, or local runtime was unavailable.
+- Required mobile adaptation or validation remains unverified. Separate desktop, emulated mobile, and real-device evidence; a desktop pass does not close a required mobile check. First complete runnable mobile checks rather than delegating automatable work to the user.
 - The remaining question is subjective or stakeholder-specific: visual quality without an approved deterministic baseline, copy tone, UX preference, product judgment, or ambiguous acceptance criteria.
 - Validation needs a real mobile device, assistive technology assessment, hardware, private credentials, paid/external services, production-like data, or a private environment that the agent cannot safely reproduce.
 - The agent could not run a material check, or a check was skipped because dependencies, network, time, permissions, fixtures, or services were unavailable.
@@ -133,7 +134,10 @@ Open questions:
 - <only questions whose answers affect commit readiness>
 ```
 
-For optional review, change the first line to `Human review: optional` and say whether the agent can proceed if the user confirms.
+For optional review, change the first line to `Human review: optional`, state
+that this review does not block work, and proceed within existing commit/archive
+authorization. If that authorization is absent, follow the normal commit plan;
+do not turn optional feedback into an additional required approval.
 
 For no review, include a compact line in the commit plan:
 

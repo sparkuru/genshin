@@ -48,9 +48,11 @@ the project and does not copy Trellis or another tool's source material:
 - `.trellis/tasks/<TASK-ID>/` task documents, research summaries, and check
   evidence
 - `.trellis/mainline.md`
+- `third_party/` exact license/notice files with source and version provenance
 - `.trellis/workspace/**` when the repository intentionally tracks workspace
   history
-- project-owned `hako`, `tools/**`, `tests/**`, `playwright.config.*`,
+- project-owned `hako`, `dev.sh`, `preview.sh`, `.env.example` or equivalent
+  secret-free examples, `tools/**`, `tests/**`, `playwright.config.*`,
   `package.json`, lockfiles, and `.gitignore` when the active task requires
   them and the content is written or licensed as project material
 
@@ -90,8 +92,44 @@ If the repository already contains protected Trellis files, check for the
 corresponding Trellis license/copyright/notice before recommending their
 distribution. If the notice is missing or the installed version is unknown,
 report `license-notice-needed` and do not invent, replace, or silently add a
-root license. A user can supply the exact notice from the installed Trellis
-distribution as a separate third-party notice file.
+root license. A notice may be collected from the installed distribution or a
+verified matching upstream release under the procedure below; never substitute
+a generic license for unknown version-specific notices.
+
+## Third-Party Notice Collection
+
+When the project incorporates or distributes third-party source, templates,
+assets, fonts, or other material, collect the applicable notices in root
+`third_party/`. Include relevant Trellis/UUPM material actually retained by the
+project. Reuse an established equivalent notices directory when the project
+already has one; do not create two competing inventories. Ordinary package
+dependencies keep their package notices and existing license-report workflow;
+this enhancement does not automatically vendor every transitive dependency.
+
+1. Identify the actual component/version and retained paths from the installed
+   distribution, lockfile, source metadata, or bundled artifact.
+2. Obtain its exact LICENSE and any applicable NOTICE/COPYRIGHT from that
+   distribution or the verified matching upstream release. Preserve the text
+   verbatim, including named copyright holders; do not paraphrase, generalize,
+   or relabel it as project-authored.
+3. Use readable, collision-free names such as `COMPONENT-VERSION-LICENSE` and
+   `COMPONENT-VERSION-NOTICE`. For multiple licenses, retain each applicable
+   file with an unambiguous suffix rather than collapsing their content.
+4. Record component, version, source location, affected project paths, and
+   notice filenames in a concise `third_party/index.md`, or the existing
+   equivalent inventory. Link the inventory from the shared Trellis Plus spec.
+5. Keep existing inline headers and notices at their original paths. The
+   collection supplements them; it does not replace their location requirements
+   or establish that all distribution obligations have been satisfied.
+6. If exact provenance or notices cannot be obtained, record
+   `license-notice-needed` with the affected material. Do not fabricate a
+   notice, change the root license, or stage the unresolved material as though
+   the collection were complete. Continue unrelated work.
+
+Re-run collection when a bundled component/version or its retained content
+changes. Preserve notices still applicable to other retained versions and
+avoid duplicate entries. Verify collected text against its source, resolve
+inventory paths, and inspect the proposed staged paths before reporting success.
 
 ## Personal and local paths
 
@@ -106,6 +144,7 @@ exception is a separate manual license and secrets review:
 - `.git/info/exclude`
 - Trellis runtime pointers and local state already ignored by the installed
   `.trellis/.gitignore`
+- `.env` and equivalent local secret/configuration files; track only safe examples
 
 Personal files may contain a narrow pointer or allow rule for the shared
 project wrapper. They must not contain a second copy of the project policy,
@@ -144,6 +183,10 @@ by active task implement/check context when such context exists.
   task-specific evidence in the task directory.
 - Docker development: a project-owned wrapper and `.gitignore`; keep narrow
   agent allow rules personal/local.
+- Preview/environment: project-owned service entries and safe examples plus
+  a shared development profile; local values remain untracked.
+- Third-party notices: exact upstream texts in `third_party/` and a source/
+  version inventory; they remain third-party material, not project-authored specs.
 - UUPM: keep generated platform skill files personal/local unless their exact
   source and license are reviewed. Promote only reviewed, original project
   decisions into the shared spec.
