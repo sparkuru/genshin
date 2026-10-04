@@ -13,6 +13,7 @@ The job is to inspect the project, infer how mature validation and continuity sh
 
 ## Operating Rules
 
+- At the start of every initialization/bootstrap, application, reapplication, or audit, read [CHACKLIST.md](CHACKLIST.md) from the same skill directory as this `SKILL.md`. Use its current IDs, applicability, source references, and evidence criteria for self-checking; never use an old copied prompt or repository snapshot as the current checklist. Reading the checklist grants no write or execution authority.
 - Before any write, read `references/license-safe-file-policy.md` and classify the target as protected Trellis material, project-shared configuration, personal/local configuration, or ordinary project code.
 - Do not modify, replace, copy, or rewrite protected Trellis material. Use the dedicated project-owned `.trellis/spec/trellis-plus/` layer for durable shared rules instead of injecting them into Trellis's upstream workflow or runtime files.
 - Treat new project-authored specs and task records as project data. Do not copy Trellis, UUPM, or another tool's source text/code into them unless its source and license permit that exact use.
@@ -67,6 +68,8 @@ report the licensing/notice boundary and wait for a license-aware decision
 instead of writing automatically.
 
 ## Discovery Workflow
+
+Before step 1, load [CHACKLIST.md](CHACKLIST.md) and select the applicable checks within the user's scope. For authorized initialization, revisit applicability after the actual Trellis initializer finishes. For a read-only audit, report findings and proposed changes without applying enhancements. After authorized changes, self-check the resulting state against the same current checklist before reporting completion. Follow its reporting and maintenance contract below.
 
 1. Locate Trellis files:
    - `.trellis/workflow.md`
@@ -130,7 +133,20 @@ instead of writing automatically.
    - source requirements imported and their approval status
    - project policy loading paths, verified contexts, and remaining loading gaps
    - `trellis update` risk: whether any patched file is a Trellis template target and whether backup recovery was used
+   - checklist IDs, applicability, existing versus target state, evidence, and remaining `GAP`/`UNKNOWN` results
    - any manual follow-up the next Trellis task should request
+
+## Checklist Self-Check And Skill Maintenance
+
+[CHACKLIST.md](CHACKLIST.md) is the maintained inspection catalogue for this skill. `SKILL.md` and the referenced procedures define the requirements; the checklist maps them to observable checks and does not replace their details. The target repository's tracked Trellis Plus specs remain its project policy source of truth. Do not copy the skill checklist into a target repository as a second policy or make future project tasks depend on this skill installation.
+
+- Before and after an authorized bootstrap/application, inspect every applicable checklist requirement, including policy content, actual loading, and available execution evidence. Do not claim successful integration solely because a file was written. When there is no relevant task or execution capability, record the precise unverified portion.
+- A full audit or default application reports every current checklist ID, including `PASS` and conditional `N/A` entries, with the constraint, existing situation/evidence, target situation, and proposed change/path. Split independently failing requirements into subrows. Use `PASS`, `GAP`, `UNKNOWN`, and `N/A` as defined in the checklist; a partial result cannot pass the whole item.
+- For an explicitly scoped enhancement, self-check the relevant IDs and identify the excluded scope as unexamined; do not run or install unrelated enhancements to fill the table. A read-only request remains read-only, and missing runtime evidence does not authorize running services, installing tools, or changing tasks.
+- If the checklist is missing or contradicts its source procedures, report the exact gap and affected IDs. Continue independent authorized work using the available source procedures, but do not declare the affected self-check or a full audit complete. An audit of a target repo does not authorize repairing the skill itself.
+- **Every update to Trellis Plus must synchronize `CHACKLIST.md` in the same change.** Reconcile changes to `SKILL.md`, the registry, reference procedures, and any supporting behavior with checklist applicability, expected state, evidence, and links. Add new checks, revise changed checks, and remove retired requirements without reusing their IDs. Keep unaffected IDs stable so users can approve changes by ID.
+- Even when an update changes no check requirement, review the checklist against the updated material and update its latest synchronization note with the actual reviewed scope and whether requirements changed. Update the copyable prompt only when its loading/reporting/authorization contract changes; it must point to the current checklist rather than duplicate the item inventory.
+- Before declaring a skill update complete, verify that every registry enhancement and cross-cutting rule is covered, every checklist source link resolves, and initialization/application/audit all load the checklist. Run the skill validator and diff checks. Treat an unsynchronized checklist as unfinished maintenance.
 
 ## Enhancement Registry
 
@@ -140,13 +156,13 @@ Default Enhancement Set:
 - **Submit-ready human review gate**: read `references/submit-ready-human-review.md` when adding rules for the moment a Trellis task is implemented, checked, and ready to commit.
 - **Development-stage principles**: read `references/development-principles.md` to install the shared rules for scope, compatibility, evidence, dev access, README ownership, and workspace protection.
 - **Task-archive Codex attribution**: read `references/chatgpt-codex-commit-trailer.md` for once-per-task completion summaries and co-author trailers at archival.
-- **Docker development and preview bootstrap**: read `references/dev-it-in-docker-bootstrap.md` for the wrapper, service lifecycle, `preview.sh`, and delegation of execution permissions to the base skill.
-- **Environment configuration**: read `references/environment-configuration.md` when configuring `.env.example`/`.env` or equivalent project files and communicating required values.
+- **Docker development and preview bootstrap**: read `references/dev-it-in-docker-bootstrap.md` for the wrapper, Docker-preferred preview lifecycle via `.env`-configured `preview.sh start/stop`, and delegation of execution permissions to the base skill. When creating, adapting, or checking preview output, also read `references/preview-console-contract.md`: its unified service-grouped URL format and host-side `ip -br a` enumeration are mandatory across projects.
+- **Environment configuration**: read `references/environment-configuration.md` when creating or adapting `preview.sh`, configuring `.env.example`/`.env` or equivalent project files, and communicating required values.
 - **UI/UX Pro Max frontend integration**: read `references/ui-ux-pro-max-integration.md` when the repository or active task has a frontend/UI surface. This enhancement owns the initialization prompt and the UUPM Plan → Implement → Check → Update Spec workflow.
 - **Playwright automated frontend validation**: read `references/playwright-automated-validation.md` when the repository or active task has a browser-accessible UI change. This enhancement owns the automate-first decision, Playwright test evidence, and residual manual-review handoff.
 - **Mainline continuity**: read `references/mainline-continuity.md` for requirement/design import, lifecycle updates, read-only Project Pulse, and bounded continuation authority.
 
-Future enhancements should be added as separate files under `references/` and listed in this registry with a one-line loading rule.
+Future enhancements should be added as separate files under `references/`, listed in this registry with a one-line loading rule, and included in `CHACKLIST.md` in the same change.
 
 ## Injection Targets
 
@@ -224,6 +240,7 @@ When applying Trellis Plus after an update:
 
 After applying this skill with the default enhancement set, a future Trellis Plus run should:
 
+- load the current skill-local `CHACKLIST.md` and report evidence-based self-check results before declaring initialization/application or a full audit complete
 - read the tracked project-owned Trellis Plus configuration before applying its enhanced guidance
 - keep project-shared rules in `.trellis/spec/trellis-plus/` and task evidence in the normal Trellis task tree
 - keep personal agent settings local and out of the shared commit by default

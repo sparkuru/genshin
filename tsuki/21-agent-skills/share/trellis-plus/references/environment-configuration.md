@@ -12,6 +12,24 @@ order, and restart/rebuild requirements in the project-owned
 `.trellis/spec/trellis-plus/development.md` or its existing equivalent. Link it
 from the index and relevant task context. Keep one authoritative convention.
 
+## Preview Configuration
+
+When creating or adapting `preview.sh` for user visual acceptance, the root
+`.env` must provide the primary preview configuration: account names/passwords,
+variable Docker settings (such as image tags, mount paths, and service options
+where applicable), service listening hosts/ports, and published host bindings
+and ports. Document these keys in `.env.example`; do not hard-code their values
+in `preview.sh`, `dev.sh`, or Compose files. Once initial configuration is
+complete, `./preview.sh` must load it without requiring inline environment
+assignments or edits to scripts.
+
+Reuse the existing dotenv loader and variable names. If services use their own
+configuration files, explicitly wire the root `.env` preview inputs into those
+consumers and document precedence; do not leave competing, unsynchronized
+values. Ensure Compose interpolation and container/application injection both
+receive the settings they need. Keep secrets local and out of startup output.
+Follow `dev-it-in-docker-bootstrap.md` for the required listener and URL summary.
+
 ## First Setup
 
 1. Create or update `.env.example` with the keys consumed by the real execution
