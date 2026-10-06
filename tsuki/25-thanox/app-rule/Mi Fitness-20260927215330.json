@@ -1,0 +1,17 @@
+{
+  "disabledComponents": [
+    "com.mi.health/com.xiaomi.fitness.webview.healthwebview.HealthWebViewActivity",
+    "com.mi.health/com.xiaomi.fitness.research.upgrade.AppUpgradeProvider",
+    "com.mi.health/com.xiaomi.mipush.sdk.PushMessageHandler",
+    "com.mi.health/com.xiaomi.fitness.webview.DownloadWebViewActivity",
+    "com.mi.health/com.xiaomi.mipush.sdk.MessageHandleService",
+    "com.mi.health/com.xiaomi.fitness.webview.WebViewActivity",
+    "com.mi.health/com.xiaomi.market.watchsdk.activity.AppUpdateActivity",
+    "com.mi.health/com.mi.health.appupgrade.ui.AppUpgradeActivity",
+    "com.mi.health/com.xiaomi.push.service.XMPushService",
+    "com.mi.health/com.xiaomi.push.service.XMJobService",
+    "com.mi.health/com.mi.health.appupgrade.ui.HealthKitUpgradeActivity",
+    "com.mi.health/com.mi.health.appupgrade.provider.AppUpgradeProvider",
+    "com.mi.health/com.xiaomi.mipush.sdk.NotificationClickedActivity"
+  ]
+}
