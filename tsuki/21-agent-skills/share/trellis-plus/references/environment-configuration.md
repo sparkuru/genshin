@@ -50,6 +50,13 @@ Follow `dev-it-in-docker-bootstrap.md` for the required listener and URL summary
    the wrong layer. Do not source a dotenv file as shell code.
 5. Missing required values must yield an actionable startup error or clearly
    block readiness. Do not report a usable preview until prerequisites hold.
+6. For previewable projects, distinguish actual host prerequisites (for example,
+   Docker with a reachable daemon and any helper/address-discovery tools), keys
+   the user must fill, and images/dependencies prepared by preview. After the
+   required edits, document `./preview.sh` as the default first-use command,
+   following `dev-it-in-docker-bootstrap.md`. Note possible first-run downloads
+   and preparation time. Document explicit offline/no-install exceptions and
+   rebuild requirements; do not prescribe another project's host-tool list.
 
 ## Incremental Changes
 
@@ -78,9 +85,14 @@ Example of a handoff shape; replace tokens with repository-confirmed names:
 ```text
 Setup: cp .env.example .env (only when .env is absent)
 Edit: REQUIRED-KEY — purpose and source of the value
+Host prerequisites: ACTUAL-HOST-TOOLS-AND-DAEMON-REQUIREMENTS
+First preview: ./preview.sh (prepares missing images/dependencies; first run may download)
 Added locally: NEW-KEY — safe placeholder; user input still required
 Apply changes: ACTUAL-RESTART-OR-REBUILD-COMMAND
 ```
+
+Omit preview lines for projects without a previewable service and substitute
+the documented manual setup when project constraints prohibit preparation.
 
 ## Verification
 

@@ -905,6 +905,7 @@ ggit() {
 			;;
 		''|status)
 			git status
+			echo
 			git remote -v
 			;;
         size)

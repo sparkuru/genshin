@@ -1,4 +1,4 @@
-目标仓库：<替换为目标 repo 的本地路径>
+目标仓库：<所给的目标仓库 | 默认当前仓库>
 
 请使用当前可用的 trellis-plus skill，检查上述仓库的 Trellis Plus 约束是否到位，并按下面的分支处理。此处的“更新”指目标仓库中的约束，不是更新 Trellis CLI 或修改 trellis-plus skill 本身。
 

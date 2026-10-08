@@ -11,6 +11,13 @@ format. Record this contract and its address-discovery procedure in the
 project-owned development spec so future tasks can enforce it without this
 skill installed.
 
+[assets/refer-preview.sh](../assets/refer-preview.sh) implements the shared
+color, log/help, and summary presentation described here. Read the integration
+procedure in [dev-it-in-docker-bootstrap.md](dev-it-in-docker-bootstrap.md)
+before copying or sourcing it. The text contract remains authoritative for
+runtime facts, host discovery, readiness, and redaction; the reference renderer
+does not perform those checks itself.
+
 The purpose is to let the user click or copy a complete URL to open a testing
 window, including from a different device. Put access URLs before listener and
 runtime diagnostics. Never advertise `0.0.0.0`, `::`, a container IP, or a
@@ -94,6 +101,19 @@ labels, entry syntax, ordering, and one-URL-per-line layout are mandatory.
 
 ## Host Address Discovery
 
+For Docker previews, resolve the effective endpoint before choosing the address
+discovery host. Explicit `DOCKER_CONTEXT` takes precedence over `DOCKER_HOST`;
+with only `DOCKER_HOST`, inspect that endpoint; with neither, inspect the current
+context. Use supported CLI operations and distinguish unsupported subcommands
+from invalid configuration. For example, `docker context inspect` without a
+name can inspect the current context on CLIs that lack `docker context show`;
+use `docker context inspect <context>` for an explicit context. Validate the
+chosen commands against the supported CLI capabilities rather than assuming a
+version or requiring environment overrides to hide a script defect. A local
+Unix socket endpoint is the supported local discovery case; unsupported or
+remote endpoints require an authorized discovery route or explicit host-address
+configuration, never guessed caller addresses.
+
 For wildcard host publishing, run `ip -br a` on the **host publishing the
 preview**, on every `start` summary and every ready `status` summary. This is
 required when the effective host bind is `0.0.0.0`; a container wildcard bind
@@ -145,6 +165,21 @@ Transient failed polls may be logged in verbose mode; a terminal failure must
 not be followed by a success summary. A ready `status` uses the same renderer;
 an unready `status` reports actual service state without the success banner.
 
+On terminal startup failure, collect diagnostics **before** removing containers
+created by that attempt. Validate ownership against the repository identity,
+preview scope, and service labels used by the existing lifecycle; do not read
+unrelated containers. Fetch only a bounded recent log tail with a timeout
+(for example, 80 lines and 5 seconds). Redact sensitive injected environment
+values, configured private account identifiers, authenticated URLs, and bearer
+tokens before emitting logs in failure or verbose output. Do not dump `.env`
+or raw container inspection data. Log-read/redaction failures must not emit raw
+logs, prevent cleanup, or replace the original startup exit code. Remove only
+resources created by this attempt and preserve user data. If the error points
+to incompatible persistent data, name the configured data path and supported
+migration/recovery action without automatically resetting it. Watch processes
+can remain running after an import or application error; readiness timeout must
+still reveal that error through the same diagnostics path.
+
 When changing a project's renderer, validate behavior with temporary address
 and runtime fixtures before the normal lifecycle smoke check:
 
@@ -160,6 +195,16 @@ and runtime fixtures before the normal lifecycle smoke check:
 - One required service never becomes ready: nonzero exit, named diagnostics,
   no success banner. Repeated healthy starts and ready `status` keep the same
   summary layout without leaking startup logs or secrets.
+- Effective Docker target: explicit context wins over host, host-only uses its
+  endpoint, and no overrides use the current context. A CLI without `context
+  show` still resolves the current context through supported `inspect`.
+  Unsupported required operations and unsupported remote endpoints produce
+  distinct actionable errors; caller addresses never stand in for remote-host
+  discovery.
+- Failure diagnostics: an application/watch error remains visible before
+  cleanup; injected test secrets, private account identifiers, authenticated
+  URLs, and bearer tokens are masked. Log-read timeout/failure and ownership
+  mismatch still preserve the original failure and cleanup without raw output.
 
 Fixture checks do not prove physical-device reachability. Report host probes
 and cross-device tests separately, and retain the unverified note until the

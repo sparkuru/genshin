@@ -34,6 +34,10 @@
 
 2026-10-04 补充同步核对：预览控制台 reference、registry 与 Docker bootstrap 的强制链接，对应 16–21 项；统一输出、`ip -br a` 全地址发现与真实就绪要求已由 18–19 完整覆盖，本次不新增或复用编号。核对所有 registry 增强、来源链接及初始化/应用/复查的当前清单入口，保留其余检查项与 prompt 约定。
 
+2026-10-08 补充同步核对：更新 Docker bootstrap、预览控制台契约、环境首次设置和 `SKILL.md` registry/预期结果，对应 16、18–20 项。首用改为配置后按需准备缺失镜像/依赖，补充有效 Docker endpoint/CLI 能力、清理前脱敏诊断、失败分支及默认持久数据验证；显式离线/禁止安装约束仍优先。编号及其余条目保持不变，prompt 读取/报告/授权约定未变。核对 registry 全部增强的来源覆盖、清单来源链接及初始化/应用/复查加载入口。
+
+2026-10-08 参考脚本同步核对：新增 `assets/refer-preview.sh`，从 registry 和 bootstrap/控制台 reference 路由至脚本及项目集成程序，对应 16、18 项；补充语义色彩、stderr log/warn/error、命令/帮助、摘要渲染和 source/适配边界。配置加载、readiness、Docker 生命周期及脱敏仍由项目实现负责，既有等价实现可保留；项目副本不得依赖 skill 安装路径。编号、prompt 约定与其余增强不变。
+
 ## 检查项
 
 ### 01. 文件归属与写入边界
@@ -144,8 +148,9 @@
 ### 16. 服务与预览生命周期
 
 - 适用条件：存在可预览服务的项目；库/CLI 等无此服务的项目应给出 N/A 依据。
-- 核对要求：有预览服务时检查 preview.sh 与既有生命周期复用，start/stop/down/status/build、后台启动、就绪探测、重复调用、从其他目录调用、仅停止所属服务及保留数据；首用 build 再 start，启动不隐式安装/构建/测试。无服务时以证据标记 N/A。
-- 验证证据：脚本实现、文档化命令、既有 smoke 结果；实际启停/build 要有授权，未运行明确记录。
+- 核对要求：preview.sh 薄入口复用既有生命周期；配置/宿主检查、已有所属实例检查、缺镜像才 build、缺依赖才容器内锁定安装、安装后复查、服务创建和 readiness 顺序明确。健康且配置一致的实例直接复用，异常/配置变化实例不擅自重建；准备不发布端口或注入运行秘密，不改 .env/manifest/锁文件/用户数据，不自动测试；status/stop/down/help 不准备或启动，build 保留显式重建入口。检查后台运行、重复调用、其他目录调用、所属服务清理和数据保留，明确离线/禁止安装例外及依赖检测局限。
+- 验证证据：脚本、帮助和共享 spec 描述同一首用流程；适用的缺镜像/依赖/两者、资源复用、异常既有实例、构建/安装失败（含缺构建输入）、安装后入口仍缺、非法配置等临时 fixture；真实隔离首次 build/install/start、HTTP、复用和 stop/down 证据与 stub 分开。默认持久存储空目录创建及停止后保留、数据 ignored 且 untracked 有验证，内存 fixture 不替代；实际执行须有授权，未运行和缓存边界明确记录。
+- 参考脚本集成：实现/适配 CLI 时读取 `assets/refer-preview.sh` 及 bootstrap 集成程序；项目副本或既有等价方案不得依赖安装目录，source 不改变 shell 选项/trap、不启动服务；命令分发保留退出码，--help 不读取配置或调用生命周期，--verbose 映射至真实接口，stop/down 保留数据。
 - 依据：[references/dev-it-in-docker-bootstrap.md](references/dev-it-in-docker-bootstrap.md)。
 
 ### 17. 预览网络
@@ -158,22 +163,23 @@
 ### 18. 预览控制台契约
 
 - 适用条件：存在 Trellis Plus 预览入口的项目，不因框架或服务不同豁免输出契约。
-- 核对要求：是否采用当前 preview-console-contract.md 的完整要求，包括 System is ready.、Open / Local only (preview host) / Listeners / Published / Internal only / Notes 的顺序和格式、服务分组、每行完整 URL、实际路由和协议、日志及秘密处理。
-- 验证证据：renderer 与共享 development spec 对照完整参考格式；已有 fixture/输出证据，不能只搜索 section 名就 PASS。
-- 依据：[references/preview-console-contract.md](references/preview-console-contract.md)。
+- 核对要求：是否采用当前 preview-console-contract.md 的完整要求，包括 System is ready.、Open / Local only (preview host) / Listeners / Published / Internal only / Notes 的顺序和格式、服务分组、每行完整 URL、实际路由和协议。准备阶段只显示简洁 stderr 提示，详细日志在失败/verbose 时脱敏展示；终端启动失败在清理前验证仓库/scope/service 归属并有上限地读取日志，遮蔽敏感注入值、私有账号标识、认证 URL 和 bearer token；日志/脱敏失败不输出原文、不阻止清理或覆盖原退出码，仅清理本次资源且保留数据。
+- 验证证据：renderer、准备/诊断/清理路径与共享 development spec 对照契约；验证 watch 应用错误但容器仍 running、敏感测试值遮蔽、日志失败/超时及归属不符，仍非零且无成功摘要；已有 fixture/输出证据，不能只搜索 section 名就 PASS。
+- 参考呈现层证据：语义色彩与 log/warn/error 格式、实际输出 fd 的 TTY/NO_COLOR 行为、stdout 摘要与 stderr 日志/帮助、完整服务分组/URL 去重/空 section 省略、未就绪或缺 listener 信息不输出成功、help 的命令/选项/配置/首用/限制信息；项目填入运行事实并负责脱敏，不把 renderer 的 ready 标记当作探测证据。
+- 依据：[references/preview-console-contract.md](references/preview-console-contract.md)、[references/dev-it-in-docker-bootstrap.md](references/dev-it-in-docker-bootstrap.md)。
 
 ### 19. 主机地址发现与就绪真实性
 
 - 适用条件：存在预览服务的项目；主机通配发布触发地址枚举要求，其余分支检查对应暴露规则。
-- 核对要求：通配主机发布时是否在发布预览的主机执行 ip -br a，枚举全部合格地址，为每个入口生成 URL，正确处理 loopback/IPv6/容器内部地址及缺失 ip；所有必要服务就绪后才显示成功，不把映射、运行状态或地址候选当作可达性证明。
-- 验证证据：发布主机上的 ip -br a 证据、地址解析/URL 生成分支、listener/映射与逐服务 readiness；地址候选不证明跨设备访问。
+- 核对要求：先确认有效 Docker endpoint：显式 DOCKER_CONTEXT 优先于 DOCKER_HOST，仅 host 时使用该 endpoint，两者均无时 inspect 当前 context；验证实际 CLI 命令能力，不把缺子命令误报为用户配置错误或要求环境覆盖来掩盖缺陷。通配发布在发布主机执行 ip -br a，枚举全部合格地址，为每个入口生成 URL，正确处理 loopback/IPv6/容器内部地址及缺失 ip；远程/不支持 endpoint 使用授权发现路径或显式主机地址，不冒用调用者地址；所有必要服务就绪后才成功，不把运行状态或候选当可达性证明。
+- 验证证据：context/host 优先级、当前 context、旧 CLI 能力及不支持远程 endpoint 分支；发布主机上的 ip -br a、地址解析/URL 分支、listener/映射与逐服务 readiness；地址候选不证明跨设备访问。
 - 依据：[references/preview-console-contract.md](references/preview-console-contract.md)。
 
 ### 20. 环境配置
 
 - 适用条件：需要可配置开发值、已有环境文件或新增配置的项目；预览服务适用根 .env 的额外要求。
-- 核对要求：.env.example 或等价示例是否无秘密、键与真实消费者一致；预览根 .env 的账号、Docker 变量及监听/发布配置是否接入实际路径；加载和覆盖顺序、首次设置、需用户填写项及重启/重建步骤是否明确，不把 dotenv 当 shell 代码执行。
-- 验证证据：示例键名、实际 loader/消费者/Compose 注入、优先级和 first-setup 说明；仅显示本地键名，不输出秘密值。
+- 核对要求：.env.example 或等价示例是否无秘密、键与真实消费者一致；预览根 .env 的账号、Docker 变量及监听/发布配置是否接入实际路径；加载和覆盖顺序、首次设置、需用户填写项及重启/重建步骤明确，不把 dotenv 当 shell 代码执行。首用区分实际宿主工具/daemon、必填值与 preview 自动准备资源，说明复制示例（仅文件不存在时）、编辑、./preview.sh 流程及下载耗时/项目例外，保留既有本地值。
+- 验证证据：示例键名、实际 loader/消费者/Compose 注入、优先级、项目宿主依赖和 first-setup 帮助/spec 与真实路径一致；仅显示本地键名，不输出秘密值。
 - 依据：[references/environment-configuration.md](references/environment-configuration.md)。
 
 ### 21. 配置增量更新
