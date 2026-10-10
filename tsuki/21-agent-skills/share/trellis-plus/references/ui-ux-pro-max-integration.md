@@ -23,11 +23,7 @@ If the task explicitly changes user-facing UI, treat it as a frontend task even 
 
 ## Initialization Check
 
-Initialization means that UUPM has been installed in the current project for the
-active AI platform. Check the platform-specific project path and verify the
-generated skill entry point exists. These generated platform files are
-personal/local integration files by default; do not commit them merely because
-they live inside the project. Common paths include:
+Initialization means that UUPM has been installed in the current project for the active AI platform. Check the platform-specific project path and verify the generated skill entry point exists. These generated platform files are personal/local integration files by default; do not commit them merely because they live inside the project. Common paths include:
 
 | Platform | Project-local entry point |
 | --- | --- |
@@ -89,18 +85,9 @@ If initialization fails, report the exact command, failure, and files created. D
 
 ## Trellis Workflow Integration
 
-After initialization, add a short `Trellis Plus: UUPM integration` pointer to
-the project-owned `.trellis/spec/trellis-plus/index.md` or a detail file beside
-it. Add a personal/local platform pointer only when the platform cannot load
-the shared spec. Do not patch `.trellis/workflow.md`, Trellis runtime files, or
-generated Trellis platform skills.
+After initialization, add a short `Trellis Plus: UUPM integration` pointer to the project-owned `.trellis/spec/trellis-plus/index.md` or a detail file beside it. Add a personal/local platform pointer only when the platform cannot load the shared spec. Do not patch `.trellis/workflow.md`, Trellis runtime files, or generated Trellis platform skills.
 
-Materialize the applicable Plan, Implement, Check, and Update Spec actions and
-repository-confirmed commands in one shared project detail file. Link it from
-the index and required task contexts instead of duplicating it in every target.
-The generated project rules must not require access to this Trellis Plus
-installation; a pointer to the actual project-local UUPM skill is appropriate
-for UUPM's own procedures. Verify loading using `SKILL.md`.
+Materialize the applicable Plan, Implement, Check, and Update Spec actions and repository-confirmed commands in one shared project detail file. Link it from the index and required task contexts instead of duplicating it in every target. The generated project rules must not require access to this Trellis Plus installation; a pointer to the actual project-local UUPM skill is appropriate for UUPM's own procedures. Verify loading through [Project Policy Loading And Generalization](project-policy-loading.md).
 
 ### Plan
 
@@ -169,13 +156,7 @@ Lint, type-check, unit tests, and build success are not sufficient UI verificati
 
 ### Update Spec
 
-After verification, promote only stable, reusable UI rules into the
-project-owned `.trellis/spec/trellis-plus/` configuration. Keep task-specific
-decisions and raw UUPM research in the task only when the exact generated
-source/license permits retaining it; otherwise keep a concise original
-decision summary. Maintain one project-level source of truth for approved
-design-system rules; do not create a competing editable `MASTER.md` unless the
-project already treats it as canonical.
+After verification, promote only stable, reusable UI rules into the project-owned `.trellis/spec/trellis-plus/` configuration. Keep task-specific decisions and raw UUPM research in the task only when the exact generated source/license permits retaining it; otherwise keep a concise original decision summary. Maintain one project-level source of truth for approved design-system rules; do not create a competing editable `MASTER.md` unless the project already treats it as canonical.
 
 ## Verification After Injection
 

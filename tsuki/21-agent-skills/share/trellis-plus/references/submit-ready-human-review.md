@@ -45,10 +45,7 @@ Do not request human review when:
 
 ## Project Validation Profile
 
-When recording this gate, add or update a short validation profile in the
-project-owned `.trellis/spec/trellis-plus/index.md` or a detail file beside it.
-Do not add the profile to `.trellis/workflow.md` or an existing generated spec
-index merely to make it visible.
+When recording this gate, add or update a short validation profile in the project-owned `.trellis/spec/trellis-plus/index.md` or a detail file beside it. Do not add the profile to `.trellis/workflow.md` or an existing generated spec index merely to make it visible.
 
 Infer it from repository evidence:
 
@@ -68,19 +65,11 @@ Record:
 
 Keep the profile concrete. Prefer `npm run test:e2e` over "run e2e tests" when the command exists.
 
-For browser-automatable UI projects, the Playwright-specific portion is a
-single `Trellis Plus: Playwright Validation Profile` in the shared Trellis Plus
-spec layer. It must record the execution mode, setup/browser bootstrap, app
-readiness and base URL, exact focused and CI commands, browser
-projects/viewports, fixture boundary, visual/accessibility policy, and
-failure-artifact locations. Future tasks must read that profile before
-rediscovering commands or consulting external documentation.
+For browser-automatable UI projects, the Playwright-specific portion is a single `Trellis Plus: Playwright Validation Profile` in the shared Trellis Plus spec layer. It must record the execution mode, setup/browser bootstrap, app readiness and base URL, exact focused and CI commands, browser projects/viewports, fixture boundary, visual/accessibility policy, and failure-artifact locations. Future tasks must read that profile before rediscovering commands or consulting external documentation.
 
 ## Suggested Template Block
 
-Adapt this block to the project-owned `.trellis/spec/trellis-plus/index.md`
-style and the installed Trellis status names. The block is guidance data, not
-a replacement for Trellis's workflow source:
+Adapt this block to the project-owned `.trellis/spec/trellis-plus/index.md` style and the installed Trellis status names. The block is guidance data, not a replacement for Trellis's workflow source:
 
 ```markdown
 ### Trellis Plus: Submit-Ready Human Review Gate
@@ -134,10 +123,7 @@ Open questions:
 - <only questions whose answers affect commit readiness>
 ```
 
-For optional review, change the first line to `Human review: optional`, state
-that this review does not block work, and proceed within existing commit/archive
-authorization. If that authorization is absent, follow the normal commit plan;
-do not turn optional feedback into an additional required approval.
+For optional review, change the first line to `Human review: optional`, state that this review does not block work, and proceed within existing commit/archive authorization. If that authorization is absent, follow the normal commit plan; do not turn optional feedback into an additional required approval.
 
 For no review, include a compact line in the commit plan:
 
@@ -149,20 +135,12 @@ Human review: not needed because <specific reason tied to tests/risk>.
 
 Write only project-owned or personal/local targets:
 
-1. Create or update `.trellis/spec/trellis-plus/index.md` with the concise gate
-   and validation profile.
-2. Add project-owned detail files beside that index when the profile or review
-   rules need more space.
-3. Add the shared spec path to active task implement/check context through
-   Trellis's existing context mechanism when delegated agents need it.
-4. Add a narrow local adapter to `.codex/`, `.claude/`, `.agents/`, or
-   `.opencode/` only when the active platform cannot load the shared spec;
-   leave it untracked and keep it as a pointer, not a second policy.
+1. Create or update `.trellis/spec/trellis-plus/index.md` with the concise gate and validation profile.
+2. Add project-owned detail files beside that index when the profile or review rules need more space.
+3. Add the shared spec path to active task implement/check context through Trellis's existing context mechanism when delegated agents need it.
+4. Add a narrow local adapter to `.codex/`, `.claude/`, `.agents/`, or `.opencode/` only when the active platform cannot load the shared spec; leave it untracked and keep it as a pointer, not a second policy.
 
-Do not patch `.trellis/workflow.md`, `.trellis/scripts/**`,
-`.trellis/agents/**`, `.trellis/config.yaml`, or Trellis-managed platform
-commands/skills. If one of those files already contains local changes, report
-it and leave it untouched.
+Do not patch `.trellis/workflow.md`, `.trellis/scripts/**`, `.trellis/agents/**`, `.trellis/config.yaml`, or Trellis-managed platform commands/skills. If one of those files already contains local changes, report it and leave it untouched.
 
 ## Verification After Injection
 

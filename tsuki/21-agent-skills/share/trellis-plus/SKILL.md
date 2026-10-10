@@ -28,113 +28,43 @@ The job is to inspect the project, infer how mature validation and continuity sh
 - If a frontend/UI project has no project-local UI/UX Pro Max initialization for the active AI platform, ask the user whether to initialize it before running UUPM commands or adding UUPM-derived design artifacts. Do not silently install or overwrite it.
 - If `.trellis/` is absent, read `references/mainline-continuity.md` and identify project-local requirement/design sources read-only. If initialization is already authorized, use the installed Trellis initialization procedure and resume discovery afterward; otherwise report the missing prerequisite and import candidates without writing `.trellis/` files. Never invent an initializer or treat a draft as approved scope.
 - If there are unrecognized local changes, do not overwrite them. Read the affected files and patch around the user's work.
-- After `trellis update`, revalidate project-owned Trellis Plus configuration and task context; never restore it into a protected upstream file.
+- After `trellis update`, follow [Trellis Update Revalidation](references/trellis-update-revalidation.md) for project-owned configuration and task context; never restore it into a protected upstream file.
 
 ## License-Safe Write Boundary
 
-The exact file policy is in `references/license-safe-file-policy.md`; it is part
-of this skill's required procedure, not optional background reading.
+The exact file policy is in `references/license-safe-file-policy.md`; it is part of this skill's required procedure, not optional background reading.
 
-Trellis upstream is AGPL-licensed. A project can contain independent
-project-authored files alongside it, but a file that copies from or modifies an
-upstream Trellis file must retain the applicable upstream license and notices.
-File location alone does not make copied material project-owned.
+Trellis upstream is AGPL-licensed. A project can contain independent project-authored files alongside it, but a file that copies from or modifies an upstream Trellis file must retain the applicable upstream license and notices. File location alone does not make copied material project-owned.
 
 Use this split:
 
-1. **Project-shared configuration**: create or update
-   `.trellis/spec/trellis-plus/index.md` and new detail files in that directory;
-   keep task-specific decisions and evidence in `.trellis/tasks/<TASK-ID>/`, and
-   use `.trellis/mainline.md` for project direction with explicit approved versus
-   proposed requirements. Keep exact third-party notices under `third_party/`.
-2. **Personal/local configuration**: write narrow agent rules only in the
-   active platform's local configuration (`.codex/`, `.claude/`, `.agents/`, or
-   `.opencode/`) and leave those paths untracked. Trellis Plus never stages
-   personal/local files; a user-requested tracking exception is a separate
-   manual license and secrets review.
-3. **Protected Trellis material**: read `.trellis/workflow.md`,
-   `.trellis/scripts/**`, `.trellis/agents/**`, `.trellis/config.yaml`, update
-   metadata, and Trellis-managed platform files, but never patch them in the
-   normal Trellis Plus flow.
+1. **Project-shared configuration**: create or update `.trellis/spec/trellis-plus/index.md` and new detail files in that directory; keep task-specific decisions and evidence in `.trellis/tasks/<TASK-ID>/`, and use `.trellis/mainline.md` for project direction with explicit approved versus proposed requirements. Keep exact third-party notices under `third_party/`.
+2. **Personal/local configuration**: write narrow agent rules only in the active platform's local configuration (`.codex/`, `.claude/`, `.agents/`, or `.opencode/`) and leave those paths untracked. Trellis Plus never stages personal/local files; a user-requested tracking exception is a separate manual license and secrets review.
+3. **Protected Trellis material**: read `.trellis/workflow.md`, `.trellis/scripts/**`, `.trellis/agents/**`, `.trellis/config.yaml`, update metadata, and Trellis-managed platform files, but never patch them in the normal Trellis Plus flow.
 
-Read the shared configuration at the start of each Trellis Plus run and verify
-its loading path using the Project Policy Loading procedure below. A written
-spec is not proof that every Trellis phase automatically loads or enforces it.
+Read the shared configuration at the start of each Trellis Plus run and verify its loading path using [Project Policy Loading And Generalization](references/project-policy-loading.md). A written spec is not proof that every Trellis phase automatically loads or enforces it.
 
-Before staging, inspect the complete candidate path list. If a proposed change
-contains a protected or personal path, stop or remove it from the commit plan;
-never silently stage it. If the user explicitly requests a protected-file fork,
-report the licensing/notice boundary and wait for a license-aware decision
-instead of writing automatically.
+Before staging, inspect the complete candidate path list. If a proposed change contains a protected or personal path, stop or remove it from the commit plan; never silently stage it. If the user explicitly requests a protected-file fork, report the licensing/notice boundary and wait for a license-aware decision instead of writing automatically.
 
 ## Discovery Workflow
 
-Before step 1, load [CHACKLIST.md](CHACKLIST.md) and select the applicable checks within the user's scope. For authorized initialization, revisit applicability after the actual Trellis initializer finishes. For a read-only audit, report findings and proposed changes without applying enhancements. After authorized changes, self-check the resulting state against the same current checklist before reporting completion. Follow its reporting and maintenance contract below.
-
-1. Locate Trellis files:
-   - `.trellis/workflow.md`
-   - `.trellis/mainline.md` when present
-   - `.trellis/spec/trellis-plus/index.md` when present
-   - `.trellis/spec/**/index.md`
-   - `.trellis/tasks/**/task.json`
-   - project-local PRD, design, brief, and roadmap documents referenced by the user or project; distinguish current requirements from examples and archived alternatives
-2. Classify Trellis-managed update state:
-   - Check `.trellis/.version`, `.trellis/.template-hashes.json`, and recent `.trellis/.backup-*` directories when present.
-   - If the user just ran `trellis update`, inspect the newest backup for previously recorded Trellis Plus content before updating project-owned files; never restore it into a protected path.
-   - Treat `.trellis/spec/**`, `.trellis/tasks/**`, and `.trellis/workspace/**` as user/project data, not normal template-overwrite targets; prefer a new `.trellis/spec/trellis-plus/` layer over changing an existing generated index. Treat existing spec indexes outside that dedicated layer as read-only unless their project authorship is proven and the user explicitly approves the mixed-file change.
-   - Treat `.trellis/workflow.md`, `.trellis/scripts/**`, `.trellis/agents/**`, `.trellis/config.yaml`, update metadata, and managed platform files as read-only protected material.
-   - Locate existing `LICENSE*`, `COPYING*`, `NOTICE*`, Trellis `COPYRIGHT`, or package license metadata without editing them. If protected Trellis files are present but their applicable notice is absent or unknown, record `license-notice-needed` and do not stage those files.
-   - Inventory relevant bundled/copied third-party material and existing `third_party/` notices; follow the file policy for exact-version notice collection.
-3. Identify the active or latest task:
-   - Prefer Trellis runtime pointers when present.
-   - Otherwise inspect non-archived `.trellis/tasks/*/task.json`.
-   - Note current status: `planning`, `in_progress`, `completed`, or project-specific variants.
-   - When adding mainline continuity, read the mainline record, parent/child task evidence, archive evidence, git state, and available validation results before recommending a next action.
-   - Import existing requirements when mainline is absent or incomplete; preserve source references, approval status, scope boundaries, and unresolved decisions.
-4. Infer project validation:
-   - Read manifest and CI files such as `package.json`, `pnpm-lock.yaml`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Makefile`, `.github/workflows/*`, `justfile`, and existing docs.
-   - Identify lint, format, type-check, unit, integration, e2e, build, smoke, visual, device, or manual validation commands.
-   - Distinguish commands the agent can run from checks that require the user's environment, credentials, GUI inspection, hardware, production-like data, or paid/external services.
-   - Classify frontend/UI presence and record the evidence used: frontend framework dependencies, UI source files, frontend scripts/configuration, mobile UI targets, or an explicit UI requirement in the active task.
-   - Identify supported desktop/mobile use and any explicit desktop-only constraint. Classify mobile coverage for changed pages and interactions before implementation, not only after responsive CSS changes.
-   - For frontend/UI work, inspect for `@playwright/test`, `playwright.config.*`, Playwright scripts, browser-test directories, test fixtures, screenshot baselines, and CI browser-install steps. Decide whether the changed acceptance criteria can be exercised against a local or test deployment without private credentials or real devices.
-   - If another browser-test runner is already the project convention, record whether it provides equivalent coverage; do not silently migrate or duplicate the suite merely to introduce Playwright.
-   - Read any existing `Trellis Plus: Playwright Validation Profile` before consulting external Playwright documentation. Reconcile its exact commands and constraints with current repository evidence, then update it only when a durable convention changed.
-   - Check whether UI/UX Pro Max is initialized in the project for the active platform. A global installation does not count as project initialization.
-5. Infer dev-command wrapper state:
-   - Check for dev wrapper, service lifecycle, `preview.sh`, `.devhome`, environment examples/loaders, and local-file ignore rules. Inspect local configuration keys without exposing secret values.
-   - If no dev wrapper exists and the project has a clear toolchain, prepare to apply the Docker dev-wrapper enhancement.
-   - Reuse existing startup/stop commands; add the preview entry only for a previewable service. Record actual network constraints and required configuration.
-6. Discover task-archive attribution:
-   - Read `git log --format=%B -n 20` or equivalent recent history.
-   - Read the installed archive and journal commands to establish auto-commit behavior, supported message/no-auto-commit interfaces, and staged paths.
-   - Record a verified route for one Codex trailer on each Codex-assisted task's archive commit. Ordinary work and separate journal commits do not receive it through this rule. Keep message language/style consistent with the repository.
-7. Select the write boundary:
-   - Read `references/license-safe-file-policy.md`.
-   - Create or update only the project-shared configuration and task data needed by the selected enhancement.
-   - Keep agent allow rules and other machine-specific settings in personal/local files, untracked by default.
-   - If the selected enhancement would require a protected Trellis file, stop and report the target rather than patching it.
-8. Select enhancement references:
-   - If the user invokes `$trellis-plus` without narrowing the scope, read every file in the Default Enhancement Set below and apply all of them.
-   - If the user asks for a specific enhancement, read only that enhancement's reference file.
-   - If a reference file named in the registry is missing, report that exact missing path before patching.
-9. Write only classified targets and summarize:
-   - files changed
-   - protected files inspected but not changed
-   - Trellis license/notice status (`present`, `missing`, or `unknown`)
-   - project-shared versus personal/local files
-   - explicit paths proposed for `git add`, or why no staging is allowed
-   - rules injected
-   - inferred validation profile
-   - Playwright execution mode and profile location when browser validation applies
-   - development-stage exceptions, preview entry/addresses, environment setup or newly required keys, and execution constraints
-   - task-archive attribution route and any unsupported integration point
-   - mainline continuity mode, current initiative, and any decision required before work may continue
-   - source requirements imported and their approval status
-   - project policy loading paths, verified contexts, and remaining loading gaps
-   - `trellis update` risk: whether any patched file is a Trellis template target and whether backup recovery was used
-   - checklist IDs, applicability, existing versus target state, evidence, and remaining `GAP`/`UNKNOWN` results
-   - any manual follow-up the next Trellis task should request
+1. Determine scope and mode. Load the current [CHACKLIST.md](CHACKLIST.md) and distinguish a read-only audit, default application, or scoped enhancement. Select checks within that scope; an audit reports evidence and proposals without applying enhancements.
+2. Perform minimal discovery to choose routes:
+   - Locate `.trellis/workflow.md`, `.trellis/spec/trellis-plus/index.md`, existing `.trellis/spec/**/index.md`, `.trellis/mainline.md`, and task records when present.
+   - Prefer runtime pointers for the active task; otherwise inspect non-archived `.trellis/tasks/*/task.json`. Record the actual status without changing it.
+   - Identify current requirement/design sources and inspect manifests, CI, existing commands, and task scope only far enough to classify UI, previewable services, and initialization/update state. Keep archived alternatives and examples distinct from current requirements.
+   - If authorized Trellis initialization runs, resume discovery and reassess applicability from the resulting installation before selecting enhancements.
+3. Select references before specialized discovery or writes. For `$trellis-plus` without a narrower scope, read every reference in the Default Enhancement Set and its required dependencies; execute only applicable, authorized steps. For a scoped enhancement, read its reference and the shared procedures/dependencies needed by its actual targets. If a required reference is missing, report its exact path before modifying the affected targets.
+4. Run the selected references' discovery and applicability checks. Derive validation commands from repository evidence and distinguish runnable checks from checks requiring the user's environment. Classify candidate writes through the file policy; retain personal settings locally and report any protected target instead of patching it. Do not run or install unrelated enhancements to fill checklist gaps.
+5. Apply authorized changes only to classified targets. For shared rules and task context, follow [Project Policy Loading And Generalization](references/project-policy-loading.md) to verify usable project rules and actual loading. Self-check the resulting state against the current checklist; report unverified execution or loading as a gap rather than successful integration.
+6. After successful authorized initialization and Trellis Plus application, follow [Initialization Bootstrap Task Closure](references/initialization-bootstrap-task-closure.md) before reporting initialization wrap-up complete. Read-only audits and unrelated scoped enhancements do not trigger this route.
+7. Report evidence and remaining work:
+   - changed files, protected files inspected, Trellis license/notice status, shared versus local ownership, and explicit staging paths or why staging is unavailable
+   - applied rules, validation profile, actual checks and limitations, and applicable Playwright execution mode/profile location
+   - development-stage exceptions, preview entry/addresses, environment setup or new keys, and execution constraints
+   - archive-attribution route, unsupported integration points, and applicable initialization closure outcome
+   - mainline mode/initiative, imported requirements and approval status, required decisions, and policy loading paths, verified contexts, and gaps
+   - template-update risk and backup use, current checklist IDs/applicability, existing versus target evidence, remaining `GAP`/`UNKNOWN` results, and manual follow-up
 
 ## Checklist Self-Check And Skill Maintenance
 
@@ -144,8 +74,8 @@ Before step 1, load [CHACKLIST.md](CHACKLIST.md) and select the applicable check
 - A full audit or default application reports every current checklist ID, including `PASS` and conditional `N/A` entries, with the constraint, existing situation/evidence, target situation, and proposed change/path. Split independently failing requirements into subrows. Use `PASS`, `GAP`, `UNKNOWN`, and `N/A` as defined in the checklist; a partial result cannot pass the whole item.
 - For an explicitly scoped enhancement, self-check the relevant IDs and identify the excluded scope as unexamined; do not run or install unrelated enhancements to fill the table. A read-only request remains read-only, and missing runtime evidence does not authorize running services, installing tools, or changing tasks.
 - If the checklist is missing or contradicts its source procedures, report the exact gap and affected IDs. Continue independent authorized work using the available source procedures, but do not declare the affected self-check or a full audit complete. An audit of a target repo does not authorize repairing the skill itself.
-- **Every update to Trellis Plus must synchronize `CHACKLIST.md` in the same change.** Reconcile changes to `SKILL.md`, the registry, reference procedures, and any supporting behavior with checklist applicability, expected state, evidence, and links. Add new checks, revise changed checks, and remove retired requirements without reusing their IDs. Keep unaffected IDs stable so users can approve changes by ID.
-- Even when an update changes no check requirement, review the checklist against the updated material and update its latest synchronization note with the actual reviewed scope and whether requirements changed. Update the copyable prompt only when its loading/reporting/authorization contract changes; it must point to the current checklist rather than duplicate the item inventory.
+- When updating `SKILL.md`, the registry, reference procedures, or supporting behavior, review affected checklist requirements and synchronize changed applicability, expected state, evidence, and links in the same change. Add new checks and remove retired requirements without reusing their IDs; keep unaffected IDs stable. If no checklist requirement changes, leave `CHACKLIST.md` unchanged.
+- Update the copyable prompt only when its loading/reporting/authorization contract changes; it must point to the current checklist rather than duplicate the item inventory. Keep only current guidance in the skill; record change history and review conclusions in commit messages or the delivery report instead of appending synchronization notes.
 - Before declaring a skill update complete, verify that every registry enhancement and cross-cutting rule is covered, every checklist source link resolves, and initialization/application/audit all load the checklist. Run the skill validator and diff checks. Treat an unsynchronized checklist as unfinished maintenance.
 
 ## Enhancement Registry
@@ -153,10 +83,13 @@ Before step 1, load [CHACKLIST.md](CHACKLIST.md) and select the applicable check
 Default Enhancement Set:
 
 - **License-safe file policy**: always read `references/license-safe-file-policy.md` before any write, staging, or commit recommendation.
+- **Project policy loading and generalization**: read `references/project-policy-loading.md` when creating, reapplying, or auditing shared rules and task context.
+- **Trellis update revalidation**: read `references/trellis-update-revalidation.md` after `trellis update` or when template/update state or provenance needs checking.
 - **Submit-ready human review gate**: read `references/submit-ready-human-review.md` when adding rules for the moment a Trellis task is implemented, checked, and ready to commit.
 - **Development-stage principles**: read `references/development-principles.md` to install the shared rules for scope, compatibility, evidence, dev access, README ownership, and workspace protection.
 - **Task-archive Codex attribution**: read `references/chatgpt-codex-commit-trailer.md` for once-per-task completion summaries and co-author trailers at archival.
-- **Docker development and preview bootstrap**: read `references/dev-it-in-docker-bootstrap.md` for the wrapper, `.env`-configured preview with first-use preparation of missing images/dependencies, reusable start/stop lifecycle, and delegation of execution permissions to the base skill. When implementing or adapting the preview CLI, read `assets/refer-preview.sh` and the reference integration procedure; reuse its presentation/dispatch layer or verify an existing equivalent. Also read `references/preview-console-contract.md` for the mandatory service-grouped URL format, effective Docker endpoint/host address discovery, readiness, and redacted failure diagnostics before cleanup.
+- **Initialization bootstrap task closure**: read `references/initialization-bootstrap-task-closure.md` when wrapping up successful authorized initialization and Trellis Plus application.
+- **Docker development and preview bootstrap**: read `references/dev-it-in-docker-bootstrap.md` for wrapper/service setup and preview integration; it routes to the reference script, console contract, environment setup, and base skill when applicable.
 - **Environment configuration**: read `references/environment-configuration.md` when creating or adapting `preview.sh`, configuring `.env.example`/`.env` or equivalent project files, and communicating required values.
 - **UI/UX Pro Max frontend integration**: read `references/ui-ux-pro-max-integration.md` when the repository or active task has a frontend/UI surface. This enhancement owns the initialization prompt and the UUPM Plan → Implement → Check → Update Spec workflow.
 - **Playwright automated frontend validation**: read `references/playwright-automated-validation.md` when the repository or active task has a browser-accessible UI change. This enhancement owns the automate-first decision, Playwright test evidence, and residual manual-review handoff.
@@ -171,70 +104,11 @@ Use the project-owned configuration layer, not the installed Trellis runtime:
 - Create or update `.trellis/spec/trellis-plus/index.md` for the concise shared policy and add detail files beside it when needed.
 - Add task-specific research, design decisions, implementation context, and check evidence under the active `.trellis/tasks/<TASK-ID>/` directory.
 - Add the durable continuity record at `.trellis/mainline.md` for approved or explicitly labeled proposed direction; proposed content grants no implementation authority.
-- Register the shared policy and relevant detail paths in active task context using the installed Trellis mechanism. Verify loading as described below.
+- Register the shared policy and relevant detail paths in active task context using the installed Trellis mechanism. Verify loading through `references/project-policy-loading.md`.
 - Keep personal allow rules in the active platform's local configuration. They adapt execution only and must not become a second project policy.
 - Read `.trellis/workflow.md` and existing specs for context, but do not patch `.trellis/workflow.md`, `.trellis/scripts/**`, `.trellis/agents/**`, `.trellis/config.yaml`, update metadata, or managed platform files.
 
-Do not create a parallel task system or runtime. The dedicated spec layer is
-only a project-owned configuration namespace inside Trellis's normal spec
-discovery model.
-
-## Project Policy Loading And Generalization
-
-The installed project must be usable by an agent that has only the repository,
-not the author's home directory or this conversation. For each enhancement,
-write its trigger, concrete action, relevant project paths/commands, exceptions,
-and observable verification into the project-owned spec. Replace example
-values with repository evidence; mark unresolved values explicitly instead of
-inventing commands. Keep durable rules in specs and this task's results in task
-evidence. Do not reduce an actionable procedure to a vague instruction such as
-"follow best practices" or a pointer to an unavailable skill.
-
-1. Keep the shared index short, with direct links and loading conditions for
-   its detail files. Reuse existing equivalent project-owned files and avoid
-   duplicating rules across indexes.
-2. Inspect the installed task-start/context-loading path and applicable
-   `AGENTS.md` read-only. Confirm whether the shared index is actually loaded;
-   do not infer this from the existence of a spec directory.
-3. For an active task, use the existing context mechanism to register the
-   shared index and applicable detail files for implementation and checking.
-   If the loader does not follow Markdown links, register the needed details
-   explicitly. Preserve existing entries and deduplicate additions. Inspect
-   the resulting context records or resolved input when available.
-4. Ensure the main session reads mainline and the shared policy at task start,
-   after a substantial interruption, before commit/archive, and when selecting
-   subsequent work. Configure an existing project-owned startup extension if
-   available. Otherwise a narrow personal/local adapter may point to the
-   tracked policy, but it is not a portable replacement for project discovery.
-   Never patch a Trellis-managed AGENTS block or other protected loader.
-5. Record the actual loading path and any gap in the shared index. If future
-   tasks lack an automatic loading path, state that limitation and the exact
-   manual read/context-registration step. Do not report automatic integration
-   complete while the entry point is missing.
-6. Walk through one relevant task from start to check to archive using the
-   generated rules. Confirm that its agent can identify the next action,
-   execute the documented command when available, and distinguish success,
-   missing prerequisites, and an unsupported operation. Reapplying the skill
-   must preserve user values and work without duplicated rules or task records.
-
-Generalize incidental names, machine paths, private endpoints, and one-off
-conversation examples. Preserve standard filenames, real project command
-syntax, requirement approval boundaries, and the exact Codex trailer. Keep
-unknown capabilities explicit; removing specifics must not remove the evidence
-needed to perform or verify the work.
-
-## Update Resilience
-
-Trellis may update project templates while preserving local edits through hash-based conflict handling and timestamped backups. Trellis Plus must keep its durable additions outside those template targets so an update does not turn them into mixed upstream files.
-
-When applying Trellis Plus after an update:
-
-- Run or ask the user for `trellis update --dry-run` output when update state is unclear.
-- Inspect the active protected files and newest `.trellis/.backup-*` snapshot read-only when provenance or update state is unclear.
-- Revalidate `.trellis/spec/trellis-plus/index.md`, its project-owned detail files, task context, and `.trellis/mainline.md`; do not restore a previous customization into a protected Trellis file.
-- If an update removes behavior that used to be injected through `workflow.md`, do not recreate that pointer automatically. The shared project configuration remains the source of truth for the next Trellis Plus run.
-- If an update changes UUPM, Playwright, or wrapper paths, update only the project-owned policy/profile and preserve the user's existing test, fixture, wrapper, and personal configuration files.
-- Do not add protected Trellis files to `update.skip` as part of this skill. If the user deliberately maintains a fork, handle it as a separate license-aware maintenance decision.
+Do not create a parallel task system or runtime. The dedicated spec layer is only a project-owned configuration namespace inside Trellis's normal spec discovery model.
 
 ## Expected Result
 
@@ -257,6 +131,7 @@ After applying this skill with the default enhancement set, a future Trellis Plu
 - ask for manual review only when browser automation is ineffective, unavailable, or cannot resolve the remaining product, visual, accessibility, device, or private-environment risk
 - attribute each successfully archived Codex-assisted task once on its archive commit, using a verified supported archive route and a proportional completion summary
 - omit this task-level trailer from ordinary work and separate journal commits; retries do not duplicate attribution
+- finish initialization bootstrap task closure through the referenced procedure before declaring initialization wrap-up complete
 - import project-local requirements into mainline with approval/source boundaries and maintain verified progress across the task lifecycle
 - preserve a declared project mainline across task archives with a read-only, evidence-first Project Pulse when no task is active
 - verify policy loading for current and future tasks, reporting integration gaps instead of claiming a spec file enforces itself

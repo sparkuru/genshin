@@ -24,19 +24,12 @@
 
 ## Skill 更新时同步维护
 
-每次更新 Trellis Plus，在同一变更中同步核对并更新本文件，包括 `SKILL.md`、增强 registry、references 及其他支持行为的变化。新增要求增加编号，修改要求同步适用条件、目标与证据，撤销要求移除对应条目且不复用编号；未改变的编号保持稳定。
+- 更新 `SKILL.md`、增强 registry、references 或支持行为时，核对受影响的检查项；要求变化则在同一变更中同步适用条件、目标、证据和来源链接。要求未变时无需修改本文件。
+- 新增要求使用新编号，撤销要求移除条目且不复用编号，未改变的编号保持稳定。
+- Prompt 只引用当前清单，不复制固定检查项；仅其读取、报告或授权流程变化时更新。
+- 完成更新前确认增强及跨项规则有覆盖、来源链接可解析、初始化/应用/复查入口必读本文件，并通过 skill 校验和 diff 检查。清单与实际要求不一致时，更新仍属未完成；目标仓库的只读复查不授权修改 skill。
 
-即使没有检查要求变化，也要核对全部受影响条目并更新下面的最近同步说明，写明实际审阅范围和结论。Prompt 只引用当前清单；仅其读取、报告或授权流程变化时同步修改 prompt，不保留固定检查项副本。
-
-完成更新前确认：registry 各增强和跨项规则有覆盖、来源链接可解析、初始化/应用/复查入口必读本文件，skill 校验及 diff 检查通过。不同步清单的 skill 更新仍属未完成。核查发现同步缺口时，目标仓库的复查不得擅自修改 skill。
-
-最近同步说明：建立当前清单，迁入原 prompt 的 01–32 项并补充 33；核对当前 `SKILL.md` 与全部 10 份 references，包括预览控制台契约；同步初始化/应用/复查加载与 prompt 引用流程。
-
-2026-10-04 补充同步核对：预览控制台 reference、registry 与 Docker bootstrap 的强制链接，对应 16–21 项；统一输出、`ip -br a` 全地址发现与真实就绪要求已由 18–19 完整覆盖，本次不新增或复用编号。核对所有 registry 增强、来源链接及初始化/应用/复查的当前清单入口，保留其余检查项与 prompt 约定。
-
-2026-10-08 补充同步核对：更新 Docker bootstrap、预览控制台契约、环境首次设置和 `SKILL.md` registry/预期结果，对应 16、18–20 项。首用改为配置后按需准备缺失镜像/依赖，补充有效 Docker endpoint/CLI 能力、清理前脱敏诊断、失败分支及默认持久数据验证；显式离线/禁止安装约束仍优先。编号及其余条目保持不变，prompt 读取/报告/授权约定未变。核对 registry 全部增强的来源覆盖、清单来源链接及初始化/应用/复查加载入口。
-
-2026-10-08 参考脚本同步核对：新增 `assets/refer-preview.sh`，从 registry 和 bootstrap/控制台 reference 路由至脚本及项目集成程序，对应 16、18 项；补充语义色彩、stderr log/warn/error、命令/帮助、摘要渲染和 source/适配边界。配置加载、readiness、Docker 生命周期及脱敏仍由项目实现负责，既有等价实现可保留；项目副本不得依赖 skill 安装路径。编号、prompt 约定与其余增强不变。
+本文件只维护当前规则和检查项。更新历史与审阅结论写入提交消息或本次交付报告，不在 skill 内追加同步记录。
 
 ## 检查项
 
@@ -66,21 +59,21 @@
 - 适用条件：所有已应用或拟应用的项目共享规则。
 - 核对要求：触发条件、具体动作、项目实际路径/命令、例外和验证方法是否齐全；未来 agent 是否无需作者机器路径或本次对话即可使用。
 - 验证证据：逐项规则正文中的触发、动作、项目命令、例外、成功/失败判断；未知能力明确标记。
-- 依据：[SKILL.md](SKILL.md)。
+- 依据：[references/project-policy-loading.md](references/project-policy-loading.md)。
 
 ### 05. 策略加载
 
 - 适用条件：已有共享配置或正在应用增强的仓库；当前任务与未来任务入口分开检查。
 - 核对要求：当前任务 implement/check context 是否实际引用所需共享规则；不跟随 Markdown 链接的加载器是否显式注册详情；未来任务入口是否可加载，缺口和手动步骤是否明确。没有活动任务时注明该场景尚无法验证。
 - 验证证据：任务启动路径、AGENTS 读取机制、implement/check 记录或已解析输入；注明没有自动入口时的精确手动步骤。
-- 依据：[SKILL.md](SKILL.md)。
+- 依据：[references/project-policy-loading.md](references/project-policy-loading.md)。
 
 ### 06. 更新韧性
 
 - 适用条件：已应用 Trellis Plus 的仓库；实际 update/备份恢复场景按可用证据检查。
 - 核对要求：共享增强是否位于非模板覆盖目标，trellis update 后的规则、mainline、上下文和工具路径是否仍有效；旧备份内容是否被错误恢复到受保护文件，是否滥用 update.skip。
 - 验证证据：版本/模板元数据、实际模板目标、最近相关备份和加载路径；没有 update 场景证据时不宣称经历更新验证。
-- 依据：[SKILL.md](SKILL.md)、[references/license-safe-file-policy.md](references/license-safe-file-policy.md)。
+- 依据：[references/trellis-update-revalidation.md](references/trellis-update-revalidation.md)、[references/license-safe-file-policy.md](references/license-safe-file-policy.md)。
 
 ### 07. 个人配置与暂存规则
 
@@ -134,8 +127,8 @@
 ### 14. 提交前人工评审
 
 - 适用条件：所有已应用或拟应用 Trellis Plus 的仓库；当前任务尚未到提交点时不执行提交流程。
-- 核对要求：human-required / human-optional / human-not-needed 的触发、阻塞规则、具体反馈内容与已有授权复用是否明确；是否发生在提交/完成/归档之前，安装规则是否误改任务状态。
-- 验证证据：gate 正文、阻塞与非阻塞反馈格式、已授予授权及任务证据；检查增强未改变任务状态。
+- 核对要求：human-required / human-optional / human-not-needed 的触发、阻塞规则、具体反馈内容与已有授权复用是否明确；是否发生在提交/完成/归档之前；评审规则安装本身不改变任务状态，初始化收尾归档遵循 34 项及已有检查/授权。
+- 验证证据：gate 正文、阻塞与非阻塞反馈格式、已授予授权及任务证据；区分规则安装与满足前提后的初始化收尾归档。
 - 依据：[references/submit-ready-human-review.md](references/submit-ready-human-review.md)。
 
 ### 15. 开发命令入口
@@ -269,6 +262,14 @@
 ### 33. 当前清单读取与完整自检
 
 - 适用条件：所有 Trellis Plus 初始化/bootstrap、应用、重应用和复查。
-- 核对要求：读取实际使用的 skill 同目录最新 `CHACKLIST.md`，从当前条目生成报告；初始化后重判适用性，应用后逐项自检；完整检查保留所有编号及 PASS/N/A，限定范围明确未检查项；缺失清单、来源冲突或缺少运行证据不能宣称完整通过。
-- 验证证据：报告中的 skill/清单实际来源、当前编号覆盖、依据链接、适用性及逐项证据；初始化或应用前后检查结果与剩余 GAP/UNKNOWN；原 prompt 不含旧的固定清单副本。
+- 核对要求：读取实际使用的 skill 同目录最新 `CHACKLIST.md`，从当前条目生成报告；先判定范围并完成最小发现，再按 registry 选择来源程序后进行专项检查或写入。初始化后重判适用性，应用后逐项自检；完整检查保留所有编号及 PASS/N/A，限定范围明确未检查项；缺失清单、来源冲突或缺少运行证据不能宣称完整通过。
+- 验证证据：报告中的 skill/清单实际来源、范围与所选 references、当前编号覆盖、依据链接、适用性及逐项证据；初始化或应用前后检查结果与剩余 GAP/UNKNOWN；原 prompt 不含旧的固定清单副本。
 - 依据：[SKILL.md](SKILL.md) 中的 Operating Rules、Discovery Workflow 与 Checklist Self-Check And Skill Maintenance，以及本文件的使用与报告约定。
+
+### 34. 初始化模板任务归档
+
+- 适用条件：`trellis init` 与已授权的 Trellis Plus 应用及其适用检查完成后的初始化收尾；只读复查或无关限定增强不触发归档。
+- 核对要求：归档前检查 `.trellis/tasks/00-bootstrap-guidelines/` 及既有归档尝试、归档记录、待提交变更和 Git 历史；移动成功而提交失败时，确认提交尚不存在后只恢复待提交步骤，状态不明则阻塞。活动目录缺失且无未完成归档尝试时跳过；归档提交已存在时不重复归档/署名，缺失署名按 28–29 报告而不自动修复历史，不重建任务。存在待归档任务时按受支持接口执行，分别核对已有初始化、归档和提交授权覆盖，初始化授权不自动包含 Git 提交，保留第 14 项评审及明确暂存边界。
+- 完成条件：记录初始化结果、项目规范路径与模板替代关系，未完成的原始清单不伪勾选。实质验收遗留工作阻塞收尾；仅在完成、证实被替代或经授权转交关联后续任务后继续，记录实际处置而非将未交付工作记为完成。归档受阻不能宣称初始化完整收尾。
+- 验证证据：归档前任务记录/PRD、初始化与应用检查结果、授权覆盖与评审结果、遗留工作完成/替代/后续任务关联证据、归档路径及 status/completedAt、活动任务列表、适用的归档提交/trailer 和既有 mainline 更新；缺失/已归档时有跳过依据，部分失败时有状态及 Git 历史证据且只恢复待完成步骤。
+- 依据：[references/initialization-bootstrap-task-closure.md](references/initialization-bootstrap-task-closure.md)、[references/chatgpt-codex-commit-trailer.md](references/chatgpt-codex-commit-trailer.md)、[references/license-safe-file-policy.md](references/license-safe-file-policy.md)。

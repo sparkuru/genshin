@@ -50,7 +50,7 @@ Do not choose `playwright-not-effective` merely because the task changes UI, nee
 
 Inspect repository evidence before changing test infrastructure:
 
-- package manifests, lockfiles, scripts, and CI workflows
+- package manifests, lockfiles, scripts, CI workflows, and browser-install steps
 - `@playwright/test`, `playwright.config.*`, test directories, reporters, fixtures, `storageState`, and snapshot baselines
 - the app's local/test startup command, readiness URL, base URL, API dependencies, and seeded-data strategy
 - existing E2E conventions and a project's existing browser runner
@@ -60,47 +60,21 @@ Record the command that will run during final validation. Prefer an existing nar
 
 ## Mobile Applicability And Adaptation
 
-Desktop remains the primary development surface; mobile is a secondary,
-explicitly supported surface where applicable, not an optional final screenshot.
-For each affected UI task, classify mobile coverage before implementation:
+Desktop remains the primary development surface; mobile is a secondary, explicitly supported surface where applicable, not an optional final screenshot. For each affected UI task, classify mobile coverage before implementation:
 
-- `mobile-required`: the product supports mobile use, the user requests it, or
-  changed general-purpose browser pages are expected to work on narrow screens.
-  In the absence of an explicit desktop-only constraint, use this for normal
-  browser pages and core flows.
-- `mobile-not-applicable`: an evidenced desktop-only product/task, a non-UI
-  change, or another concrete scope exclusion. Record that reason; missing
-  mobile tests alone is not evidence of exclusion.
-- `mobile-unavailable`: mobile coverage is required but the needed automation
-  or real device cannot be used. Record the blocked checks and remaining work;
-  desktop success does not count as mobile success.
+- `mobile-required`: the product supports mobile use, the user requests it, or changed general-purpose browser pages are expected to work on narrow screens. In the absence of an explicit desktop-only constraint, use this for normal browser pages and core flows.
+- `mobile-not-applicable`: an evidenced desktop-only product/task, a non-UI change, or another concrete scope exclusion. Record that reason; missing mobile tests alone is not evidence of exclusion.
+- `mobile-unavailable`: mobile coverage is required but the needed automation or real device cannot be used. Record the blocked checks and remaining work; desktop success does not count as mobile success.
 
-For required coverage, specify supported narrow width/device settings and the
-changed flow's expected layout, navigation, input, and final state in task
-acceptance/design context. Reuse the existing viewport matrix; avoid adding a
-large device fleet. Fix actual mobile failures within the affected surface:
-overflow or clipping, unreadable/reordered content, inaccessible navigation,
-unusable touch controls, hover-only actions, obscured forms or dialogs, and
-broken mutation/confirmation paths. Test portrait/landscape or virtual-keyboard
-effects only where the requirement or observed issue warrants them.
+For required coverage, specify supported narrow width/device settings and the changed flow's expected layout, navigation, input, and final state in task acceptance/design context. Reuse the existing viewport matrix; avoid adding a large device fleet. Fix actual mobile failures within the affected surface: overflow or clipping, unreadable/reordered content, inaccessible navigation, unusable touch controls, hover-only actions, obscured forms or dialogs, and broken mutation/confirmation paths. Test portrait/landscape or virtual-keyboard effects only where the requirement or observed issue warrants them.
 
-Use the existing Playwright browser projects and device/touch emulation for
-reproducible coverage. State what was emulated; it does not prove behavior on
-physical phones, mobile browser engines, or native apps. Request a targeted
-real-device check only for a remaining issue automation cannot exercise.
-Native-only surfaces use their existing device test workflow, not Web
-Playwright as a substitute. Preserve diagnostic screenshots when useful, and
-assert interaction and final state rather than relying on screenshots alone.
+Use the existing Playwright browser projects and device/touch emulation for reproducible coverage. State what was emulated; it does not prove behavior on physical phones, mobile browser engines, or native apps. Request a targeted real-device check only for a remaining issue automation cannot exercise. Native-only surfaces use their existing device test workflow, not Web Playwright as a substitute. Preserve diagnostic screenshots when useful, and assert interaction and final state rather than relying on screenshots alone.
 
 ## Durable Project Profile
 
-For every project where this enhancement applies, create or update one durable
-section named `### Trellis Plus: Playwright Validation Profile`.
+For every project where this enhancement applies, create or update one durable section named `### Trellis Plus: Playwright Validation Profile`.
 
-Place it in the project-owned `.trellis/spec/trellis-plus/index.md` or a detail
-file beside it. Do not put it in `.trellis/workflow.md` or an existing
-generated spec index merely to make the profile durable. Do not create a
-parallel test framework or a task-local substitute just to hold this profile.
+Place it in the project-owned `.trellis/spec/trellis-plus/index.md` or a detail file beside it. Do not put it in `.trellis/workflow.md` or an existing generated spec index merely to make the profile durable. Do not create a parallel test framework or a task-local substitute just to hold this profile.
 
 The profile must contain only repository-confirmed values and these fields:
 
@@ -205,14 +179,10 @@ Record the exact command, covered routes/states/viewports, fixture strategy, and
 
 Patch in this order:
 
-1. `.trellis/spec/trellis-plus/index.md` or a detail file beside it: add the
-   automate-first decision and the repository-confirmed profile.
-2. Active task implement/check context: reference the shared profile when an
-   agent needs it for the task.
-3. Project-owned test/config files: add only the smallest Playwright test,
-   config, dependency metadata, and fixture changes justified by the task.
-4. Personal/local platform settings: add only a narrow pointer when the
-   platform cannot load the shared spec; keep it untracked.
+1. `.trellis/spec/trellis-plus/index.md` or a detail file beside it: add the automate-first decision and the repository-confirmed profile.
+2. Active task implement/check context: reference the shared profile when an agent needs it for the task.
+3. Project-owned test/config files: add only the smallest Playwright test, config, dependency metadata, and fixture changes justified by the task.
+4. Personal/local platform settings: add only a narrow pointer when the platform cannot load the shared spec; keep it untracked.
 
 Add the detailed rule once and short pointers elsewhere. Do not create a parallel E2E workflow or rewrite existing Playwright configuration just to install the enhancement.
 
