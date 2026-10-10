@@ -1,0 +1,73 @@
+# Native OpenCode Go Responses models:
+# GPT: gpt-5.6-luna, gpt-6-luna
+# Grok: grok-4.6, grok-4.7
+# Muse: muse-spark-1.3-contributor, muse-spark-1.2-contributor
+# Muse Contributor availability depends on your region.
+# Use bare API model IDs here, without the opencode-go/ prefix.
+# Override for one session: codex --profile opencode -m grok-4.6
+# Endpoint reference: https://docs.opencode.ai/docs/go/#endpoints
+model = "muse-spark-1.3-contributor"
+model_provider = "opencode-go"
+model_reasoning_effort = "high"
+service_tier = "default"
+personality = "pragmatic"
+approvals_reviewer = "auto_review"
+
+developer_instructions = """
+Choose whether to delegate based on task complexity, coupling, and the cost of
+coordination. Complete small or tightly coupled tasks in the primary agent.
+Delegate only when a subtask has a clear scope and can be completed and
+validated independently, and delegation materially helps the overall task.
+
+For this profile, use available built-in `default`, `worker`, or `explorer`
+agents for delegation. Do not use the custom `luna` or `sub_agent` roles, which
+override model settings. If a suitable built-in role is unavailable, complete
+the work in the primary agent.
+
+Delegated agents must inherit the active OpenCode Go model, model provider,
+provider configuration, reasoning effort, and service tier unless the user
+explicitly requests an override. Keep API keys in the configured environment;
+do not copy their values into prompts or files, or silently switch providers.
+Wait for delegated results and verify their evidence before relying on them.
+"""
+
+[model_providers.opencode-go]
+name = "OpenCode Go"
+base_url = "https://opencode.ai/zen/go/v1"
+env_key = "OPENCODE_API_KEY"
+env_key_instructions = "Set OPENCODE_API_KEY to your OpenCode Go API key before starting Codex."
+wire_api = "responses"
+requires_openai_auth = false
+supports_websockets = false
+
+# should be same
+
+[tui]
+auto_recap = false
+screen_reader_detection_done = true
+
+status_line = [
+    "current-dir",
+    "model-with-reasoning",
+    "context-remaining",
+    "used-tokens"
+]
+
+[features]
+hooks = true
+fast_mode = true
+multi_agent = true
+# Keep ChatGPT-specific Apps out of this third-party coding profile.
+apps = false
+
+[notice]
+hide_rate_limit_model_nudge = true
+
+[hooks.state]
+[hooks.state."/home/wkyuu/.codex/hooks.json:session_start:0:0"]
+trusted_hash = "sha256:68ae78cc417f211f7e770ee854b625bd8178f8ed6285787c421484ce5da2ec95"
+
+# projects' trusted config
+
+[projects."/tmp/tmp"]
+trust_level = "trusted"

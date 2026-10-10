@@ -106,8 +106,8 @@ $proxy_port = "1080"
 # $env:https_proxy="http://${proxy_host}:${proxy_port}"
 
 # agent cli env
-if (Test-Path "$HOME/.config/agent-cli-env.ps1") {
-    . "$HOME/.config/agent-cli-env.ps1"
+if (Test-Path "$HOME/.config/.agent-envs.ps1") {
+    . "$HOME/.config/.agent-envs.ps1"
 }
 
 # cancle native alias

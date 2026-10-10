@@ -162,9 +162,11 @@ main() {
 	local source_agents_file="$SCRIPT_DIR/agents.md"
 	local source_deep_profile="$SCRIPT_DIR/deep.config.toml"
 	local source_luna_profile="$SCRIPT_DIR/luna.config.toml"
+	local source_opencode_profile="$SCRIPT_DIR/opencode.config.toml"
 	local target_config="$CODEX_HOME/config.toml"
 	local target_deep_profile="$CODEX_HOME/deep.config.toml"
 	local target_luna_profile="$CODEX_HOME/luna.config.toml"
+	local target_opencode_profile="$CODEX_HOME/opencode.config.toml"
 
 	for command_name in awk cat chmod cp ln mkdir mktemp mv rm stat; do
 		require_command "$command_name"
@@ -176,10 +178,12 @@ main() {
 	[[ -f "$source_agents_file" ]] || die "source file not found: $source_agents_file"
 	[[ -f "$source_deep_profile" ]] || die "source file not found: $source_deep_profile"
 	[[ -f "$source_luna_profile" ]] || die "source file not found: $source_luna_profile"
+	[[ -f "$source_opencode_profile" ]] || die "source file not found: $source_opencode_profile"
 
 	validate_dynamic_sections "$target_config"
 	validate_dynamic_sections "$target_deep_profile"
 	validate_dynamic_sections "$target_luna_profile"
+	validate_dynamic_sections "$target_opencode_profile"
 
 	mkdir -p -- "$CODEX_HOME/rules"
 	temp_dir=$(mktemp -d "$CODEX_HOME/.codex-sync.XXXXXXXXXX")
@@ -188,6 +192,7 @@ main() {
 	write_config "$source_config" "$target_config"
 	write_config "$source_deep_profile" "$target_deep_profile"
 	write_config "$source_luna_profile" "$target_luna_profile"
+	write_config "$source_opencode_profile" "$target_opencode_profile"
 	link_path "$source_agents" "$CODEX_HOME/agents"
 	link_path "$source_rules" "$CODEX_HOME/rules/default.rules"
 	link_path "$source_agents_file" "$CODEX_HOME/AGENTS.md"

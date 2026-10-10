@@ -1,0 +1,30 @@
+# Claude Code through OpenCode Go.
+export ANTHROPIC_BASE_URL='https://opencode.ai/zen/go'
+
+# Load credentials at runtime instead of storing them in the repository.
+unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+if command -v jq >/dev/null 2>&1; then
+	if ANTHROPIC_API_KEY=$(jq -er '."opencode-go" | select(.type == "api") | .key | select(type == "string" and length > 0)' "${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json" 2>/dev/null); then
+		export ANTHROPIC_API_KEY
+	else
+		unset ANTHROPIC_API_KEY
+		printf '%s\n' 'OpenCode Go API key is unavailable; connect OpenCode Go in opencode first.' >&2
+	fi
+else
+	printf '%s\n' 'OpenCode Go credential loading requires jq.' >&2
+fi
+
+## Change these IDs to select other Go models with a Messages endpoint.
+### claude: claude-haiku-5-5
+### qwen: qwen3.8-max、qwen3.8-flash、qwen3.7-plus
+### minimax: minimax-m3、minimax-m2.7
+export ANTHROPIC_MODEL='qwen3.8-flash'
+export ANTHROPIC_DEFAULT_OPUS_MODEL='minimax-m3'
+export ANTHROPIC_DEFAULT_SONNET_MODEL='qwen3.8-flash'
+export ANTHROPIC_DEFAULT_HAIKU_MODEL='claude-haiku-5-5'
+export CLAUDE_CODE_MAX_CONTEXT_TOKENS=200000
+export CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT=1
+export CLAUDE_CODE_AUTO_MODE_SERVER=0
+export DISABLE_AUTOUPDATER=1
+
+# Machine-local variables listed in sync.sh are appended during synchronization.

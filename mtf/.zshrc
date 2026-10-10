@@ -1455,9 +1455,9 @@ esac
 export PATH=$export_path
 
 ## agent cli env
-# if [[ -f "$HOME/.config/agent-cli-env" ]]; then
-#     source $HOME/.config/agent-cli-env
-# fi
+if [[ -r "$HOME/.config/.agent-envs" ]]; then
+    source "$HOME/.config/.agent-envs"
+fi
 
 # bun completions
 [ -s "/home/wkyuu/.bun/_bun" ] && source "/home/wkyuu/.bun/_bun"

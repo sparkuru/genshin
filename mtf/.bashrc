@@ -679,6 +679,12 @@ case $os_type in
 esac
 export PATH=$export_path
 
+## agent
+AGENTS_ENV_PATH="$HOME/.config/.agent-envs"
+if [[ -f $AGENTS_ENV_PATH ]]; then
+	source $AGENTS_ENV_PATH
+fi
+
 # anchor
 # ==============================================================
 # |                       custom alias                         |

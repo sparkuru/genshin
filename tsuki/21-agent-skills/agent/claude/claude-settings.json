@@ -1,4 +1,15 @@
 {
+  "statusLine": {
+    "type": "command",
+    "command": "jq -r 'def nonnegative: if type == \"number\" and . >= 0 then . else null end; def clean: tostring | explode | map(select(. >= 32 and (. < 127 or . > 159))) | implode; def compact: if . == null then \"--\" elif . >= 1000000 then ((. / 100000 | round) / 10 | tostring) + \"M\" elif . >= 1000 then ((. / 100 | round) / 10 | tostring) + \"k\" else (floor | tostring) end; . as $session | ($session.context_window // {}) as $context | ($context.context_window_size | nonnegative) as $size | (if ($context.current_usage | type) == \"object\" then [$context.current_usage.input_tokens, $context.current_usage.cache_creation_input_tokens, $context.current_usage.cache_read_input_tokens] | map(nonnegative) | if all(. == null) then null else add end elif $context | has(\"current_usage\") then null else $context.total_input_tokens | nonnegative end) as $used | (($context.remaining_percentage | nonnegative) // (if ($context.used_percentage | nonnegative) != null then 100 - $context.used_percentage elif $used != null and $size != null and $size > 0 then 100 - 100 * $used / $size else null end)) as $remaining | (($session.workspace.current_dir // $session.cwd // $session.workspace.project_dir // \"?\") | clean | split(\"/\") | map(select(length > 0)) | last // \"/\") as $dir | (($session.model.display_name // $session.model.id // \"Claude\") | clean) as $model | (($session.effort.level // \"\") | clean) as $effort | [$dir, ($model + if $effort == \"\" then \"\" else \" (\" + $effort + \")\" end), (if $remaining == null then \"--% context left\" else ([$remaining, 100] | min | [., 0] | max | floor | tostring) + \"% context left\" end), (($used | compact) + \"/\" + ($size | compact) + \" tokens\")] | join(\" · \")'",
+    "padding": 0
+  },
+  "env": {
+    "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "200000",
+    "CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT": "1",
+    "CLAUDE_CODE_AUTO_MODE_SERVER": "0",
+    "DISABLE_AUTOUPDATER": "1"
+  },
   "permissions": {
     "allow": [
       "Bash(ls *)",
@@ -109,9 +120,23 @@
       "/home/wkyuu"
     ]
   },
+  "model": "sonnet",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "^(startup|resume|clear|compact|fork)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/home/wkyuu/.claude/hooks/herdr-agent-state.sh' session",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
   "effortLevel": "high",
   "awaySummaryEnabled": false,
   "theme": "auto",
-  "agentPushNotifEnabled": true,
-  "hooks": {"SessionStart":[{"matcher":"^(startup|resume|clear|compact|fork)$","hooks":[{"type":"command","command":"bash '/home/wkyuu/.claude/hooks/herdr-agent-state.sh' session","timeout":10}]}]}
+  "agentPushNotifEnabled": true
 }
