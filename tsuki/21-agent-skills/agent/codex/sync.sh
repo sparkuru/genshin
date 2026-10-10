@@ -163,10 +163,12 @@ main() {
 	local source_deep_profile="$SCRIPT_DIR/deep.config.toml"
 	local source_luna_profile="$SCRIPT_DIR/luna.config.toml"
 	local source_opencode_profile="$SCRIPT_DIR/opencode.config.toml"
+	local source_opencode_catalog="$SCRIPT_DIR/opencode.models.json"
 	local target_config="$CODEX_HOME/config.toml"
 	local target_deep_profile="$CODEX_HOME/deep.config.toml"
 	local target_luna_profile="$CODEX_HOME/luna.config.toml"
 	local target_opencode_profile="$CODEX_HOME/opencode.config.toml"
+	local target_opencode_catalog="$CODEX_HOME/opencode.models.json"
 
 	for command_name in awk cat chmod cp ln mkdir mktemp mv rm stat; do
 		require_command "$command_name"
@@ -179,6 +181,7 @@ main() {
 	[[ -f "$source_deep_profile" ]] || die "source file not found: $source_deep_profile"
 	[[ -f "$source_luna_profile" ]] || die "source file not found: $source_luna_profile"
 	[[ -f "$source_opencode_profile" ]] || die "source file not found: $source_opencode_profile"
+	[[ -f "$source_opencode_catalog" ]] || die "source file not found: $source_opencode_catalog"
 
 	validate_dynamic_sections "$target_config"
 	validate_dynamic_sections "$target_deep_profile"
@@ -189,6 +192,7 @@ main() {
 	temp_dir=$(mktemp -d "$CODEX_HOME/.codex-sync.XXXXXXXXXX")
 	trap cleanup EXIT
 
+	cp -- "$source_opencode_catalog" "$target_opencode_catalog"
 	write_config "$source_config" "$target_config"
 	write_config "$source_deep_profile" "$target_deep_profile"
 	write_config "$source_luna_profile" "$target_luna_profile"

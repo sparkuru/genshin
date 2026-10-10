@@ -8,10 +8,14 @@
 # Endpoint reference: https://docs.opencode.ai/docs/go/#endpoints
 model = "muse-spark-1.3-contributor"
 model_provider = "opencode-go"
+# Copied alongside this profile by sync.sh.
+# Each model reviews through the same provider; no codex-auto-review alias.
+model_catalog_json = "opencode.models.json"
 model_reasoning_effort = "high"
 service_tier = "default"
 personality = "pragmatic"
 approvals_reviewer = "auto_review"
+approval_policy = "on-request"
 
 developer_instructions = """
 Choose whether to delegate based on task complexity, coupling, and the cost of
