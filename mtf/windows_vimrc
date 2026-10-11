@@ -76,8 +76,14 @@ set updatetime=100
 set ignorecase smartcase hlsearch incsearch showmatch
 set listchars=tab:▸\ ,eol:¬
 
-if has('termguicolors') && $COLORTERM =~? 'truecolor\|24bit'
-  set termguicolors
+if has('termguicolors')
+  if has('win32') || has('win64')
+    if has('vcon')
+      set termguicolors
+    endif
+  elseif $COLORTERM =~? 'truecolor\|24bit'
+    set termguicolors
+  endif
 endif
 colorscheme zellner
 highlight DiffAdd guifg=#000000
