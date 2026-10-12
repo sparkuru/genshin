@@ -486,6 +486,9 @@ fi
 
 # ----------------------------------------- custom script ----------------------------------------- #
 
+# custom enable zsh features
+autoload -Uz add-zsh-hook
+
 # repo
 github_username="sparkuru"
 github_url_base="https://raw.githubusercontent.com/${github_username}/genshin/main"
@@ -1478,6 +1481,19 @@ if [[ -d "$HOME/$leader_path_name/repo/04-flyMe2theStar/03-genshin" ]]; then
     export genshin="$HOME/$leader_path_name/repo/04-flyMe2theStar/03-genshin"
     alias genshin="cd $genshin"
 fi
+
+_update_trellis_task_alias() {
+    if [[ -d .trellis ]]; then
+        alias task='python3 .trellis/scripts/task.py'
+    elif [[ "${aliases[task]-}" == 'python3 .trellis/scripts/task.py' ]]; then
+        unalias task
+    fi
+    return 0
+}
+
+add-zsh-hook chpwd _update_trellis_task_alias
+_update_trellis_task_alias
+
 
 ## alias_anchor
 
