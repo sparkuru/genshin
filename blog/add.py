@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Create Firefly posts and memos beside this authoring entry point."""
+"""Create Firefly content or normalize existing Markdown metadata."""
 
 import argparse
 import datetime
@@ -136,15 +136,19 @@ def choose(label: str, options: Sequence[tuple[str, str]], back: bool = False) -
 
 
 def build_parser() -> ColoredArgumentParser:
-    """Expose interactive mode and direct post/memo commands with shared options."""
+    """Expose interactive authoring and automatic existing-file metadata."""
     parser = ColoredArgumentParser(
-        description="Create a post or memo next to add.py. Run without a type for the menu.",
+        description="Create a post or memo, or normalize existing Markdown with format PATH.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n  ./add.py\n  ./add.py post --editor 'code --wait'\n"
-            "  ./add.py memo\n  ./add.py --init\n  ./add.py --env-file /path/to/blog.env\n\n"
+            "  ./add.py memo\n  ./add.py --init\n  ./add.py --env-file /path/to/blog.env\n"
+            "  ./add.py format /path/to/blog/posts/category/article.md\n"
+            "  ./add.py format pages/about.md --preview\n\n"
             "Configuration:\n  Read .env beside add.py, or the file selected with --env-file.\n"
             "  A missing file starts setup: create it or provide an existing file.\n"
+            "  format reads an optional existing .env and never starts setup or an editor.\n"
+            "  An explicit --env-file must exist in format mode.\n"
             "  Priority: command-line options > process environment > .env > defaults.\n"
             "  Relative FIREFLY_REPO_ROOT values in .env are based on its directory.\n"
             "  Values are literal; comments and single/double quotes are supported.\n\n"
@@ -153,11 +157,16 @@ def build_parser() -> ColoredArgumentParser:
             "  VISUAL, EDITOR: editor command (default: vi)\n"
             "  NO_COLOR: disable terminal colors\n\n"
             "  FIREFLY_SITE_CONFIG_PATH: optional repository-relative site TOML path\n\n"
+            "Formatting:\n  format normalizes one front-matter block in place and preserves body bytes.\n"
+            "  Existing fields are retained; missing values are inferred, with draft: true.\n"
+            "  A recognized posts/ or pages/ workspace determines the collection; otherwise posts.\n"
+            "  Relative format paths use the caller's current directory.\n"
+            "  format PATH --preview prints the candidate without changing the file.\n\n"
             "Browse existing post folders one level at a time; /.. marks a folder with subfolders.\n"
             "Create additional folders yourself under posts/."
         ),
     )
-    commands = parser.add_subparsers(dest="content_type", title="content type")
+    commands = parser.add_subparsers(dest="content_type", title="commands")
     children = [
         commands.add_parser(
             name,
@@ -172,6 +181,30 @@ def build_parser() -> ColoredArgumentParser:
             ("memo", "Create a timestamped memo draft, then edit it."),
         )
     ]
+    format_parser = commands.add_parser(
+        "format",
+        help="Automatically normalize one existing Markdown file's metadata.",
+        description="Normalize one existing Markdown file's Firefly metadata in place.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n  ./add.py format /path/to/blog/posts/category/article.md\n"
+            "  ./add.py format pages/about.md --preview\n"
+            "  ./add.py --env-file /path/to/blog.env format posts/article.md\n\n"
+            "PATH names one Markdown file, relative to the caller's current directory.\n"
+            "Existing metadata and body bytes are preserved; missing fields are inferred.\n"
+            "Recognized posts/ or pages/ workspaces determine the collection; otherwise posts.\n"
+            "An existing optional .env is read without setup, prompts, or editing.\n"
+            "Formatting saves locally and does not deploy the site."
+        ),
+    )
+    format_parser.add_argument(
+        "source_path", metavar="PATH", help="existing Markdown file to normalize"
+    )
+    format_parser.add_argument(
+        "--preview",
+        action="store_true",
+        help="print the normalized candidate without writing",
+    )
     for command_parser in [parser, *children]:
         command_parser.add_argument(
             "--editor",
@@ -180,22 +213,23 @@ def build_parser() -> ColoredArgumentParser:
             help="editor command; quoted arguments are supported",
         )
         command_parser.add_argument(
+            "--init",
+            action="store_true",
+            default=argparse.SUPPRESS,
+            help="prepare/read .env configuration and exit without creating content",
+        )
+    for command_parser in [parser, *children, format_parser]:
+        command_parser.add_argument(
             "--firefly-root",
             metavar="PATH",
             default=argparse.SUPPRESS,
-            help="Firefly checkout containing tooling/",
+            help="Firefly tooling checkout",
         )
         command_parser.add_argument(
             "--env-file",
             metavar="PATH",
             default=argparse.SUPPRESS,
             help=".env configuration path; defaults to .env beside add.py",
-        )
-        command_parser.add_argument(
-            "--init",
-            action="store_true",
-            default=argparse.SUPPRESS,
-            help="prepare/read .env configuration and exit without creating content",
         )
         command_parser.add_argument(
             "--log",
@@ -342,7 +376,7 @@ def choose_existing_env_file() -> Path:
 
 
 def load_configuration(
-    content_root: Path, options: argparse.Namespace
+    content_root: Path, options: argparse.Namespace, setup: bool = True
 ) -> tuple[Path, dict[str, str]]:
     """Load the chosen dotenv file or guide first-time setup without implicit overwrites."""
     requested = getattr(options, "env_file", None)
@@ -350,6 +384,12 @@ def load_configuration(
         Path(requested).expanduser().absolute() if requested else content_root / ".env"
     )
     if not env_path.exists():
+        if not setup:
+            if requested or env_path.is_symlink():
+                raise AuthoringError(
+                    f"Configuration must be a readable file: {env_path}"
+                )
+            return env_path, {}
         section("Setup", "Choose your configuration")
         emit(f"Configuration not found: {env_path}", "PATH")
         action = choose(
@@ -365,6 +405,74 @@ def load_configuration(
             env_path = choose_existing_env_file()
     settings = read_env_file(env_path)
     return env_path, settings
+
+
+def configured_firefly_root(
+    content_root: Path,
+    env_path: Path,
+    settings: dict[str, str],
+    options: argparse.Namespace,
+) -> Path:
+    """Honor CLI, process environment, dotenv, and checkout default priority."""
+    root_override = getattr(options, "firefly_root", None) or os.environ.get(
+        "FIREFLY_REPO_ROOT"
+    )
+    root_value = (
+        root_override or settings.get("FIREFLY_REPO_ROOT") or content_root.parent
+    )
+    return configured_path(root_value, Path.cwd() if root_override else env_path.parent)
+
+
+def metadata_blog_root(source: Path, content_root: Path) -> Path:
+    """Find the nearest posts/pages workspace without resolving source symlinks."""
+    for ancestor in source.parents:
+        if ancestor.name not in ("posts", "pages"):
+            continue
+        candidate = ancestor.parent
+        directories = [candidate / name for name in ("posts", "pages")]
+        if all(item.is_dir() and not item.is_symlink() for item in directories):
+            return candidate
+    return content_root
+
+
+def format_document(content_root: Path, options: argparse.Namespace) -> int:
+    """Delegate noninteractive inference and atomic write-back to blog-meta."""
+    env_path, settings = load_configuration(content_root, options, setup=False)
+    for key in ("NO_COLOR", "FIREFLY_SITE_CONFIG_PATH"):
+        if key in settings:
+            os.environ.setdefault(key, settings[key])
+    firefly_root = configured_firefly_root(content_root, env_path, settings, options)
+    script = firefly_root / "apps/site/scripts/blog-meta.mjs"
+    if not script.is_file():
+        raise AuthoringError(
+            f"Metadata tooling not found: {script}. Set FIREFLY_REPO_ROOT or --firefly-root."
+        )
+    if shutil.which("node") is None:
+        raise AuthoringError(
+            "Node.js is required by Firefly tooling; node was not found in PATH."
+        )
+    source = Path(options.source_path).expanduser().absolute()
+    arguments = [
+        "node",
+        str(script),
+        str(source),
+        "--blog-root",
+        str(metadata_blog_root(source, content_root)),
+        "--write-back",
+    ]
+    if getattr(options, "preview", False):
+        arguments.append("--preview")
+    result = subprocess.run(arguments, check=False, capture_output=True)
+    if result.returncode:
+        message = result.stderr.decode("utf-8", errors="replace").strip()
+        emit(message or "Metadata normalization failed.", "ERROR")
+    elif getattr(options, "preview", False):
+        sys.stdout.flush()
+        sys.stdout.buffer.write(result.stdout)
+        sys.stdout.buffer.flush()
+    else:
+        emit(result.stdout.decode("utf-8", errors="replace").strip(), "SUCCESS")
+    return result.returncode
 
 
 def load_article_tools(firefly_root: Path) -> ModuleType:
@@ -606,9 +714,15 @@ def create_memo(content_root: Path, firefly_root: Path, editor_spec: str) -> int
 
 def main(arguments: Sequence[str] | None = None) -> int:
     """Run authoring with friendly cancellation and actionable errors."""
-    options = build_parser().parse_args(arguments)
+    parser = build_parser()
+    options = parser.parse_args(arguments)
+    format_mode = options.content_type == "format"
+    if format_mode and (getattr(options, "init", False) or hasattr(options, "editor")):
+        parser.error("format cannot be combined with --init or --editor.")
     try:
         content_root = Path(__file__).resolve().parent
+        if format_mode:
+            return format_document(content_root, options)
         env_path, settings = load_configuration(content_root, options)
         for key in ("NO_COLOR", "FIREFLY_SITE_CONFIG_PATH"):
             if key in settings:
@@ -620,14 +734,8 @@ def main(arguments: Sequence[str] | None = None) -> int:
             "Press Enter to accept a value in brackets. Use q in menus or Ctrl+C to cancel.",
             "EXAMPLE",
         )
-        root_override = getattr(options, "firefly_root", None) or os.environ.get(
-            "FIREFLY_REPO_ROOT"
-        )
-        root_value = (
-            root_override or settings.get("FIREFLY_REPO_ROOT") or content_root.parent
-        )
-        firefly_root = configured_path(
-            root_value, Path.cwd() if root_override else env_path.parent
+        firefly_root = configured_firefly_root(
+            content_root, env_path, settings, options
         )
         validate_firefly_root(firefly_root)
         if getattr(options, "init", False):

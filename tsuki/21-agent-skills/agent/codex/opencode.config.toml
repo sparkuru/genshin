@@ -16,6 +16,7 @@ service_tier = "default"
 personality = "pragmatic"
 approvals_reviewer = "auto_review"
 approval_policy = "on-request"
+sandbox_mode = "workspace-write"
 
 developer_instructions = """
 Choose whether to delegate based on task complexity, coupling, and the cost of

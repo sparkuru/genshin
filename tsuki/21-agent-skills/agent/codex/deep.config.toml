@@ -3,6 +3,8 @@ model_reasoning_effort = "medium"
 service_tier = "default"
 personality = "pragmatic"
 approvals_reviewer = "auto_review"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
 
 developer_instructions = """
 High-capability orchestration mode is active for this profile.

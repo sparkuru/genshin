@@ -138,5 +138,6 @@
   "effortLevel": "high",
   "awaySummaryEnabled": false,
   "theme": "auto",
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "attribution": false
 }
