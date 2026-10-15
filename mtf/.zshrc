@@ -229,7 +229,6 @@ configure_prompt() {
                     remote_path="${remote_source#*/}"
                 fi
 
-                remote_host="${remote_host%%:*}"
                 remote_path="${remote_path%.git}"
                 remote_path="${remote_path:t}"
 

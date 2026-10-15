@@ -27,7 +27,9 @@ require_command() {
 }
 
 cleanup() {
-    [[ -n "$TMP_PATH" && -f "$TMP_PATH" ]] && rm -f -- "$TMP_PATH"
+    if [[ -n "$TMP_PATH" && -f "$TMP_PATH" ]]; then
+        rm -f -- "$TMP_PATH"
+    fi
 }
 
 render_yaml() {
@@ -49,63 +51,61 @@ NAME_MAP = {
 }
 
 GENERIC_BLOCK = """proxies:
-  - {
-      name: "test",
-      server: test.test.com,
-      port: 1234,
-      type: trojan,
-      password: testpassword,
-      sni: test.test.com,
-      skip-cert-verify: true,
-      udp: true,
-    }
+  - name: "test"
+    server: "test.test.com"
+    port: 1234
+    type: "trojan"
+    password: "testpassword"
+    sni: "test.test.com"
+    skip-cert-verify: true
+    udp: true
 proxy-groups:
-  - name: outside
-    type: select
+  - name: "outside"
+    type: "select"
     proxies:
-      - DIRECT
-      - test
-  - name: inside
-    type: select
+      - "DIRECT"
+      - "test"
+  - name: "inside"
+    type: "select"
     proxies:
-      - DIRECT
-      - outside
-      - reject
-  - name: other
-    type: select
+      - "DIRECT"
+      - "outside"
+      - "reject"
+  - name: "other"
+    type: "select"
     proxies:
-      - DIRECT
-      - outside
-  - name: bilibili
-    type: select
+      - "DIRECT"
+      - "outside"
+  - name: "bilibili"
+    type: "select"
     proxies:
-      - DIRECT
-      - outside
-      - inside
-  - name: apple
-    type: select
+      - "DIRECT"
+      - "outside"
+      - "inside"
+  - name: "apple"
+    type: "select"
     proxies:
-      - DIRECT
-      - outside
-      - inside
-  - name: steam
-    type: select
+      - "DIRECT"
+      - "outside"
+      - "inside"
+  - name: "steam"
+    type: "select"
     proxies:
-      - DIRECT
-      - outside
-      - inside
-  - name: llm
-    type: select
+      - "DIRECT"
+      - "outside"
+      - "inside"
+  - name: "llm"
+    type: "select"
     proxies:
-      - DIRECT
-      - outside
-      - test
-  - name: reject
-    type: select
+      - "DIRECT"
+      - "outside"
+      - "test"
+  - name: "reject"
+    type: "select"
     proxies:
-      - outside
-      - DIRECT
-      - REJECT
+      - "outside"
+      - "DIRECT"
+      - "REJECT"
 """
 
 lines = src_path.read_text(encoding="utf-8").splitlines()

@@ -154,11 +154,12 @@ def build_parser() -> ColoredArgumentParser:
             "  Values are literal; comments and single/double quotes are supported.\n\n"
             "Environment / .env keys:\n"
             "  FIREFLY_REPO_ROOT: tooling checkout\n"
+            "  DEFAULT_DRAFT: default draft for new posts, memos, and format inference (true/false, default: true)\n"
             "  VISUAL, EDITOR: editor command (default: vi)\n"
             "  NO_COLOR: disable terminal colors\n\n"
             "  FIREFLY_SITE_CONFIG_PATH: optional repository-relative site TOML path\n\n"
             "Formatting:\n  format normalizes one front-matter block in place and preserves body bytes.\n"
-            "  Existing fields are retained; missing values are inferred, with draft: true.\n"
+            "  Existing fields are retained; missing draft is inferred from DEFAULT_DRAFT (default: true).\n"
             "  A recognized posts/ or pages/ workspace determines the collection; otherwise posts.\n"
             "  Relative format paths use the caller's current directory.\n"
             "  format PATH --preview prints the candidate without changing the file.\n\n"
@@ -178,7 +179,7 @@ def build_parser() -> ColoredArgumentParser:
         )
         for name, help_text in (
             ("post", "Choose a post folder, then write an article."),
-            ("memo", "Create a timestamped memo draft, then edit it."),
+            ("memo", "Create a timestamped memo, then edit it."),
         )
     ]
     format_parser = commands.add_parser(
@@ -191,7 +192,7 @@ def build_parser() -> ColoredArgumentParser:
             "  ./add.py format pages/about.md --preview\n"
             "  ./add.py --env-file /path/to/blog.env format posts/article.md\n\n"
             "PATH names one Markdown file, relative to the caller's current directory.\n"
-            "Existing metadata and body bytes are preserved; missing fields are inferred.\n"
+            "Existing metadata and body bytes are preserved; missing draft is inferred from DEFAULT_DRAFT.\n"
             "Recognized posts/ or pages/ workspaces determine the collection; otherwise posts.\n"
             "An existing optional .env is read without setup, prompts, or editing.\n"
             "Formatting saves locally and does not deploy the site."
@@ -217,6 +218,13 @@ def build_parser() -> ColoredArgumentParser:
             action="store_true",
             default=argparse.SUPPRESS,
             help="prepare/read .env configuration and exit without creating content",
+        )
+    for command_parser in [parser, *children, format_parser]:
+        command_parser.add_argument(
+            "--draft",
+            metavar="true|false",
+            default=argparse.SUPPRESS,
+            help="default draft for new posts/memos and format inference; overrides DEFAULT_DRAFT (default: true)",
         )
     for command_parser in [parser, *children, format_parser]:
         command_parser.add_argument(
@@ -351,10 +359,29 @@ def create_env_file(
             )
             continue
         break
+    draft_suggested = getattr(options, "draft", None)
+    if draft_suggested is None:
+        draft_suggested = os.environ.get("DEFAULT_DRAFT", "true")
+    while True:
+        draft_value = read_line(
+            "DEFAULT_DRAFT",
+            str(draft_suggested),
+            "Enter true to keep new content as drafts, false to publish immediately by default. Posts, memos, and format inference share this default.",
+        ).strip()
+        if not draft_value:
+            emit("A default draft value is required.", "WARNING")
+            continue
+        try:
+            draft_default = parse_draft_value(draft_value)
+            break
+        except AuthoringError as exception:
+            emit(str(exception), "WARNING")
+            continue
     contents = (
         "# Local settings for add.py. Relative repo paths use this file's folder.\n"
         f"FIREFLY_REPO_ROOT={shlex.quote(repo_value)}\n"
         f"EDITOR={shlex.quote(editor_value)}\n"
+        f"DEFAULT_DRAFT={'true' if draft_default else 'false'}\n"
     )
     descriptor = os.open(env_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
@@ -423,6 +450,80 @@ def configured_firefly_root(
     return configured_path(root_value, Path.cwd() if root_override else env_path.parent)
 
 
+def parse_draft_value(raw: str) -> bool:
+    """Parse a true/false switch without accepting arbitrary truthy text."""
+    normalized = raw.strip().lower()
+    if normalized in ("true", "1", "yes", "y", "on"):
+        return True
+    if normalized in ("false", "0", "no", "n", "off"):
+        return False
+    raise AuthoringError(f"Invalid draft value: {raw!r}. Expected true/false.")
+
+
+def resolve_default_draft(
+    options: argparse.Namespace, settings: dict[str, str]
+) -> bool:
+    """Honor CLI, process environment, dotenv, and true default priority."""
+    if getattr(options, "draft", None) is not None:
+        raw = getattr(options, "draft")
+        source = "--draft"
+    elif os.environ.get("DEFAULT_DRAFT") is not None:
+        raw = os.environ["DEFAULT_DRAFT"]
+        source = "DEFAULT_DRAFT in process environment"
+    elif settings.get("DEFAULT_DRAFT") is not None:
+        raw = settings["DEFAULT_DRAFT"]
+        source = "DEFAULT_DRAFT in .env"
+    else:
+        return True
+    if raw is None or str(raw).strip() == "":
+        raise AuthoringError(f"Invalid {source} value: {raw!r}. Expected true/false.")
+    try:
+        return parse_draft_value(str(raw))
+    except AuthoringError as exception:
+        raise AuthoringError(
+            f"Invalid {source} value: {raw!r}. Expected true/false."
+        ) from exception
+
+
+def front_matter_has_draft(source: Path) -> bool:
+    """Return whether the leading front-matter block already defines draft."""
+    try:
+        text = source.read_text(encoding="utf-8-sig")
+    except OSError:
+        return False
+    match = re.match(r"\A---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)", text)
+    if not match:
+        return False
+    return any(
+        re.match(r"\s*draft\s*:", line) for line in match.group(1).splitlines()
+    )
+
+
+def apply_default_draft_to_memo(target: Path, default_draft: bool) -> None:
+    """Flip a freshly created memo to draft:false without touching its body."""
+    if default_draft:
+        return
+    try:
+        text = target.read_text(encoding="utf-8")
+    except OSError as exception:
+        raise AuthoringError(f"Cannot read created memo: {target}") from exception
+    match = re.match(r"\A---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)", text)
+    if not match:
+        raise AuthoringError(f"Created memo has no front matter: {target}")
+    updated, count = re.subn(
+        r"(?m)^draft:\s*true\s*$", "draft: false", match.group(1), count=1
+    )
+    if not count:
+        raise AuthoringError(f"Created memo has no draft:true field: {target}")
+    try:
+        target.write_text(
+            text[: match.start(1)] + updated + text[match.end(1) :],
+            encoding="utf-8",
+        )
+    except OSError as exception:
+        raise AuthoringError(f"Cannot update created memo: {target}") from exception
+
+
 def metadata_blog_root(source: Path, content_root: Path) -> Path:
     """Find the nearest posts/pages workspace without resolving source symlinks."""
     for ancestor in source.parents:
@@ -452,6 +553,7 @@ def format_document(content_root: Path, options: argparse.Namespace) -> int:
             "Node.js is required by Firefly tooling; node was not found in PATH."
         )
     source = Path(options.source_path).expanduser().absolute()
+    default_draft = resolve_default_draft(options, settings)
     arguments = [
         "node",
         str(script),
@@ -460,6 +562,8 @@ def format_document(content_root: Path, options: argparse.Namespace) -> int:
         str(metadata_blog_root(source, content_root)),
         "--write-back",
     ]
+    if not front_matter_has_draft(source):
+        arguments.extend(["--draft", "true" if default_draft else "false"])
     if getattr(options, "preview", False):
         arguments.append("--preview")
     result = subprocess.run(arguments, check=False, capture_output=True)
@@ -574,26 +678,42 @@ def choose_filename(
         return target
 
 
+def make_read_post_field(default_draft: bool = True):
+    """Build the post prompt adapter with a configurable draft default."""
+
+    def read_post_field(prompt: str, default: str | None = None) -> str:
+        """Adapt existing post metadata prompts while retaining backend validation."""
+        hints = {
+            "Title": "The heading readers will see.",
+            "Description": "A short summary shown in article previews.",
+            "Publication date": "Use YYYY-MM-DD; the default is today's UTC date.",
+            "Tags (comma-separated, optional)": "Separate tags with commas, or press Enter for no tags.",
+            "Access (public or private:OWNER)": "Use public or private:OWNER; this is separate from draft status.",
+        }
+        if prompt.startswith("Publish immediately?"):
+            if default_draft:
+                return read_line(
+                    "Visible on the next site build? [y/N]",
+                    hint="Enter keeps draft: true; y sets draft: false. This command only saves locally.",
+                )
+            return read_line(
+                "Visible on the next site build? [Y/n]",
+                "y",
+                hint="Enter publishes with draft: false; n keeps draft: true. This command only saves locally.",
+            )
+        if prompt.startswith("Create this article?"):
+            return read_line(
+                "Save this post? [Y/n]",
+                hint="Press Enter to save, or n to discard the temporary content.",
+            )
+        return read_line(prompt, default, hints.get(prompt, ""))
+
+    return read_post_field
+
+
 def read_post_field(prompt: str, default: str | None = None) -> str:
-    """Adapt existing post metadata prompts while retaining backend validation."""
-    hints = {
-        "Title": "The heading readers will see.",
-        "Description": "A short summary shown in article previews.",
-        "Publication date": "Use YYYY-MM-DD; the default is today's UTC date.",
-        "Tags (comma-separated, optional)": "Separate tags with commas, or press Enter for no tags.",
-        "Access (public or private:OWNER)": "Use public or private:OWNER; this is separate from draft status.",
-    }
-    if prompt.startswith("Publish immediately?"):
-        return read_line(
-            "Visible on the next site build? [y/N]",
-            hint="Enter keeps draft: true; y sets draft: false. This command only saves locally.",
-        )
-    if prompt.startswith("Create this article?"):
-        return read_line(
-            "Save this post? [Y/n]",
-            hint="Press Enter to save, or n to discard the temporary content.",
-        )
-    return read_line(prompt, default, hints.get(prompt, ""))
+    """Keep the previous draft-true adapter for existing imports."""
+    return make_read_post_field(True)(prompt, default)
 
 
 def default_post_filename(directory: Path) -> str:
@@ -612,7 +732,11 @@ def default_post_filename(directory: Path) -> str:
 
 
 def create_post(
-    content_root: Path, firefly_root: Path, editor_spec: str, log: bool = False
+    content_root: Path,
+    firefly_root: Path,
+    editor_spec: str,
+    log: bool = False,
+    default_draft: bool = True,
 ) -> int:
     """Delegate post creation and schema validation to the existing article tool."""
     article = load_article_tools(firefly_root)
@@ -625,12 +749,13 @@ def create_post(
     target = choose_filename(directory, default_post_filename(directory), article)
     section("3/3", "Metadata, editor, and save confirmation")
     emit(f"Editor: {editor_spec}", "SUB_TITLE")
+    emit(f"Default draft: {str(default_draft).lower()}", "SUB_TITLE")
     emit(
         "Answer the metadata questions, then save and close the editor.\n"
         "The final confirmation saves the Markdown file in the selected folder.",
         "EXAMPLE",
     )
-    article.read_line = read_post_field
+    article.read_line = make_read_post_field(default_draft)
     previous_directory = Path.cwd()
     try:
         os.chdir(content_root)
@@ -658,13 +783,24 @@ def create_post(
     return result
 
 
-def create_memo(content_root: Path, firefly_root: Path, editor_spec: str) -> int:
-    """Create an absent-only memo draft with the existing stable-identity tooling."""
+def create_memo(
+    content_root: Path,
+    firefly_root: Path,
+    editor_spec: str,
+    default_draft: bool = True,
+) -> int:
+    """Create an absent-only memo with the existing stable-identity tooling."""
     script = firefly_root / "tooling/memo-documents/cli.mjs"
     if not script.is_file():
         raise AuthoringError(f"Memo tooling not found: {script}. Set --firefly-root.")
     section("1/2", "Name the memo")
-    emit("A memo is a short Markdown note. It starts as a draft.", "EXAMPLE")
+    if default_draft:
+        emit("A memo is a short Markdown note. It starts as a draft.", "EXAMPLE")
+    else:
+        emit(
+            "A memo is a short Markdown note. DEFAULT_DRAFT=false so it starts publish-ready.",
+            "EXAMPLE",
+        )
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
     target = choose_filename(content_root / "memos", f"{timestamp}.md")
     result = subprocess.run(
@@ -675,8 +811,12 @@ def create_memo(content_root: Path, firefly_root: Path, editor_spec: str) -> int
     )
     if result.returncode:
         raise AuthoringError(result.stderr.strip() or "Memo creation failed.")
+    apply_default_draft_to_memo(target, default_draft)
     section("2/2", "Write the memo in the editor")
-    emit(f"Created draft: {target}", "SUCCESS")
+    if default_draft:
+        emit(f"Created draft: {target}", "SUCCESS")
+    else:
+        emit(f"Created memo: {target} (draft: false)", "SUCCESS")
     emit(f"Editor: {editor_spec}", "SUB_TITLE")
     emit(
         "Write your note after the closing --- line. Save and close the editor to finish.",
@@ -686,19 +826,25 @@ def create_memo(content_root: Path, firefly_root: Path, editor_spec: str) -> int
         'Keep id and date unchanged. You may add title: "Your title" in the metadata.',
         "EXAMPLE",
     )
-    emit(
-        "draft: true keeps it hidden; set draft: false for visibility on the next site build.",
-        "WARNING",
-    )
+    if default_draft:
+        emit(
+            "draft: true keeps it hidden; set draft: false for visibility on the next site build.",
+            "WARNING",
+        )
+    else:
+        emit(
+            "draft: false publishes on the next site build; set draft: true to keep it hidden.",
+            "WARNING",
+        )
     try:
         result = subprocess.run([*shlex.split(editor_spec), str(target)], check=False)
     except OSError as exception:
         raise AuthoringError(
-            f"Editor could not start; the draft remains at {target}: {exception}"
+            f"Editor could not start; the memo remains at {target}: {exception}"
         ) from exception
     if result.returncode:
         raise AuthoringError(
-            f"Editor failed ({result.returncode}); the draft remains at {target}."
+            f"Editor failed ({result.returncode}); the memo remains at {target}."
         )
     if target.is_symlink() or not target.is_file():
         raise AuthoringError(
@@ -738,8 +884,10 @@ def main(arguments: Sequence[str] | None = None) -> int:
             content_root, env_path, settings, options
         )
         validate_firefly_root(firefly_root)
+        default_draft = resolve_default_draft(options, settings)
         if getattr(options, "init", False):
             emit(f"Configuration ready. Firefly repository: {firefly_root}", "SUCCESS")
+            emit(f"Default draft: {str(default_draft).lower()}", "PATH")
             return 0
         content_type = options.content_type
         if content_type is None:
@@ -775,9 +923,13 @@ def main(arguments: Sequence[str] | None = None) -> int:
             )
         if content_type == "post":
             return create_post(
-                content_root, firefly_root, editor_spec, getattr(options, "log", False)
+                content_root,
+                firefly_root,
+                editor_spec,
+                getattr(options, "log", False),
+                default_draft,
             )
-        return create_memo(content_root, firefly_root, editor_spec)
+        return create_memo(content_root, firefly_root, editor_spec, default_draft)
     except Cancelled:
         emit("Cancelled; no content file was created.", "WARNING")
         return 0
