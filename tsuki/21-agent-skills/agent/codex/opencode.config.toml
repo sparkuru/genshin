@@ -38,9 +38,9 @@ Wait for delegated results and verify their evidence before relying on them.
 
 [model_providers.opencode-go]
 name = "OpenCode Go"
-base_url = "https://opencode.ai/zen/go/v1"
-env_key = "OPENCODE_API_KEY"
-env_key_instructions = "Set OPENCODE_API_KEY to your OpenCode Go API key before starting Codex."
+base_url = "https://opencode.ai/inference/go/openai/v1"
+env_key = "OPENCODE_SERVICE_API_KEY"
+env_key_instructions = "Create a service account API key with Inference only permission in OpenCode Console (https://opencode.ai/console), then export OPENCODE_SERVICE_API_KEY before starting Codex."
 wire_api = "responses"
 requires_openai_auth = false
 supports_websockets = false

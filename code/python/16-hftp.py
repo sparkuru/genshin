@@ -1938,6 +1938,7 @@ initTheme();
 
             NEW_FILE_TRACKER.register(path)
             self.send_response(201)
+            self.send_header("Content-Length", "0")
             self.end_headers()
             access_log(self, action, "201", path)
             debug("File uploaded via PUT", path=path)
@@ -2765,6 +2766,7 @@ footer {{
                 </div>
             </div>
         </div>
+        <p id="uploadStatus" role="status" style="color:var(--accent-red);" hidden></p>
     </div>
 
         <div class="file-list">
@@ -3140,6 +3142,35 @@ function setupSorting() {
 
 var activeUpload = false;
 var queuedUploads = [];
+var fileListRefreshId = 0;
+
+function showUploadError(message) {
+    const status = document.getElementById('uploadStatus');
+    status.hidden = false;
+    status.textContent += (status.textContent ? ' ' : '') + message;
+}
+
+function refreshFileList() {
+    const refreshId = ++fileListRefreshId;
+    const path = window.location.pathname || '/';
+    fetch(path, { cache: 'no-store' })
+        .then(function(response) {
+            if (!response.ok) throw new Error(response.statusText || response.status);
+            return response.text();
+        })
+        .then(function(content) {
+            if (refreshId !== fileListRefreshId) return;
+            const page = new DOMParser().parseFromString(content, 'text/html');
+            const body = page.getElementById('fileListBody');
+            if (!body) throw new Error('Missing file list in server response');
+            document.getElementById('fileListBody').innerHTML = body.innerHTML;
+            applySort();
+        })
+        .catch(function(err) {
+            if (refreshId !== fileListRefreshId) return;
+            showUploadError('Could not refresh file list: ' + err.message);
+        });
+}
 
 function updateBatchProgress(label, percent, loaded, totalSize, speed, remaining) {
     progressContainer.classList.add('active');
@@ -3168,7 +3199,6 @@ function uploadBatch(files, basePath, onProgress) {
 
         xhr.upload.addEventListener('progress', function(e) {
             if (e.lengthComputable) {
-                const percent = Math.round((e.loaded / e.total) * 100);
                 const now = Date.now();
                 const timeDiff = (now - lastTime) / 1000;
                 if (timeDiff >= 0.25) {
@@ -3202,6 +3232,14 @@ function uploadBatch(files, basePath, onProgress) {
             reject(new Error('network error'));
         });
 
+        xhr.addEventListener('abort', function() {
+            reject(new Error('upload aborted'));
+        });
+
+        xhr.addEventListener('timeout', function() {
+            reject(new Error('upload timed out'));
+        });
+
         xhr.open('POST', basePath, true);
         xhr.send(formData);
     });
@@ -3222,6 +3260,7 @@ function uploadNextBatch() {
     const files = queuedUploads.shift();
     if (!files || files.length === 0) {
         activeUpload = false;
+        refreshFileList();
         return;
     }
 
@@ -3243,20 +3282,16 @@ function uploadNextBatch() {
         .then(function() {
             updateBatchProgress(label, 100, totalSize, totalSize, '-', '0s');
             document.getElementById('progressPercent').textContent = 'Complete!';
-            if (queuedUploads.length > 0) {
-                uploadNextBatch();
-            } else {
-                activeUpload = false;
-                setTimeout(function() { location.reload(); }, 800);
-            }
+            uploadNextBatch();
         })
         .catch(function(err) {
-            activeUpload = false;
-            queuedUploads = [];
             document.getElementById('progressPercent').textContent = 'Failed';
             document.getElementById('uploadSpeed').textContent = '-';
             document.getElementById('timeRemaining').textContent = 'Select files to retry';
-            alert('Upload failed: ' + err.message);
+            const names = files.map(function(file) { return file.name; }).join(', ');
+            showUploadError('Upload failed (' + names + '): ' + err.message
+                + '. Select these files to retry.');
+            uploadNextBatch();
         });
 }
 
@@ -3660,11 +3695,13 @@ initPasteCliExamples();
         fn = os.path.basename(filepath)
         size_str = self._format_size(os.path.getsize(filepath))
         status = "replaced" if existed else "uploaded"
+        payload = f"OK {status} {fn} ({size_str})\n".encode("utf-8")
 
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
-        self.wfile.write(f"OK {status} {fn} ({size_str})\n".encode("utf-8"))
+        self.wfile.write(payload)
 
     def _get_multipart_file_items(
         self, form: cgi.FieldStorage
@@ -3795,10 +3832,6 @@ initPasteCliExamples();
         size_str = self._format_size(os.path.getsize(filepath))
         fn_escaped = html.escape(filename)
 
-        self.send_response(200)
-        self.send_header("Content-type", "text/html; charset=utf-8")
-        self.end_headers()
-
         response_html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -3873,7 +3906,12 @@ document.documentElement.setAttribute('data-theme', theme);
 </div>
 </body>
 </html>"""
-        self.wfile.write(response_html.encode("utf-8"))
+        payload = response_html.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
     def _send_multi_upload_response(
         self, uploaded_files: List[Tuple[str, str, bool]]

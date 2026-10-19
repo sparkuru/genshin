@@ -4,10 +4,8 @@ set -Eeuo pipefail
 readonly SCRIPT_NAME="${0##*/}"
 # Keep machine-specific variables here; source assignments for them are skipped.
 readonly -a UNSYNCED_VARIABLES=(
-	OPENCODE_API_KEY
+	OPENCODE_SERVICE_API_KEY
 	OPENAI_API_KEY
-	ANTHROPIC_API_KEY
-	ANTHROPIC_AUTH_TOKEN
 )
 readonly STYLE_RESET=$'\033[0m'
 readonly STYLE_TITLE=$'\033[1;36m'
@@ -26,23 +24,37 @@ color_text() {
 	fi
 }
 
+print_setup_notice() {
+	printf '%s\n' "$(color_text "$STYLE_TITLE" 'Setup requirements:')"
+	cat <<'SETUP'
+Requires OpenCode 2. In OpenCode Console, open Keys and create a service account
+API key with Inference only permission for a workspace subscribed to Go:
+https://opencode.ai/console
+SETUP
+	printf 'Save the key as OPENCODE_SERVICE_API_KEY in %s before syncing.\n' "$1"
+}
+
 usage() {
 	printf '%s\n' "$(color_text "$STYLE_TITLE" "Usage: $SCRIPT_NAME [--dry-run] [--target-file PATH]")" >&2
 	cat >&2 <<'USAGE'
 
 Sync agent-envs to ~/.config/.agent-envs, replacing shared configuration and
 preserving machine-local single-line assignments listed in UNSYNCED_VARIABLES
-at the top of this script (including OPENCODE_APT_KEY). Source assignments for
+at the top of this script (including OPENCODE_SERVICE_API_KEY). Source assignments for
 these variables are excluded. The current process environment is not copied.
 
   --dry-run          Show the planned change without writing files.
   --target-file PATH Override the destination with an absolute file path.
   --help, -h         Show this help.
 
-Local assignments are appended after shared configuration. Other local code
-and settings are replaced. Changed destinations are backed up before writing;
-the resulting file has mode 600. Multiline credentials are not supported.
+Local assignments are loaded before shared configuration so it can use them.
+OPENCODE_SERVICE_API_KEY supplies ANTHROPIC_AUTH_TOKEN for Claude Code.
+Legacy client credential assignments are replaced.
+Use a Console service account key; OpenCode V2 OAuth login is not an API key.
+Other local code and settings are replaced. Changed destinations are backed up
+before writing; the resulting file has mode 600. Multiline credentials are not supported.
 USAGE
+	print_setup_notice "${HOME:?HOME is not set}/.config/.agent-envs" >&2
 }
 
 die() {
@@ -135,6 +147,7 @@ main() {
 	[[ ! "$source_path" -ef "$target_path" ]] || die "target must differ from the source file"
 	# Syntax checks must not echo credential-bearing source lines on failure.
 	bash -n "$source_path" 2>/dev/null || die "source shell syntax is invalid"
+	print_setup_notice "$target_path"
 
 	umask 077
 	temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/agent-envs-sync.XXXXXXXXXX")
@@ -145,11 +158,13 @@ main() {
 	fi
 	select_env_lines "$temp_dir/local-envs" "$temp_dir/local-credentials" local "$preserved_names"
 	bash -n "$temp_dir/local-credentials" 2>/dev/null || die "local credentials must use complete single-line assignments"
-	select_env_lines "$source_path" "$temp_dir/agent-envs" shared "$preserved_names"
+	select_env_lines "$source_path" "$temp_dir/shared-envs" shared "$preserved_names"
+	: >"$temp_dir/agent-envs"
 	if [[ -s "$temp_dir/local-credentials" ]]; then
-		printf '\n' >>"$temp_dir/agent-envs"
 		cat -- "$temp_dir/local-credentials" >>"$temp_dir/agent-envs"
+		printf '\n' >>"$temp_dir/agent-envs"
 	fi
+	cat -- "$temp_dir/shared-envs" >>"$temp_dir/agent-envs"
 	bash -n "$temp_dir/agent-envs" 2>/dev/null || die "merged shell syntax is invalid"
 	if [[ -f "$target_path" && ! -L "$target_path" ]] && cmp -s -- "$temp_dir/agent-envs" "$target_path"; then
 		[[ "$dry_run" == true ]] || chmod 600 -- "$target_path"

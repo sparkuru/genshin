@@ -1456,6 +1456,31 @@ case $os_type in
 esac
 export PATH=$export_path
 
+## Herdr desktop environment
+if [[ -r "$HOME/.config/herdr/herdr.sock" ]]; then
+	# Read the current desktop session instead of keeping a temporary Xauthority path.
+	herdr_refresh_display() {
+		[[ -n "${HERDR_ENV:-}" ]] || return 0
+		command -v systemctl jq >/dev/null 2>&1 || return 0
+
+		local desktop_environment desktop_display desktop_xauthority
+		desktop_environment=$(command systemctl --user show-environment --output=json 2>/dev/null) || return 0
+		desktop_display=$(printf '%s' "$desktop_environment" |
+			command jq -er '.DISPLAY | select(type == "string" and length > 0)') || return 0
+		desktop_xauthority=$(printf '%s' "$desktop_environment" |
+			command jq -er '.XAUTHORITY | select(type == "string" and length > 0)') || return 0
+
+		# Keep explicitly selected displays, including SSH X11 forwarding.
+		[[ -z "${DISPLAY:-}" || "$DISPLAY" == "$desktop_display" ]] || return 0
+		[[ -r "$desktop_xauthority" ]] || return 0
+
+		export DISPLAY="$desktop_display"
+		export XAUTHORITY="$desktop_xauthority"
+	}
+
+	herdr_refresh_display
+fi
+
 ## agent cli env
 if [[ -r "$HOME/.config/.agent-envs" ]]; then
     source "$HOME/.config/.agent-envs"
