@@ -1,0 +1,18 @@
+html { color: #202b36; background: #f4f6f8; }
+body { margin: 32px auto; padding: 40px 48px; max-width: 980px; background: white;
+  font-family: system-ui, "Noto Sans CJK SC", sans-serif; line-height: 1.85; }
+h1, h2, h3 { line-height: 1.4; color: #173c5b; }
+h1 { font-size: 1.9rem; }
+h2 { margin-top: 2.5rem; border-bottom: 1px solid #d8e2ea; padding-bottom: 0.5rem; }
+a { color: #12679b; overflow-wrap: anywhere; }
+table { width: 100%; border-collapse: collapse; font-size: 0.94rem; margin: 1.5rem 0; }
+th, td { padding: 10px 12px; border: 1px solid #d8e2ea; vertical-align: top; }
+th { background: #edf4f8; text-align: left; }
+body > table:first-of-type col:first-child { width: 22% !important; }
+body > table:first-of-type col:last-child { width: 78% !important; }
+img { display: block; width: 100%; max-width: 100%; height: auto; margin: 1.5rem auto 0.5rem; }
+figure { margin: 1.8rem 0; }
+figcaption { color: #596b78; font-size: 0.92rem; text-align: center; }
+code { background: #f0f4f7; padding: 0.1em 0.25em; overflow-wrap: anywhere; }
+@media (max-width: 700px) { body { padding: 22px 16px; margin: 0; } table { font-size: 0.85rem; } th, td { padding: 6px; } }
+@media print { html { background: white; } body { padding: 0; margin: 0; max-width: none; } figure, img, tr { break-inside: avoid; } }

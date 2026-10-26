@@ -1,0 +1,4 @@
+interface:
+  display_name: "dont-waste-my-time"
+  short_description: "Turn videos into traceable illustrated documents"
+  default_prompt: "使用 $dont-waste-my-time 将指定视频转换成忠于原意、带截图与时间溯源的 Markdown 和 DOCX 文档。"

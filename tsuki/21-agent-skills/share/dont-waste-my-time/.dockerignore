@@ -1,0 +1,10 @@
+**
+!docker/
+!docker/Dockerfile
+!docker/requirements.lock
+!scripts/
+!scripts/**
+!assets/
+!assets/**
+**/__pycache__/
+**/*.pyc

@@ -1,0 +1,64 @@
+x-runtime: &runtime
+  image: ${DWMT_IMAGE:?Use scripts/dwmt.py prepare}
+  pull_policy: never
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+  user: "${DWMT_UID:?}:${DWMT_GID:?}"
+  init: true
+  read_only: true
+  network_mode: none
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 256
+  mem_limit: 6g
+  cpus: 8
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,size=2g
+  environment:
+    PYTHONDONTWRITEBYTECODE: "1"
+    PYTHONUNBUFFERED: "1"
+    HF_HOME: /cache/huggingface
+    OMP_THREAD_LIMIT: "2"
+    NO_COLOR: "1"
+  labels:
+    io.dwmt.job: ${DWMT_JOB_ID:?}
+  working_dir: /work
+  entrypoint: [python, /opt/dwmt/scripts/pipeline.py]
+
+services:
+  processor:
+    <<: *runtime
+    volumes:
+      - type: bind
+        source: ${DWMT_WORK_DIR:?}
+        target: /work
+      - type: bind
+        source: ${DWMT_INPUT_DIR:?}
+        target: /inputs
+        read_only: true
+      - type: bind
+        source: ${DWMT_CACHE_DIR:?}
+        target: /cache
+        read_only: true
+  fetch:
+    <<: *runtime
+    network_mode: bridge
+    volumes:
+      - type: bind
+        source: ${DWMT_WORK_DIR:?}
+        target: /work
+      - type: bind
+        source: ${DWMT_CREDENTIAL_FILE:?}
+        target: /run/secrets/source.env
+        read_only: true
+  models:
+    <<: *runtime
+    network_mode: bridge
+    volumes:
+      - type: bind
+        source: ${DWMT_WORK_DIR:?}
+        target: /work
+      - type: bind
+        source: ${DWMT_CACHE_DIR:?}
+        target: /cache

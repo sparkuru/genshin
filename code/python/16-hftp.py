@@ -6,12 +6,14 @@ import atexit
 import base64
 from contextlib import contextmanager
 from dataclasses import dataclass
+import http.client
 import http.server
 import html
 import io
 import inspect
 import ipaddress
 import json
+import math
 import mimetypes
 import os
 import re
@@ -20,6 +22,7 @@ import shutil
 import signal
 import socket
 import socketserver
+import stat
 import subprocess
 import sys
 import tempfile
@@ -88,6 +91,36 @@ class NewFileTracker:
 
 
 NEW_FILE_TRACKER = NewFileTracker()
+
+
+@dataclass(frozen=True)
+class ServerFeatures:
+    """Share one capability configuration between HTTP routes and the UI."""
+
+    browse: bool = True
+    download: bool = True
+    file_preview: bool = True
+    upload: bool = True
+    delete: bool = True
+    pastebin: bool = True
+
+    def __post_init__(self) -> None:
+        """Prevent previews from bypassing disabled file downloads."""
+        if not self.download:
+            object.__setattr__(self, "file_preview", False)
+
+    @classmethod
+    def single_file(cls) -> "ServerFeatures":
+        """Return the capabilities allowed by single-file mode."""
+        return cls(browse=False, upload=False, delete=False, pastebin=False)
+
+    def disabled_options(self) -> List[str]:
+        """Serialize disabled capabilities for generated service commands."""
+        return [
+            "--no-" + name.replace("_", "-")
+            for name, enabled in vars(self).items()
+            if not enabled
+        ]
 
 
 @dataclass(frozen=True)
@@ -842,8 +875,38 @@ class ColoredArgumentParser(argparse.ArgumentParser):
 class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     """Enhanced HTTP request handler with file upload and download support"""
 
+    def _write_body(self, content: bytes) -> None:
+        """Omit response bodies for HEAD while sharing GET routing."""
+        if self.command != "HEAD":
+            self.wfile.write(content)
+
+    def _require_feature(self, feature: str) -> bool:
+        """Reject requests for capabilities disabled by the server."""
+        if getattr(self.server.features, feature):
+            return True
+        self.send_error(403, f"{feature.replace('_', ' ').title()} is disabled")
+        return False
+
+    def _allow_write(self, feature: str) -> bool:
+        """Keep single-file mode read-only regardless of the request path."""
+        if self.server.shared_file is not None:
+            self.send_response(405)
+            self.send_header("Allow", "GET, HEAD")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return False
+        return self._require_feature(feature)
+
     def do_GET(self) -> None:
         """Handle GET requests with preview and Range support."""
+        self._serve_read()
+
+    def do_HEAD(self) -> None:
+        """Apply the same resource and capability checks as GET."""
+        self._serve_read()
+
+    def _serve_read(self) -> None:
+        """Dispatch directory-mode reads without falling back to parent routes."""
         parsed = urlparse(self.path)
         query = parse_qs(parsed.query)
         if parsed.path == "/favicon.ico":
@@ -852,30 +915,24 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "image/x-icon")
                 self.send_header("Content-Length", str(len(FAVICON_ICO_BYTES)))
                 self.end_headers()
-                self.wfile.write(FAVICON_ICO_BYTES)
+                self._write_body(FAVICON_ICO_BYTES)
             except (BrokenPipeError, ConnectionResetError):
                 # Client may cancel favicon request; avoid noisy stack traces.
                 pass
             return
         if parsed.path == PASTEBIN_ENDPOINT:
-            self._serve_pastebin(query)
+            if self._require_feature("pastebin"):
+                self._serve_pastebin(query)
             return
         path = self._translate_path_for_read(parsed.path)
 
-        if os.path.isfile(path):
-            if query.get("preview", ["0"])[0] == "1":
-                access_log(self, "view", "200", path)
-                if is_text_file(path):
-                    self.serve_text_preview(path)
-                elif is_image_file(path):
-                    self.serve_image_preview(path)
-                elif is_video_file(path):
-                    self.serve_video_preview(path)
-                else:
-                    self._serve_ranged(path)
-            else:
-                self._serve_ranged(path, log_action="download")
+        if path is None:
+            self.send_error(404, "File not found")
+        elif os.path.isfile(path):
+            self._serve_file(path, query)
         elif os.path.isdir(path):
+            if not self._require_feature("browse"):
+                return
             if not parsed.path.endswith("/"):
                 location = parsed.path + "/"
                 if parsed.query:
@@ -889,14 +946,51 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             f = self.list_directory(path)
             if f:
                 try:
-                    shutil.copyfileobj(f, self.wfile)
+                    if self.command != "HEAD":
+                        shutil.copyfileobj(f, self.wfile)
                 except (BrokenPipeError, ConnectionResetError):
                     pass
                 finally:
                     f.close()
         else:
-            self.path = parsed.path
-            super().do_GET()
+            self.send_error(404, "File not found")
+
+    def _serve_file(self, path: str, query: dict) -> None:
+        """Serve only enabled download and preview representations."""
+        if not self._require_feature("download"):
+            return
+        if query.get("preview", ["0"])[0] != "1":
+            self._serve_ranged(path, log_action="download")
+            return
+        if not self._require_feature("file_preview"):
+            return
+        access_log(self, "view", "200", path)
+        if is_text_file(path):
+            self.serve_text_preview(path)
+        elif is_image_file(path):
+            self.serve_image_preview(path)
+        elif is_video_file(path):
+            self.serve_video_preview(path)
+        else:
+            self._serve_ranged(path)
+
+    def _preview_back_link(self) -> str:
+        """Show directory navigation only when browsing is available."""
+        if self.server.features.browse:
+            return '<a href="./" class="btn">← Back</a>'
+        return ""
+
+    def _served_filename(self, filepath: str) -> str:
+        """Preserve the selected filename even when sharing a symlink target."""
+        return os.path.basename(self.server.shared_file_name or filepath)
+
+    def _delete_button(self, url: str, is_dir: bool, name: str) -> str:
+        """Encode filenames separately for JavaScript and HTML attributes."""
+        if not self.server.features.delete:
+            return ""
+        arguments = f"{json.dumps(url)}, {str(is_dir).lower()}, {json.dumps(name)}"
+        action = html.escape(f"confirmDelete({arguments})", quote=True)
+        return f'<button class="action-btn delete" onclick="{action}">Delete</button>'
 
     def _serve_pastebin(self, query: dict) -> None:
         """Return the current temporary pastebin state."""
@@ -914,7 +1008,7 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
-        self.wfile.write(payload)
+        self._write_body(payload)
 
     def _read_limited_request_body(self, max_bytes: int) -> Optional[bytes]:
         """Read a regular or chunked request body with a size limit."""
@@ -1001,7 +1095,7 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
-        self.wfile.write(payload)
+        self._write_body(payload)
 
     def _handle_pastebin_put(self) -> None:
         """Overwrite the shared temporary pastebin text with the raw request body."""
@@ -1017,18 +1111,25 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
-        self.wfile.write(payload)
+        self._write_body(payload)
 
     def _serve_ranged(self, filepath: str, log_action: Optional[str] = None) -> None:
-        """Serve a file with HTTP Range request support. log_action: 'download' or None (no log)."""
+        """Use one open file for both metadata and bytes during concurrent uploads."""
         try:
-            file_size = os.path.getsize(filepath)
+            with open(filepath, "rb") as source:
+                self._send_file_stream(source, filepath, log_action)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
         except OSError:
             if log_action:
                 access_log(self, log_action, "404", filepath)
             self.send_error(404, "File not found")
-            return
 
+    def _send_file_stream(
+        self, source: BinaryIO, filepath: str, log_action: Optional[str]
+    ) -> None:
+        """Send a whole file or one byte range, including suffix ranges."""
+        file_size = os.fstat(source.fileno()).st_size
         mime_type, _ = mimetypes.guess_type(filepath)
         if not mime_type:
             mime_type = "application/octet-stream"
@@ -1036,64 +1137,59 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             mime_type += "; charset=utf-8"
 
         range_header = self.headers.get("Range")
-        if not range_header:
-            self.send_response(200)
-            if log_action:
-                access_log(self, log_action, "200", filepath)
-            self.send_header("Content-Type", mime_type)
-            self.send_header("Content-Length", str(file_size))
-            self.send_header("Accept-Ranges", "bytes")
-            self.end_headers()
+        start, end = 0, file_size - 1
+        if range_header:
             try:
-                with open(filepath, "rb") as f:
-                    shutil.copyfileobj(f, self.wfile)
-            except (BrokenPipeError, ConnectionResetError):
-                pass
-            return
-
-        try:
-            spec = range_header.replace("bytes=", "")
-            start_str, end_str = spec.split("-", 1)
-            start = int(start_str) if start_str else 0
-            end = int(end_str) if end_str else file_size - 1
-        except (ValueError, AttributeError):
-            if log_action:
-                access_log(self, log_action, "416", filepath)
-            self.send_error(416, "Range Not Satisfiable")
-            return
-
-        end = min(end, file_size - 1)
-        if start < 0 or start > end or start >= file_size:
-            if log_action:
-                access_log(self, log_action, "416", filepath)
-            self.send_response(416)
-            self.send_header("Content-Range", f"bytes */{file_size}")
-            self.end_headers()
-            return
-
+                start, end = self._parse_byte_range(range_header, file_size)
+            except ValueError:
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{file_size}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
         length = end - start + 1
-        self.send_response(206)
+        status = 206 if range_header else 200
+        self.send_response(status)
         if log_action:
-            access_log(self, log_action, "206", filepath)
+            access_log(self, log_action, str(status), filepath)
         self.send_header("Content-Type", mime_type)
-        self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+        filename = quote(self._served_filename(filepath), safe="")
+        self.send_header("Content-Disposition", f"inline; filename*=UTF-8''{filename}")
+        if range_header:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
         self.send_header("Content-Length", str(length))
         self.send_header("Accept-Ranges", "bytes")
         self.end_headers()
 
-        try:
-            with open(filepath, "rb") as f:
-                f.seek(start)
-                remaining = length
-                chunk = 64 * 1024
-                while remaining > 0:
-                    data = f.read(min(chunk, remaining))
-                    if not data:
-                        break
-                    self.wfile.write(data)
-                    remaining -= len(data)
-        except (BrokenPipeError, ConnectionResetError):
-            pass
+        if self.command == "HEAD":
+            return
+        source.seek(start)
+        remaining = length
+        while remaining > 0:
+            data = source.read(min(64 * 1024, remaining))
+            if not data:
+                break
+            self.wfile.write(data)
+            remaining -= len(data)
+
+    @staticmethod
+    def _parse_byte_range(value: str, size: int) -> Tuple[int, int]:
+        """Resolve a single inclusive range against an open file's size."""
+        match = re.fullmatch(r"bytes=([0-9]*)-([0-9]*)", value)
+        if match is None or not any(match.groups()):
+            raise ValueError("Invalid byte range")
+        start_text, end_text = match.groups()
+        if start_text:
+            start = int(start_text)
+            end = min(int(end_text), size - 1) if end_text else size - 1
+        else:
+            suffix = int(end_text)
+            if suffix == 0:
+                raise ValueError("Empty suffix range")
+            start, end = max(0, size - suffix), size - 1
+        if start > end or start >= size:
+            raise ValueError("Range outside file")
+        return start, end
 
     def serve_text_preview(self, filepath: str) -> None:
         """Serve a text file with syntax highlighting preview"""
@@ -1104,7 +1200,7 @@ class EnhancedHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(500, f"Cannot read file: {str(e)}")
             return
 
-        filename = os.path.basename(filepath)
+        filename = self._served_filename(filepath)
         file_size = self._format_size(os.path.getsize(filepath))
         language = get_syntax_language(filepath)
         line_count = content.count("\n") + 1
@@ -1319,10 +1415,10 @@ pre code {{
             </div>
         </div>
         <div class="toolbar-actions">
-            <a href="./" class="btn">← Back</a>
+            {self._preview_back_link()}
             <button class="btn" onclick="toggleTheme()"><span id="themeIcon">🌙</span></button>
             <button class="btn" onclick="copyContent()">📋 Copy</button>
-            <a href="{quote(os.path.basename(filepath))}" class="btn btn-primary" download>⬇️ Download</a>
+            <a href="{quote(filename, safe="")}" class="btn btn-primary" download>⬇️ Download</a>
         </div>
     </div>
     <div class="code-container">
@@ -1390,11 +1486,11 @@ function applyTheme(theme) {{
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
-        self.wfile.write(encoded)
+        self._write_body(encoded)
 
     def serve_image_preview(self, filepath: str) -> None:
         """Serve an image file with an inline preview page."""
-        filename = os.path.basename(filepath)
+        filename = self._served_filename(filepath)
         file_size = self._format_size(os.path.getsize(filepath))
         ext = os.path.splitext(filename)[1].lower()
         img_url = quote(filename)
@@ -1581,7 +1677,7 @@ body {{
                 <button class="zoom-btn" onclick="zoomBy(1.25)" title="Zoom in">+</button>
                 <button class="zoom-btn" onclick="resetZoom()" title="Reset (double-click image)">⟲</button>
             </div>
-            <a href="./" class="btn">← Back</a>
+            {self._preview_back_link()}
             <button class="btn" onclick="toggleTheme()"><span id="themeIcon">🌙</span></button>
             <a href="{img_url}" class="btn btn-primary" download>⬇️ Download</a>
         </div>
@@ -1726,11 +1822,11 @@ setupSorting();
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
-        self.wfile.write(encoded)
+        self._write_body(encoded)
 
     def serve_video_preview(self, filepath: str) -> None:
         """Serve a browser-native video player preview page."""
-        filename = os.path.basename(filepath)
+        filename = self._served_filename(filepath)
         file_size = self._format_size(os.path.getsize(filepath))
         ext = os.path.splitext(filename)[1].lower()
         mime_type = VIDEO_MIME_TYPES.get(ext, "video/mp4")
@@ -1859,7 +1955,7 @@ video {{
             </div>
         </div>
         <div class="toolbar-actions">
-            <a href="./" class="btn">← Back</a>
+            {self._preview_back_link()}
             <button class="btn" onclick="toggleTheme()"><span id="themeIcon">🌙</span></button>
             <a href="{video_url}" class="btn btn-primary" download>⬇️ Download</a>
         </div>
@@ -1915,41 +2011,71 @@ initTheme();
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
-        self.wfile.write(encoded)
+        self._write_body(encoded)
 
     def do_PUT(self) -> None:
         """Handle PUT requests for pastebin updates or file uploads."""
         parsed = urlparse(self.path)
+        feature = "pastebin" if parsed.path == PASTEBIN_ENDPOINT else "upload"
+        if not self._allow_write(feature):
+            return
         if parsed.path == PASTEBIN_ENDPOINT:
             self._handle_pastebin_put()
             return
 
-        path = self.translate_path(self.path)
-        if path.endswith("/"):
-            access_log(self, "upload", "400")
-            self.send_error(400, "Cannot PUT to directory")
+        length = self._upload_content_length()
+        if length is None:
             return
 
         action = "upload"
+        path = parsed.path
         try:
-            length = int(self.headers["Content-Length"])
+            path = self.translate_path(parsed.path)
+            if parsed.path.endswith("/") or os.path.isdir(path):
+                self.send_error(400, "Cannot PUT to directory")
+                return
             result = UPLOAD_COORDINATOR.write_stream(path, self.rfile, length)
             action = "modify" if result.existed else "upload"
 
             NEW_FILE_TRACKER.register(path)
-            self.send_response(201)
+            status = 200 if result.existed else 201
+            self.send_response(status)
             self.send_header("Content-Length", "0")
             self.end_headers()
-            access_log(self, action, "201", path)
+            access_log(self, action, str(status), path)
             debug("File uploaded via PUT", path=path)
+        except ValueError as e:
+            self.send_error(400, str(e))
+        except PermissionError:
+            self.send_error(403, "Permission denied")
         except Exception as e:
             access_log(self, action, "500", path)
             debug("PUT error", error=str(e))
             self.send_error(500, str(e))
 
+    def _upload_content_length(self) -> Optional[int]:
+        """Require an unambiguous, nonnegative length for file uploads."""
+        if self.headers.get("Transfer-Encoding"):
+            self.send_error(501, "Transfer-Encoding is not supported for file uploads")
+            return None
+        lengths = self.headers.get_all("Content-Length", [])
+        if not lengths:
+            self.send_error(411, "Content-Length is required")
+            return None
+        if len(lengths) != 1 or re.fullmatch(r"[0-9]+", lengths[0]) is None:
+            self.send_error(400, "Invalid Content-Length")
+            return None
+        try:
+            return int(lengths[0])
+        except ValueError:
+            self.send_error(400, "Invalid Content-Length")
+            return None
+
     def translate_path(self, path: str) -> str:
         """Convert URL path to filesystem path, constrained to server root."""
-        path = unquote(path)
+        path = unquote(urlparse(path).path)
+        if "\x00" in path:
+            raise ValueError("Invalid upload path")
         path = path.lstrip("/")
         root = self.server.root_dir
         joined = os.path.join(root, path)
@@ -1966,18 +2092,9 @@ initTheme();
         if common == root:
             return resolved
 
-        current = joined
-        while True:
-            if os.path.islink(current):
-                return resolved
-            parent = os.path.dirname(current)
-            if parent == current or not parent.startswith(root):
-                break
-            current = parent
+        raise ValueError("Upload path escapes the server root")
 
-        return root
-
-    def _translate_path_for_read(self, url_path: str) -> str:
+    def _translate_path_for_read(self, url_path: str) -> Optional[str]:
         """
         Convert URL path to filesystem path for read-only operations.
 
@@ -1986,15 +2103,20 @@ initTheme();
         URL-path traversal constrained to the root.
         """
         path = unquote(url_path)
-        path = path.split("?", 1)[0].split("#", 1)[0]
+        if "\x00" in path:
+            return None
         path = path.lstrip("/")
         root = self.server.root_dir
 
         normalized = os.path.normpath(path)
         if normalized in (".", ""):
             return root
-        if normalized.startswith("..") or os.path.isabs(normalized):
-            return root
+        if (
+            normalized == ".."
+            or normalized.startswith(".." + os.sep)
+            or os.path.isabs(normalized)
+        ):
+            return None
         return os.path.join(root, normalized)
 
     def _fs_path_to_url_path(self, fs_path: str, trailing_slash: bool = False) -> str:
@@ -2664,7 +2786,9 @@ footer {{
             <span id="themeText">Dark</span>
         </button>
     </header>
-
+'''
+        if self.server.features.pastebin:
+            html_content += f'''
     <div class="paste-section collapsed" id="pasteSection">
         <div class="paste-header">
             <div class="paste-header-left">
@@ -2717,7 +2841,9 @@ footer {{
             </div>
         </div>
     </div>
-
+'''
+        if self.server.features.upload:
+            html_content += """
     <div class="upload-section">
         <div class="upload-title">Upload File</div>
         <div class="upload-zone" id="uploadZone">
@@ -2768,7 +2894,8 @@ footer {{
         </div>
         <p id="uploadStatus" role="status" style="color:var(--accent-red);" hidden></p>
     </div>
-
+"""
+        html_content += """
         <div class="file-list">
         <div class="file-list-header">
             <button type="button" class="file-list-header-cell sortable" data-sort-key="name">
@@ -2783,7 +2910,7 @@ footer {{
             <span>Actions</span>
         </div>
         <div id="fileListBody">
-'''
+"""
 
         root = self.server.root_dir
         if os.path.normpath(path.rstrip(os.sep)) != os.path.normpath(
@@ -2824,8 +2951,7 @@ footer {{
 
             if is_dir:
                 dir_url = self._fs_path_to_url_path(fullname, trailing_slash=True)
-                escaped_name = html.escape(name).replace("'", "\\'")
-                dir_url_attr = dir_url.replace("\\", "\\\\").replace("'", "\\'")
+                delete_button = self._delete_button(dir_url, True, name + "/")
                 html_content += f'''
         <div class="file-item" data-name="{html.escape(name)}" data-size="0" data-mtime="{mtime_ts}" data-type="dir">
             <div class="file-name">
@@ -2835,7 +2961,7 @@ footer {{
             <div class="file-size">-</div>
             <div class="file-date">{mtime}</div>
             <div class="file-actions">
-                <button class="action-btn delete" onclick="confirmDelete('{dir_url_attr}', true, '{escaped_name}/')">Delete</button>
+                {delete_button}
             </div>
         </div>
 '''
@@ -2856,7 +2982,7 @@ footer {{
                 file_url = self._fs_path_to_url_path(fullname, trailing_slash=False)
                 preview_badge = (
                     f'<a class="preview-badge" href="{file_url}?preview=1">VIEW</a>'
-                    if is_previewable
+                    if is_previewable and self.server.features.file_preview
                     else ""
                 )
                 new_badge = (
@@ -2864,19 +2990,26 @@ footer {{
                     if NEW_FILE_TRACKER.is_new(fullname)
                     else ""
                 )
-                escaped_name = html.escape(name).replace("'", "\\'")
-                file_url_attr = file_url.replace("\\", "\\\\").replace("'", "\\'")
+                file_label = html.escape(name)
+                if self.server.features.download:
+                    file_label = f'<a href="{file_url}" target="_blank" rel="noopener noreferrer">{file_label}</a>'
+                download_button = (
+                    f'<a href="{file_url}" class="action-btn" download>Download</a>'
+                    if self.server.features.download
+                    else ""
+                )
+                delete_button = self._delete_button(file_url, False, name)
 
                 html_content += f'''
         <div class="file-item" data-name="{html.escape(name)}" data-size="{size}" data-mtime="{mtime_ts}" data-type="file">
             <div class="file-name">
-                <a href="{file_url}" target="_blank" rel="noopener noreferrer">{html.escape(name)}</a>{preview_badge}{new_badge}
+                {file_label}{preview_badge}{new_badge}
             </div>
             <div class="file-size">{size_str}</div>
             <div class="file-date">{mtime}</div>
             <div class="file-actions">
-                <a href="{file_url}" class="action-btn" download>Download</a>
-                <button class="action-btn delete" onclick="confirmDelete('{file_url_attr}', false, '{escaped_name}')">Delete</button>
+                {download_button}
+                {delete_button}
             </div>
         </div>
 '''
@@ -2890,12 +3023,18 @@ footer {{
         </div>
 """
 
-        html_content += """
+        html_content += (
+            """
     </div>
 </div>
-<footer>""" + html.escape(PORTAL_NAME) + """</footer>
+<footer>"""
+            + html.escape(PORTAL_NAME)
+            + """</footer>
 </div>
-
+"""
+        )
+        if self.server.features.delete:
+            html_content += """
 <div class="modal-overlay" id="deleteModal">
     <div class="modal">
         <h3>⚠️ Confirm Delete</h3>
@@ -2907,7 +3046,8 @@ footer {{
         </div>
     </div>
 </div>
-
+"""
+        html_content += """
 <script>
 var uploadZone = document.getElementById('uploadZone');
 var fileInput = document.getElementById('fileInput');
@@ -3295,6 +3435,7 @@ function uploadNextBatch() {
         });
 }
 
+if (uploadZone && fileInput) {
 uploadZone.addEventListener('dragover', function(e) {
     e.preventDefault();
     uploadZone.classList.add('dragover');
@@ -3354,6 +3495,7 @@ fileInput.addEventListener('change', function(e) {
     if (files && files.length > 0) uploadFiles(Array.from(files));
     e.target.value = '';
 });
+}
 
 // Theme toggle
 function initTheme() {
@@ -3377,7 +3519,7 @@ function updateThemeButton(theme) {
 
 initTheme();
 setupSorting();
-loadPaste(false);
+if (document.getElementById('pasteSection')) loadPaste(false);
 
 // Delete functionality
 let deleteTarget = '';
@@ -3422,7 +3564,8 @@ function executeDelete() {
     xhr.send();
 }
 
-document.getElementById('deleteModal').addEventListener('click', function(e) {
+const deleteModal = document.getElementById('deleteModal');
+if (deleteModal) deleteModal.addEventListener('click', function(e) {
     if (e.target === this) closeDeleteModal();
 });
 
@@ -3499,8 +3642,8 @@ function fallbackCopy(text, cb) {
 }
 
 // Initialize dynamic upload CLI examples on load
-initUploadCliExamples();
-initPasteCliExamples();
+if (uploadZone) initUploadCliExamples();
+if (document.getElementById('pasteSection')) initPasteCliExamples();
 </script>
 </body>
 </html>"""
@@ -3602,7 +3745,9 @@ initPasteCliExamples();
         Returns None if the path escapes root. Used for DELETE so we remove only
         the symlink (or real file), never the link target.
         """
-        path = unquote(url_path).lstrip("/")
+        path = unquote(urlparse(url_path).path).lstrip("/")
+        if "\x00" in path:
+            return None
         root = self.server.root_dir
         joined = os.path.normpath(os.path.join(root, path))
         root_abs = os.path.abspath(root)
@@ -3613,6 +3758,8 @@ initPasteCliExamples();
 
     def do_DELETE(self) -> None:
         """Handle DELETE requests: remove only the requested path (symlink or file), never the link target."""
+        if not self._allow_write("delete"):
+            return
         path = self._translate_path_no_follow(self.path)
         if path is None:
             access_log(self, "delete", "403", self.path)
@@ -3656,10 +3803,15 @@ initPasteCliExamples();
           - raw body: curl --data-binary @path -H "Content-Type: application/octet-stream"
         """
         parsed = urlparse(self.path)
+        feature = "pastebin" if parsed.path == PASTEBIN_ENDPOINT else "upload"
+        if not self._allow_write(feature):
+            return
         if parsed.path == PASTEBIN_ENDPOINT:
             self._handle_pastebin_post()
             return
 
+        if self._upload_content_length() is None:
+            return
         content_type = self.headers.get("Content-Type", "")
         try:
             if "multipart/form-data" in content_type:
@@ -3668,6 +3820,10 @@ initPasteCliExamples();
                 self._handle_urlencoded_upload()
             else:
                 self._handle_raw_upload()
+        except ValueError as e:
+            self.send_error(400, str(e))
+        except PermissionError:
+            self.send_error(403, "Permission denied")
         except Exception as e:
             access_log(self, "upload", "500")
             debug("POST error", error=str(e))
@@ -3687,7 +3843,16 @@ initPasteCliExamples();
                 filename = query.get("filename", [None])[0]
             if not filename:
                 filename = f"upload_{int(time.time())}"
-            return os.path.join(fs_path, os.path.basename(filename))
+            filename = os.path.basename(filename)
+            if filename in ("", ".", "..") or "\x00" in filename:
+                raise ValueError("Invalid upload filename")
+            destination = os.path.realpath(os.path.join(fs_path, filename))
+            if (
+                os.path.commonpath([destination, self.server.root_dir])
+                != self.server.root_dir
+            ):
+                raise ValueError("Upload path escapes the server root")
+            return destination
         return fs_path
 
     def _send_cli_response(self, filepath: str, existed: bool = False) -> None:
@@ -3701,7 +3866,7 @@ initPasteCliExamples();
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
-        self.wfile.write(payload)
+        self._write_body(payload)
 
     def _get_multipart_file_items(
         self, form: cgi.FieldStorage
@@ -3805,11 +3970,6 @@ initPasteCliExamples();
         Target filename resolved from URL path or ?filename= query param.
         """
         length = int(self.headers.get("Content-Length", 0))
-        if length == 0:
-            access_log(self, "upload", "400")
-            self.send_error(400, "Empty request body")
-            return
-
         save_path = self._resolve_upload_path()
         result = UPLOAD_COORDINATOR.write_stream(save_path, self.rfile, length)
         file_exists = result.existed
@@ -3902,7 +4062,7 @@ document.documentElement.setAttribute('data-theme', theme);
     <h2>File {status} successfully!</h2>
     <p class="info">📄 {fn_escaped}</p>
     <p class="info">📏 {size_str}</p>
-    <a href="./" class="btn">Return to directory</a>
+    {self._preview_back_link()}
 </div>
 </body>
 </html>"""
@@ -3911,7 +4071,7 @@ document.documentElement.setAttribute('data-theme', theme);
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
-        self.wfile.write(payload)
+        self._write_body(payload)
 
     def _send_multi_upload_response(
         self, uploaded_files: List[Tuple[str, str, bool]]
@@ -3928,7 +4088,34 @@ document.documentElement.setAttribute('data-theme', theme);
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
-        self.wfile.write(payload)
+        self._write_body(payload)
+
+
+class SingleFileHTTPRequestHandler(EnhancedHTTPRequestHandler):
+    """Expose one selected file without directory or special-resource routes."""
+
+    def _serve_read(self) -> None:
+        """Allow only the root redirect and the exact selected filename."""
+        parsed = urlparse(self.path)
+        filename = os.path.basename(self.server.shared_file_name)
+        if parsed.path == "/":
+            self.send_response(302)
+            location = "/" + quote(filename, safe="")
+            if parsed.query:
+                location += "?" + parsed.query
+            self.send_header("Location", location)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        selected = self.server.shared_file
+        if (
+            unquote(parsed.path) != "/" + filename
+            or os.path.realpath(selected) != selected
+            or not os.path.isfile(selected)
+        ):
+            self.send_error(404, "File not found")
+            return
+        self._serve_file(selected, parse_qs(parsed.query))
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -3937,11 +4124,30 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
-    def __init__(self, server_address, RequestHandlerClass, root_dir: str):
-        super().__init__(server_address, RequestHandlerClass)
+    def __init__(
+        self,
+        server_address: Tuple[str, int],
+        request_handler_class: type,
+        root_dir: str,
+        features: Optional[ServerFeatures] = None,
+        shared_file: Optional[str] = None,
+    ) -> None:
+        self.features = features or (
+            ServerFeatures.single_file() if shared_file else ServerFeatures()
+        )
+        self.shared_file_name = os.path.abspath(shared_file) if shared_file else None
+        self.shared_file = os.path.realpath(shared_file) if shared_file else None
+        if shared_file:
+            forbidden = ("browse", "upload", "delete", "pastebin")
+            if any(getattr(self.features, name) for name in forbidden):
+                raise ValueError(
+                    "Single-file mode cannot enable directory capabilities"
+                )
+            request_handler_class = SingleFileHTTPRequestHandler
         self.running = True
         self.timeout = 0.1
         self.root_dir = os.path.realpath(root_dir)
+        super().__init__(server_address, request_handler_class)
 
     def shutdown(self) -> None:
         """Safely shutdown the server"""
@@ -4115,7 +4321,12 @@ def ensure_available_port(requested_port: int) -> Optional[int]:
     return None
 
 
-def handle_generate_service(port: int) -> int:
+def handle_generate_service(
+    port: int,
+    root_dir: Optional[str] = None,
+    features: Optional[ServerFeatures] = None,
+    shared_file: Optional[str] = None,
+) -> int:
     """Generate systemd service file in current directory and exit.
 
     return = exit code
@@ -4133,7 +4344,13 @@ def handle_generate_service(port: int) -> int:
                 CLIStyle.COLORS["WARNING"],
             )
         )
-    service_content = generate_systemd_service(port, work_dir, exec_cmd)
+    server_options = (
+        ["--file", shared_file]
+        if shared_file
+        else ["--directory", root_dir or work_dir]
+    )
+    server_options.extend((features or ServerFeatures()).disabled_options())
+    service_content = generate_systemd_service(port, work_dir, exec_cmd, server_options)
 
     output_file = os.path.join(work_dir, "hftp.service")
     try:
@@ -4213,8 +4430,14 @@ def _is_unstable_exec_path(exec_cmd: str) -> bool:
     )
 
 
-def generate_systemd_service(port: int, work_dir: str, exec_cmd: str) -> str:
+def generate_systemd_service(
+    port: int,
+    work_dir: str,
+    exec_cmd: str,
+    server_options: Optional[List[str]] = None,
+) -> str:
     """Generate systemd service file content."""
+    options = " " + shlex.join(server_options) if server_options else ""
     service_content = f"""[Unit]
 Description={PORTAL_NAME}
 After=network.target
@@ -4223,7 +4446,7 @@ After=network.target
 Type=simple
 User={os.getenv("USER", "root")}
 WorkingDirectory={work_dir}
-ExecStart={exec_cmd} --port {port} --batch
+ExecStart={exec_cmd} --port {port} --batch{options}
 ExecReload=/bin/kill -HUP $MAINPID
 ExecStop=/bin/kill -TERM $MAINPID
 KillMode=mixed
@@ -4243,13 +4466,25 @@ WantedBy=multi-user.target
     return service_content
 
 
-def display_server_info(ips: List[str], port: int, root_dir: str) -> None:
+def display_server_info(
+    ips: List[str],
+    port: int,
+    root_dir: str,
+    features: Optional[ServerFeatures] = None,
+    shared_file: Optional[str] = None,
+) -> None:
     """Display server access URLs and connection info."""
     print(divider("Server Information", 60, "="))
     print(
         f"Server started at port: {CLIStyle.color(str(port), CLIStyle.COLORS['CONTENT'])}"
     )
-    print(f"Serving directory: {CLIStyle.color(root_dir, CLIStyle.COLORS['CONTENT'])}")
+    target = "Serving file" if shared_file else "Serving directory"
+    print(CLIStyle.color(f"{target}: {shared_file or root_dir}"))
+    if features:
+        enabled = ", ".join(
+            name.replace("_", "-") for name, active in vars(features).items() if active
+        )
+        print(CLIStyle.color(f"Enabled features: {enabled or 'none'}"))
     if ips:
         print(CLIStyle.color("Available URLs:", CLIStyle.COLORS["TITLE"]))
         for ip in ips:
@@ -4271,11 +4506,8 @@ def display_server_info(ips: List[str], port: int, root_dir: str) -> None:
     )
 
 
-def main() -> int:
-    """Main entry point for the HTTP file server."""
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
+def create_parser() -> ColoredArgumentParser:
+    """Describe the legacy server command and the independent upload client."""
     script_name = os.path.basename(sys.argv[0])
     script_path = os.path.realpath(__file__)
 
@@ -4284,6 +4516,9 @@ def main() -> int:
         ("Custom port", "--port 8080"),
         ("Serve a specific directory (e.g. project or docs)", "-d /path/to/dir"),
         ("Serve current dir with --root", "--root ."),
+        ("Share one read-only file", "--file /path/to/file"),
+        ("Disable writes and pastebin", "--no-upload --no-delete --no-pastebin"),
+        ("Upload multiple files", "upload -H http://host:7888 /path/1 /path/2"),
         ("Debug mode", "--debug"),
         ("Batch mode (auto-confirm)", "--batch"),
         ("Generate systemd service file", "--generate-service --port 8080"),
@@ -4294,6 +4529,9 @@ def main() -> int:
         "Files are served from the specified root directory (default: current directory)",
         "Use -d/--directory/-r/--root to change the server root directory",
         "Uploads are allowed by default",
+        "Single-file mode allows only downloads and optional file previews",
+        "Each feature supports --FEATURE and --no-FEATURE; disabling download also disables preview",
+        "Upload accepts files only, overwrites matching names, and reports partial failures",
         "Use a browser to access the server and view/upload files",
         "Debug mode shows detailed logs for troubleshooting",
         "Batch mode auto-confirms all prompts (useful for systemd services)",
@@ -4313,19 +4551,45 @@ def main() -> int:
         "-p",
         "--port",
         type=int,
-        default=DEFAULT_PORT,
-        help=f"Specify server port (default: {DEFAULT_PORT})",
+        default=None,
+        metavar=CLIStyle.color("PORT"),
+        help=CLIStyle.color(f"Specify server port (default: {DEFAULT_PORT})"),
     )
-    parser.add_argument(
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument(
         "-d",
         "--directory",
         "-r",
         "--root",
         dest="root",
         type=str,
-        help="Specify root directory to serve (default: current directory)",
+        metavar=CLIStyle.color("DIRECTORY"),
+        help=CLIStyle.color(
+            "Specify root directory to serve (default: current directory)"
+        ),
     )
-    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+    source.add_argument(
+        "-f",
+        "--file",
+        metavar=CLIStyle.color("FILE"),
+        help=CLIStyle.color("Serve only this file in read-only mode"),
+    )
+    parser.add_argument(
+        "--debug",
+        "--log",
+        action="store_true",
+        help=CLIStyle.color("Enable debug logging"),
+    )
+    features = parser.add_argument_group(
+        CLIStyle.color("Server features", CLIStyle.COLORS["TITLE"])
+    )
+    for name in vars(ServerFeatures()):
+        features.add_argument(
+            "--" + name.replace("_", "-"),
+            action=argparse.BooleanOptionalAction,
+            default=None,
+            help=CLIStyle.color("Enable or disable " + name.replace("_", " ")),
+        )
     parser.add_argument(
         "-b",
         "--batch",
@@ -4343,9 +4607,234 @@ def main() -> int:
         help="Generate systemd service file in current directory and exit",
     )
 
-    args = parser.parse_args()
+    commands = parser.add_subparsers(
+        dest="command", title=CLIStyle.color("Commands", CLIStyle.COLORS["TITLE"])
+    )
+    upload = commands.add_parser(
+        "upload",
+        help=CLIStyle.color("Upload local files to an HTTP server"),
+        description=CLIStyle.color(
+            "Upload files independently; existing remote files are overwritten",
+            CLIStyle.COLORS["TITLE"],
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=create_example_text(
+            script_name + " upload",
+            [
+                ("Upload files", "-H http://host:7888 a.txt b.bin"),
+                (
+                    "Upload into a remote directory",
+                    "--host http://host:7888/inbox/ a.txt",
+                ),
+            ],
+            [
+                "Directories are rejected; each file has its own PUT request",
+                "Any failed file makes the command exit with status 1; successful files are kept",
+                "Root names __pastebin and favicon.ico are reserved; use a destination directory for them",
+                "--timeout is the socket inactivity timeout in seconds",
+            ],
+        ),
+    )
+    upload.add_argument(
+        "-H",
+        "--host",
+        required=True,
+        metavar=CLIStyle.color("URL"),
+        help=CLIStyle.color("Server URL, optionally with a destination directory"),
+    )
+    upload.add_argument(
+        "paths",
+        nargs="+",
+        metavar=CLIStyle.color("FILE"),
+        help=CLIStyle.color("Local files to upload"),
+    )
+    upload.add_argument(
+        "--timeout",
+        type=float,
+        default=30.0,
+        metavar=CLIStyle.color("SECONDS"),
+        help=CLIStyle.color("Socket inactivity timeout (default: 30)"),
+    )
+    upload.add_argument(
+        "--debug",
+        "--log",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help=CLIStyle.color("Enable debug logging"),
+    )
+    return parser
 
-    root_dir = os.path.realpath(args.root) if args.root else os.getcwd()
+
+def resolve_features(
+    args: argparse.Namespace, parser: argparse.ArgumentParser
+) -> ServerFeatures:
+    """Apply explicit switches to mode defaults and reject forbidden capabilities."""
+    defaults = ServerFeatures.single_file() if args.file else ServerFeatures()
+    values = vars(defaults).copy()
+    for name in values:
+        requested = getattr(args, name)
+        if (
+            args.file
+            and name in ("browse", "upload", "delete", "pastebin")
+            and requested
+        ):
+            parser.error(f"--{name} is unavailable in single-file mode")
+        if requested is not None:
+            values[name] = requested
+    return ServerFeatures(**values)
+
+
+def send_upload_body(
+    connection: http.client.HTTPConnection, source: BinaryIO, size: int
+) -> None:
+    """Bound each upload to its declared size even if the local file changes."""
+    remaining = size
+    while remaining:
+        chunk = source.read(min(UPLOAD_CHUNK_SIZE, remaining))
+        if not chunk:
+            raise ValueError("Local file became shorter during upload")
+        connection.send(chunk)
+        remaining -= len(chunk)
+
+
+def upload_file(host: str, filepath: str, timeout: float) -> Tuple[int, int]:
+    """Stream exactly one local file into a URL directory with a fixed length."""
+    parsed = urlparse(host)
+    connection_type = (
+        http.client.HTTPSConnection
+        if parsed.scheme == "https"
+        else http.client.HTTPConnection
+    )
+    connection = connection_type(parsed.hostname, parsed.port, timeout=timeout)
+    base_path = "/".join(
+        quote(unquote(part), safe="") for part in parsed.path.split("/")
+    )
+    target = base_path.rstrip("/") + "/" + quote(os.path.basename(filepath), safe="")
+    try:
+        if target in (PASTEBIN_ENDPOINT, "/favicon.ico"):
+            raise ValueError(
+                "Reserved server endpoint; use a destination directory for this filename"
+            )
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(filepath)
+        if not os.path.isfile(filepath):
+            raise ValueError("Not a regular file")
+        with open(filepath, "rb") as source:
+            info = os.fstat(source.fileno())
+            if not stat.S_ISREG(info.st_mode):
+                raise ValueError("Not a regular file")
+            connection.putrequest("PUT", target)
+            connection.putheader("Content-Type", "application/octet-stream")
+            connection.putheader("Content-Length", str(info.st_size))
+            connection.endheaders()
+            send_error = None
+            try:
+                send_upload_body(connection, source, info.st_size)
+            except (BrokenPipeError, ConnectionResetError) as error:
+                # A rejected upload may have an HTTP response waiting on the socket.
+                send_error = error
+        response = connection.getresponse()
+        if response.status not in (200, 201, 204):
+            raise ValueError(f"HTTP {response.status}: {response.reason}")
+        if send_error is not None:
+            raise send_error
+        response.read(8192)
+        return response.status, info.st_size
+    finally:
+        connection.close()
+
+
+def run_upload(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """Report independent file results and return failure for a partial batch."""
+    try:
+        parsed = urlparse(args.host)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise ValueError("--host must be an http:// or https:// URL")
+        if (
+            parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError(
+                "--host cannot contain credentials, a query, or a fragment"
+            )
+        if parsed.port is not None and not 1 <= parsed.port <= 65535:
+            raise ValueError("Invalid server port")
+        if not math.isfinite(args.timeout) or args.timeout <= 0:
+            raise ValueError("--timeout must be positive and finite")
+    except ValueError as error:
+        parser.error(str(error))
+    failed = 0
+    for path in args.paths:
+        filepath = os.path.abspath(os.path.expanduser(path))
+        try:
+            status, size = upload_file(args.host, filepath, args.timeout)
+            action = "uploaded" if status == 201 else "replaced"
+            print(
+                CLIStyle.color(
+                    f"OK {action}: {path} ({size} bytes)", CLIStyle.COLORS["SUCCESS"]
+                )
+            )
+        except FileNotFoundError:
+            failed += 1
+            print(
+                CLIStyle.color(
+                    f"FAILED {path}: File not found", CLIStyle.COLORS["ERROR"]
+                )
+            )
+        except Exception as error:
+            failed += 1
+            print(CLIStyle.color(f"FAILED {path}: {error}", CLIStyle.COLORS["ERROR"]))
+            if DEBUG_MODE:
+                traceback.print_exc()
+    succeeded = len(args.paths) - failed
+    print(
+        CLIStyle.color(
+            f"Completed: {succeeded} succeeded, {failed} failed",
+            CLIStyle.COLORS["ERROR"] if failed else CLIStyle.COLORS["SUCCESS"],
+        )
+    )
+    return 1 if failed else 0
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """Dispatch uploads before performing any server initialization."""
+    parser = create_parser()
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments and arguments[0].isdecimal():
+        arguments.insert(0, "--port")
+    args = parser.parse_args(arguments)
+    global DEBUG_MODE, BATCH_MODE
+    DEBUG_MODE = args.debug
+    if args.command == "upload":
+        server_options = (
+            args.port,
+            args.root,
+            args.file,
+            args.batch,
+            args.preview,
+            args.generate_service,
+        )
+        if any(
+            value is not None
+            for value in (getattr(args, name) for name in vars(ServerFeatures()))
+        ) or any(server_options):
+            parser.error("Server options cannot be combined with upload")
+        return run_upload(args, parser)
+    features = resolve_features(args, parser)
+    args.port = DEFAULT_PORT if args.port is None else args.port
+    if not 1 <= args.port <= 65535:
+        parser.error("Server port must be between 1 and 65535")
+    shared_file = os.path.abspath(os.path.expanduser(args.file)) if args.file else None
+    if shared_file and not os.path.isfile(shared_file):
+        parser.error("--file must name an existing regular file")
+
+    root_dir = (
+        os.path.dirname(shared_file)
+        if shared_file
+        else os.path.realpath(args.root or os.getcwd())
+    )
     if not os.path.isdir(root_dir):
         print(
             CLIStyle.color(
@@ -4355,9 +4844,9 @@ def main() -> int:
         )
         return 1
 
-    global DEBUG_MODE, BATCH_MODE
-    DEBUG_MODE = args.debug
     BATCH_MODE = args.batch
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     if DEBUG_MODE:
         print(CLIStyle.color("Debug mode enabled", CLIStyle.COLORS["WARNING"]))
@@ -4368,7 +4857,7 @@ def main() -> int:
         debug("Batch mode: all prompts will be auto-confirmed")
 
     if args.generate_service:
-        return handle_generate_service(args.port)
+        return handle_generate_service(args.port, root_dir, features, shared_file)
 
     selected_port = ensure_available_port(args.port)
     if selected_port is None:
@@ -4381,7 +4870,7 @@ def main() -> int:
     debug("Available IPs", ips=ips)
 
     try:
-        display_server_info(ips, args.port, root_dir)
+        display_server_info(ips, args.port, root_dir, features, shared_file)
         atexit.register(
             lambda: print(
                 CLIStyle.color("Server fully stopped", CLIStyle.COLORS["SUCCESS"])
@@ -4390,7 +4879,11 @@ def main() -> int:
 
         global SERVER_INSTANCE
         SERVER_INSTANCE = ThreadedTCPServer(
-            ("0.0.0.0", args.port), EnhancedHTTPRequestHandler, root_dir
+            ("0.0.0.0", args.port),
+            EnhancedHTTPRequestHandler,
+            root_dir,
+            features=features,
+            shared_file=shared_file,
         )
 
         server_thread = threading.Thread(

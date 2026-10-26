@@ -24,8 +24,10 @@ class CLIStyle:
 
     COLORS = {
         "TITLE": 7,
-        "SUB_TITLE": 2,
-        "CONTENT": 3,
+        "SUB_TITLE": 7,
+        "CONTENT": 0,
+        "VALUE": 8,
+        "SUCCESS": 3,
         "EXAMPLE": 7,
         "WARNING": 4,
         "ERROR": 2,
@@ -53,6 +55,14 @@ class CLIStyle:
     def emit(text: str, role: str = "CONTENT", file: TextIO | None = None) -> None:
         """Print text through the shared style layer."""
         print(CLIStyle.color(text, CLIStyle.COLORS[role]), file=file, flush=True)
+
+    @staticmethod
+    def emit_parts(*parts: tuple[str, str], file: TextIO | None = None) -> None:
+        """Style individual values and statuses without coloring the whole line."""
+        text = "".join(
+            CLIStyle.color(text, CLIStyle.COLORS[role]) for text, role in parts
+        )
+        print(text, file=file, flush=True)
 
 
 class ColoredHelpFormatter(argparse.RawDescriptionHelpFormatter):
@@ -428,7 +438,10 @@ class DnsChecker:
             ]
             CLIStyle.emit("\n".join(lines))
         nameservers = parse_nameservers(content or "")
-        CLIStyle.emit("Listed DNS (in order): " + (", ".join(nameservers) or "none"))
+        CLIStyle.emit_parts(
+            ("Listed DNS (in order): ", "CONTENT"),
+            (", ".join(nameservers) or "none", "VALUE" if nameservers else "WARNING"),
+        )
         return nameservers
 
     def report_managers(self) -> None:
@@ -482,7 +495,10 @@ class DnsChecker:
                         for name, state in self.service_states.items()
                         if state != "active"
                     ]
-                    CLIStyle.emit("Active: " + (", ".join(active) or "none"))
+                    CLIStyle.emit_parts(
+                        ("Active: ", "CONTENT"),
+                        (", ".join(active) or "none", "VALUE"),
+                    )
                     CLIStyle.emit("Other: " + ", ".join(other))
         resolved_active = (
             self.service_states.get("systemd-resolved.service") != "inactive"
@@ -513,8 +529,11 @@ class DnsChecker:
             self.runtime_devices = parse_runtime_devices(result.stdout)
             for device in self.runtime_devices:
                 if device.ipv4 or device.ipv6:
-                    CLIStyle.emit(
-                        f"{device.device} ({device.connection}): IPv4={', '.join(device.ipv4) or 'none'}; IPv6={', '.join(device.ipv6) or 'none'}"
+                    CLIStyle.emit_parts(
+                        (f"{device.device} ({device.connection}): IPv4=", "CONTENT"),
+                        (", ".join(device.ipv4) or "none", "VALUE"),
+                        ("; IPv6=", "CONTENT"),
+                        (", ".join(device.ipv6) or "none", "VALUE"),
                     )
         self.title("NetworkManager saved settings for active connections")
         profiles = self.run_command(
@@ -548,8 +567,18 @@ class DnsChecker:
             settings["uuid"] = profile_id
             self.saved_profiles.append(settings)
             if not self.verbose:
-                CLIStyle.emit(
-                    f"{settings.get('connection.id', profile_id)}: saved IPv4={settings.get('ipv4.dns', '--')}; IPv6={settings.get('ipv6.dns', '--')}; ignore-auto-dns(v4/v6)={settings.get('ipv4.ignore-auto-dns', '?')}/{settings.get('ipv6.ignore-auto-dns', '?')}"
+                CLIStyle.emit_parts(
+                    (
+                        f"{settings.get('connection.id', profile_id)}: saved IPv4=",
+                        "CONTENT",
+                    ),
+                    (settings.get("ipv4.dns", "--"), "VALUE"),
+                    ("; IPv6=", "CONTENT"),
+                    (settings.get("ipv6.dns", "--"), "VALUE"),
+                    (
+                        f"; ignore-auto-dns(v4/v6)={settings.get('ipv4.ignore-auto-dns', '?')}/{settings.get('ipv6.ignore-auto-dns', '?')}",
+                        "CONTENT",
+                    ),
                 )
 
     def report_resolvconf(self) -> None:
@@ -601,7 +630,10 @@ class DnsChecker:
             nameservers = parse_nameservers(content)
             self.fixed_sources[file_path] = nameservers
             if nameservers and not self.verbose:
-                CLIStyle.emit(f"{file_path}: {', '.join(nameservers)}")
+                CLIStyle.emit_parts(
+                    (f"{file_path}: ", "CONTENT"),
+                    (", ".join(nameservers), "VALUE"),
+                )
         if self.record_sources and not self.verbose:
             CLIStyle.emit(
                 "resolvconf input providers: " + ", ".join(self.record_sources)
@@ -613,7 +645,9 @@ class DnsChecker:
             return
         self.title("Routes to configured DNS servers (UDP port 53)")
         if not nameservers:
-            CLIStyle.emit("No numeric nameservers were found in /etc/resolv.conf.")
+            CLIStyle.emit(
+                "No numeric nameservers were found in /etc/resolv.conf.", "WARNING"
+            )
         for nameserver in nameservers:
             if self.verbose:
                 CLIStyle.emit(f"\n--- {nameserver} ---", "EXAMPLE")
@@ -666,14 +700,23 @@ class DnsChecker:
                     else f"via {route.device or 'unknown interface'}"
                     + (" (TUN)" if route.is_tun else "")
                 )
-                CLIStyle.emit(
-                    f"{nameserver}: {detail}",
-                    "WARNING" if route.state != "routed" else "CONTENT",
+                role = "CONTENT"
+                if route.state == "unreachable":
+                    role = "ERROR"
+                elif route.state == "unknown" or route.is_tun:
+                    role = "WARNING"
+                CLIStyle.emit_parts(
+                    (nameserver, "VALUE"),
+                    (": ", "CONTENT"),
+                    (detail, role),
                 )
 
     def report_queries(self, domain: str, nameservers: list[str]) -> None:
         """Test the system resolver and explicit servers without elevating queries."""
-        self.title(f"Resolution test: {domain}")
+        CLIStyle.emit_parts(
+            ("\nResolution test: ", "TITLE"),
+            (domain, "VALUE"),
+        )
         result = None
         if self.find_command("getent"):
             result = self.run_command(
@@ -739,9 +782,18 @@ class DnsChecker:
         detail = (
             ", ".join(query.addresses) if query.state == "success" else query.detail
         )
-        CLIStyle.emit(
-            f"{label}: {query.state.upper()} ({detail})",
-            "CONTENT" if query.state == "success" else "WARNING",
+        role = "WARNING"
+        if query.state == "success":
+            role = "SUCCESS"
+        elif query.state == "failed":
+            role = "ERROR"
+        CLIStyle.emit_parts(
+            (label, "VALUE"),
+            (": ", "CONTENT"),
+            (query.state.upper(), role),
+            (" (", "CONTENT"),
+            (detail, "VALUE" if query.state == "success" else "CONTENT"),
+            (")", "CONTENT"),
         )
 
     def saved_dns_differences(self) -> list[str]:
@@ -784,7 +836,11 @@ class DnsChecker:
         if domain and self.system_query:
             self.show_query(f"System resolution for {domain}", self.system_query)
         else:
-            CLIStyle.emit("Resolution: NOT TESTED (use --test DOMAIN).")
+            CLIStyle.emit_parts(
+                ("Resolution: ", "CONTENT"),
+                ("NOT TESTED", "WARNING"),
+                (" (use --test DOMAIN).", "CONTENT"),
+            )
         if self.os_name == "Linux" and nameservers and not self.routes:
             CLIStyle.emit(
                 "DNS routes: NOT CHECKED (route inspection tool unavailable).",
@@ -797,19 +853,20 @@ class DnsChecker:
         ):
             CLIStyle.emit(
                 f"First listed DNS {nameservers[0]} has no route; the resolver may fall back to later entries.",
-                "WARNING",
+                "ERROR",
             )
         for server, route in self.routes.items():
             if route.is_tun:
                 CLIStyle.emit(
-                    f"DNS for {server} is routed through TUN '{route.device}'; query success does not verify the final upstream."
+                    f"DNS for {server} is routed through TUN '{route.device}'; query success does not verify the final upstream.",
+                    "WARNING",
                 )
             elif route.state == "unknown":
                 CLIStyle.emit(
                     f"Route for {server}: UNKNOWN ({route.detail}).", "WARNING"
                 )
             elif route.state == "unreachable" and server != nameservers[0]:
-                CLIStyle.emit(f"Listed DNS {server} has no route.", "WARNING")
+                CLIStyle.emit(f"Listed DNS {server} has no route.", "ERROR")
         differences = self.saved_dns_differences()
         for difference in differences:
             CLIStyle.emit(difference, "WARNING")
