@@ -128,6 +128,11 @@ def parser() -> argparse.ArgumentParser:
   python codex_usage.py --since 2026-09-01T12:00 --timezone Asia/Singapore
   python codex_usage.py --period all --json > usage.json
   python codex_usage.py --offline --prices-file prices.json
+  python codex_usage.py --update
+  python codex_usage.py --update --price-cache prices-cache.json --json
+  python codex_usage.py --show-price
+  python codex_usage.py --show-price --offline
+  python codex_usage.py --update --show-price
 
 Notes:
   Default: rolling 7 days. 1m means one calendar month, clamped at month end.
@@ -136,6 +141,9 @@ Notes:
   Costs exclude long-context, Fast mode, regional and tool surcharges.
   Unknown models are unpriced, never silently treated as free.
   Price cache is refreshed each online run; offline/fallback age is displayed.
+  --update only refreshes official prices; no usage database is required.
+  Update failures return a nonzero exit code and preserve the existing cache.
+  --show-price lists all available model rates without reading usage.
   --prices-file JSON: {"models": {"my-model":
     {"input": 1, "cached": 0.1, "write": null, "output": 5}}}
   All custom rates are USD per million tokens; model names match exactly.
@@ -158,6 +166,16 @@ Notes:
     result.add_argument("--db", type=Path, help="Explicit state_N.sqlite database")
     result.add_argument("--json", action="store_true", help="Machine-readable report")
     result.add_argument("--offline", action="store_true", help="Do not fetch prices")
+    result.add_argument(
+        "--update",
+        action="store_true",
+        help="Update the official price cache and exit without reading usage",
+    )
+    result.add_argument(
+        "--show-price",
+        action="store_true",
+        help="Show all model prices and exit without reading usage",
+    )
     result.add_argument(
         "--prices-file",
         type=Path,
@@ -511,25 +529,32 @@ def validate_prices(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+def fetch_prices() -> dict[str, Any]:
+    """Fetch current Standard prices from the official public documentation."""
+    url = "https://developers.openai.com/api/docs/pricing.md"
+    request = urllib.request.Request(
+        url, headers={"User-Agent": "codex-local-usage/1.0"}
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        models = parse_prices(response.read(4_000_000).decode("utf-8"))
+    return validate_prices(
+        {
+            "models": models,
+            "source": url,
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "status": "live",
+        }
+    )
+
+
 def load_prices(args: argparse.Namespace, warnings: list[str]) -> dict[str, Any]:
     """Fetch a public documentation endpoint, with transparent cache fallback."""
-    url = "https://developers.openai.com/api/docs/pricing.md"
     if args.prices_file:
         data = validate_prices(json.loads(args.prices_file.read_text()))
         return {**data, "source": str(args.prices_file), "status": "custom"}
     if not args.offline:
         try:
-            request = urllib.request.Request(
-                url, headers={"User-Agent": "codex-local-usage/1.0"}
-            )
-            with urllib.request.urlopen(request, timeout=20) as response:
-                models = parse_prices(response.read(4_000_000).decode("utf-8"))
-            data = {
-                "models": models,
-                "source": url,
-                "fetched_at": datetime.now(timezone.utc).isoformat(),
-                "status": "live",
-            }
+            data = fetch_prices()
             save_cache(args.price_cache, data, warnings)
             return data
         except (OSError, ValueError) as error:
@@ -540,10 +565,14 @@ def load_prices(args: argparse.Namespace, warnings: list[str]) -> dict[str, Any]
         data = validate_prices(json.loads(args.price_cache.read_text()))
         return {**data, "status": "cached; not verified current"}
     warnings.append("No price data available; all models remain unpriced.")
-    return {"models": {}, "source": url, "status": "unavailable"}
+    return {
+        "models": {},
+        "source": "https://developers.openai.com/api/docs/pricing.md",
+        "status": "unavailable",
+    }
 
 
-def save_cache(path: Path, data: dict, warnings: list[str]) -> None:
+def save_cache(path: Path, data: dict, warnings: list[str]) -> bool:
     """Atomically replace the price cache without risking partial JSON."""
     temporary = None
     try:
@@ -554,11 +583,68 @@ def save_cache(path: Path, data: dict, warnings: list[str]) -> None:
             temporary = Path(stream.name)
             json.dump(data, stream, indent=2)
         temporary.replace(path)
+        return True
     except OSError:
         warnings.append("Could not save price cache; live prices are still usable.")
+        return False
     finally:
         if temporary and temporary.exists():
             temporary.unlink()
+
+
+def run_prices(
+    args: argparse.Namespace, progress: Progress | None = None
+) -> dict[str, Any]:
+    """Load or strictly refresh model prices without reading usage records."""
+    warnings: list[str] = []
+    if progress:
+        action = (
+            "Reading local prices"
+            if args.offline or args.prices_file
+            else "Fetching official prices (network timeout: 20s)"
+        )
+        progress.update(action, announce=True)
+    data = fetch_prices() if args.update else load_prices(args, warnings)
+    if args.update and not save_cache(args.price_cache, data, warnings):
+        raise OSError(f"Could not save price cache: {args.price_cache}")
+    if not data["models"]:
+        raise ValueError("No price data available; run --update or use --prices-file")
+    return {
+        "price_cache": str(args.price_cache.resolve()),
+        "model_count": len(data["models"]),
+        **data,
+        "warnings": warnings,
+    }
+
+
+def display_prices(report: dict[str, Any], update: bool, show_price: bool) -> None:
+    """Display price metadata and optionally every model's per-million rates."""
+    if update:
+        CLIStyle.emit(
+            f"Updated official prices for {report['model_count']} models.", "TITLE"
+        )
+    if show_price:
+        CLIStyle.emit("API PRICES / 1M TOKENS (USD)", "TITLE")
+        rows = [
+            [
+                model,
+                *[
+                    str(rates[key]) if rates.get(key) is not None else "-"
+                    for key in ("input", "cached", "write", "output")
+                ],
+            ]
+            for model, rates in sorted(report["models"].items())
+        ]
+        table(["Model", "Input", "Cached input", "Cache writes", "Output"], rows)
+        CLIStyle.emit("- = no published rate; Standard base prices exclude surcharges.")
+    CLIStyle.emit(f"Cache: {report['price_cache']}")
+    CLIStyle.emit(f"Source: {report['source']}")
+    CLIStyle.emit(f"Status: {report['status']}")
+    CLIStyle.emit(
+        f"Fetched: {friendly_time(report['fetched_at']) if report.get('fetched_at') else 'unknown'}"
+    )
+    for warning in report["warnings"]:
+        CLIStyle.emit(warning, "WARNING")
 
 
 def estimate(usage: dict[str, int], rates: dict | None) -> Decimal | None:
@@ -873,14 +959,22 @@ def run(args: argparse.Namespace, progress: Progress | None = None) -> dict[str,
 
 def main() -> int:
     """Execute the CLI and surface actionable errors."""
-    args = parser().parse_args()
+    argument_parser = parser()
+    args = argument_parser.parse_args()
+    if args.update and (args.offline or args.prices_file is not None):
+        argument_parser.error(
+            "--update cannot be combined with --offline or --prices-file"
+        )
     progress = Progress(enabled=not args.no_progress)
     progress.start()
     try:
-        report = run(args, progress)
+        pricing_only = args.update or args.show_price
+        report = run_prices(args, progress) if pricing_only else run(args, progress)
         progress.finish("Complete")
         if args.json:
             sys.stdout.write(json.dumps(report, indent=2) + "\n")
+        elif pricing_only:
+            display_prices(report, args.update, args.show_price)
         else:
             display(report, details=args.details)
         return 0

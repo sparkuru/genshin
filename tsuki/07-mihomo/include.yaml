@@ -5,7 +5,7 @@ mode: "rule"
 log-level: "info"
 ipv6: false
 external-controller: "0.0.0.0:1081"
-secret: "FGonuPDvlJnbbhjj"
+secret: "AlVCMbenyqXz8_6g"
 unified-delay: true
 sniffer:
   sniff:
@@ -288,6 +288,10 @@ rules:
   - "DOMAIN,juicyads.com,reject"
   - "DOMAIN-SUFFIX,mayzaent.com,reject"
   - "DOMAIN-SUFFIX,stripchat.com,reject"
+  - "DOMAIN,dm.wo.com.cn,reject"
+  - "DOMAIN,a.fxltsbl.com,reject"
+  - "DOMAIN,b.fxltsbl.com,reject"
+  - "DOMAIN,zzhc.vnet.cn,reject"
   - "DOMAIN,iida.ro,DIRECT"
   - "DOMAIN,4.ipw.cn,DIRECT"
   - "DOMAIN,ip.3322.net,DIRECT"
