@@ -5,10 +5,9 @@ usage() {
 	printf 'Usage: %s COMMAND [TARGET] [OPTIONS]\n' "${0##*/}" >&2
 	printf '  install --archive FILE --path DIR [--force]\n' >&2
 	printf '  remove --path DIR\n' >&2
-	printf '  sync                         Synchronize settings and extensions\n' >&2
-	printf '  sync setting                 Link settings and keybindings\n' >&2
-	printf '  sync extension [--export]    Install the list, or export installed IDs\n' >&2
-	printf '  update extension [--check] [--extensions-dir DIR]\n' >&2
+	printf '  local sync [settings|keybindings|extensions]   Repository -> local (default: all)\n' >&2
+	printf '  repo sync [settings|keybindings|extensions]    Local -> repository (default: all)\n' >&2
+	printf '  update extensions [--check] [--extensions-dir DIR]\n' >&2
 }
 
 # Keep command state and EXIT traps local to each invocation.
@@ -79,6 +78,7 @@ require_command() {
 	command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
+# shellcheck disable=SC2317 # Invoked indirectly by the EXIT trap in this subshell.
 cleanup() {
 	if [[ -n "$tmp_dir" && -d "$tmp_dir" ]]; then
 		rm -rf -- "$tmp_dir"
@@ -288,123 +288,170 @@ main() {
 main "$@"
 )
 
-sync_setting() (
-set -Eeuo pipefail
+sync_configuration() (
+	set -Eeuo pipefail
 
-script_dir=$(dirname -- "$0")
-SCRIPT_DIR=$(cd -- "$script_dir" && pwd)
-readonly SCRIPT_DIR
-readonly CONFIG_SOURCE_DIR="$SCRIPT_DIR/config"
-readonly CONFIG_TARGET_DIR="$HOME/.config/VSCodium/User"
+	direction=$1
+	target=$2
+	script_dir=${BASH_SOURCE[0]}
+	[[ "$script_dir" == */* ]] || script_dir="./$script_dir"
+	script_dir=$(cd -- "${script_dir%/*}" && pwd -P)
+	config_dir="$script_dir/config"
+	local_dir="${XDG_CONFIG_HOME:-$HOME/.config}/VSCodium/User"
+	codium_bin=${CODIUM_BIN:-codium}
+	tmp_file=''
+	extensions_tmp_file=''
+	extension_ids=()
 
-die() {
-	printf 'Error: %s\n' "$*" >&2
-	exit 1
-}
+	die() {
+		printf 'Error: %s\n' "$*" >&2
+		exit 1
+	}
 
-link_file() {
-	local source_path=$1
-	local target_path=$2
+	# shellcheck disable=SC2317 # Invoked indirectly by the EXIT trap in this subshell.
+	cleanup() {
+		if [[ -n "$tmp_file" && -f "$tmp_file" ]]; then
+			rm -f -- "$tmp_file"
+		fi
+		if [[ -n "$extensions_tmp_file" && -f "$extensions_tmp_file" ]]; then
+			rm -f -- "$extensions_tmp_file"
+		fi
+	}
 
-	[[ -f "$source_path" ]] || die "configuration file not found: $source_path"
-	if [[ -e "$target_path" && ! -L "$target_path" ]]; then
-		die "refusing to replace existing file: $target_path"
-	fi
-	ln -sfnT -- "$source_path" "$target_path"
-}
+	backup_file() {
+		local path=$1
+		local backup_path
 
-main() {
-	case "${1:-}" in
-	--help | -h)
-		printf 'Usage: %s sync setting [--help]\nLink repository settings and keybindings into VSCodium.\n' "${0##*/}" >&2
-		return 0
-		;;
-	'') ;;
-	*) die "unknown argument: $1" ;;
-	esac
-	[[ $# -eq 0 ]] || die 'unexpected arguments'
-	for command in mkdir ln; do
-		command -v "$command" >/dev/null 2>&1 || die "required command not found: $command"
-	done
-	mkdir -p -- "$CONFIG_TARGET_DIR"
-	link_file "$CONFIG_SOURCE_DIR/settings.json" "$CONFIG_TARGET_DIR/settings.json"
-	link_file "$CONFIG_SOURCE_DIR/keybindings.json" "$CONFIG_TARGET_DIR/keybindings.json"
-}
+		if [[ -e "$path" || -L "$path" ]]; then
+			backup_path=$(mktemp "/tmp/vscodium-${path##*/}.backup.XXXXXXXX")
+			cp -Pp -- "$path" "$backup_path"
+			printf 'Backup: %s\n' "$backup_path"
+		fi
+	}
 
-main "$@"
-)
+	replace_file() {
+		local source_path=$1
+		local target_path=$2
 
-sync_extension() (
-set -Eeuo pipefail
-
-script_dir=$(dirname -- "$0")
-SCRIPT_DIR=$(cd -- "$script_dir" && pwd)
-readonly SCRIPT_DIR
-readonly EXTENSIONS_FILE="$SCRIPT_DIR/config/extension.txt"
-tmp_file=''
-
-die() {
-	printf 'Error: %s\n' "$*" >&2
-	exit 1
-}
-
-main() {
-	local codium_bin=${CODIUM_BIN:-codium}
-	local extension_id
-	local export_list=false
-	local -a unavailable_extensions=()
-
-	while [[ $# -gt 0 ]]; do
-		case "$1" in
-		--export) export_list=true ;;
-		--help | -h)
-			printf 'Usage: %s sync extension [--export] [--help]\nInstall extensions from config/extension.txt; --export refreshes the list from VSCodium.\n' "${0##*/}" >&2
+		if [[ ! -L "$target_path" ]] && cmp -s -- "$source_path" "$target_path"; then
 			return 0
-			;;
-		*) die "unknown argument: $1" ;;
-		esac
-		shift
-	done
-	command -v "$codium_bin" >/dev/null 2>&1 || die "VSCodium command not found: $codium_bin"
-	if [[ "$export_list" == true ]]; then
-		for command in mktemp sort cmp mv rm; do
+		fi
+		tmp_file=$(mktemp "${TMPDIR:-/tmp}/vscodium-sync.XXXXXXXX")
+		cp -Lp -- "$source_path" "$tmp_file"
+		backup_file "$target_path"
+		mv -fT -- "$tmp_file" "$target_path"
+		tmp_file=''
+	}
+
+	sync_file() {
+		local name=$1
+		local repo_path="$config_dir/$name.json"
+		local local_path="$local_dir/$name.json"
+
+		if [[ "$direction" == repo ]]; then
+			replace_file "$local_path" "$repo_path"
+		else
+			# Materialize repository links before linking back, including local -> repo reversals.
+			if [[ -L "$repo_path" ]]; then
+				replace_file "$repo_path" "$repo_path"
+			fi
+			if [[ "$local_path" -ef "$repo_path" ]]; then
+				return 0
+			fi
+			backup_file "$local_path"
+			ln -sfnT -- "$repo_path" "$local_path"
+		fi
+		printf '%s synchronized to %s\n' "$name" "$direction"
+	}
+
+	prepare_extensions() {
+		local extension_id
+		local list_path="$config_dir/extensions.txt"
+
+		command -v "$codium_bin" >/dev/null 2>&1 || die "VSCodium command not found: $codium_bin"
+		[[ ! -d "$list_path" ]] || die "extension list is a directory: $list_path"
+		if [[ "$direction" == repo ]]; then
+			extensions_tmp_file=$(mktemp "${TMPDIR:-/tmp}/vscodium-extensions.XXXXXXXX")
+			"$codium_bin" --list-extensions | LC_ALL=C sort -u >"$extensions_tmp_file"
+			list_path=$extensions_tmp_file
+		fi
+		[[ -f "$list_path" ]] || die "extension list not found: $list_path"
+		while IFS= read -r extension_id || [[ -n "$extension_id" ]]; do
+			extension_id=${extension_id%$'\r'}
+			[[ -z "$extension_id" || "$extension_id" == \#* ]] && continue
+			[[ "$extension_id" =~ ^[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+$ ]] || die "invalid extension ID: $extension_id"
+			extension_ids+=("$extension_id")
+		done <"$list_path"
+	}
+
+	sync_extensions() {
+		local extension_id
+		local -a unavailable_extensions=()
+
+		if [[ "$direction" == repo ]]; then
+			# An empty installed list is valid when local is the source of truth.
+			if [[ -L "$config_dir/extensions.txt" ]] || ! cmp -s -- "$extensions_tmp_file" "$config_dir/extensions.txt"; then
+				backup_file "$config_dir/extensions.txt"
+				mv -fT -- "$extensions_tmp_file" "$config_dir/extensions.txt"
+				extensions_tmp_file=''
+			fi
+			printf 'Extensions synchronized to repository: %s\n' "$config_dir/extensions.txt"
+			return 0
+		fi
+
+		for extension_id in "${extension_ids[@]}"; do
+			if ! "$codium_bin" --install-extension "$extension_id"; then
+				unavailable_extensions+=("$extension_id")
+			fi
+		done
+
+		if [[ ${#unavailable_extensions[@]} -gt 0 ]]; then
+			printf 'Unavailable extensions:\n' >&2
+			printf '  %s\n' "${unavailable_extensions[@]}" >&2
+			return 1
+		fi
+	}
+
+	main() {
+		local command name source_path target_path
+		local -a names=()
+
+		for command in mkdir ln mktemp cp mv rm cmp sort; do
 			command -v "$command" >/dev/null 2>&1 || die "required command not found: $command"
 		done
-		tmp_file=$(mktemp "${TMPDIR:-/tmp}/sync-extension.XXXXXXXX")
-		trap '[[ -z "$tmp_file" || ! -f "$tmp_file" ]] || rm -f -- "$tmp_file"' EXIT
-		"$codium_bin" --list-extensions | LC_ALL=C sort -u >"$tmp_file"
-		[[ -s "$tmp_file" ]] || die 'installed extension list is empty; refusing to erase the repository list'
-		while IFS= read -r extension_id; do
-			[[ "$extension_id" =~ ^[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+$ ]] || die "invalid installed extension ID: $extension_id"
-		done <"$tmp_file"
-		if ! cmp -s "$tmp_file" "$EXTENSIONS_FILE"; then
-			mv -- "$tmp_file" "$EXTENSIONS_FILE"
+		trap cleanup EXIT
+		case "$target" in
+		all) names=(settings keybindings) ;;
+		settings | keybindings) names=("$target") ;;
+		esac
+		for name in "${names[@]}"; do
+			source_path="$config_dir/$name.json"
+			target_path="$local_dir/$name.json"
+			if [[ "$direction" == repo ]]; then
+				source_path="$local_dir/$name.json"
+				target_path="$config_dir/$name.json"
+			fi
+			[[ -f "$source_path" ]] || die "configuration file not found: $source_path"
+			[[ ! -d "$target_path" ]] || die "configuration target is a directory: $target_path"
+		done
+		if [[ "$target" == all || "$target" == extensions ]]; then
+			prepare_extensions
 		fi
-		printf 'Extension list synchronized: %s\n' "$EXTENSIONS_FILE"
-		return 0
-	fi
-	[[ -f "$EXTENSIONS_FILE" ]] || die "extension list not found: $EXTENSIONS_FILE"
-
-	while IFS= read -r extension_id || [[ -n "$extension_id" ]]; do
-		extension_id=${extension_id%$'\r'}
-		[[ -z "$extension_id" || "$extension_id" == \#* ]] && continue
-		[[ "$extension_id" =~ ^[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+$ ]] || die "invalid extension ID: $extension_id"
-		if ! "$codium_bin" --install-extension "$extension_id"; then
-			unavailable_extensions+=("$extension_id")
+		if [[ "$direction" == local && ${#names[@]} -gt 0 ]]; then
+			mkdir -p -- "$local_dir"
 		fi
-	done <"$EXTENSIONS_FILE"
+		for name in "${names[@]}"; do
+			sync_file "$name"
+		done
+		if [[ "$target" == all || "$target" == extensions ]]; then
+			sync_extensions
+		fi
+	}
 
-	if [[ ${#unavailable_extensions[@]} -gt 0 ]]; then
-		printf 'Unavailable extensions:\n' >&2
-		printf '  %s\n' "${unavailable_extensions[@]}" >&2
-		return 1
-	fi
-}
-
-main "$@"
+	main
 )
 
-update_extension() (
+update_extensions() (
 set -Eeuo pipefail
 
 readonly SCRIPT_NAME=${0##*/}
@@ -414,8 +461,8 @@ readonly STYLE_WARNING=$'\033[1;33m'
 readonly STYLE_ERROR=$'\033[1;31m'
 SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
 readonly SCRIPT_DIR
-readonly MANIFEST="$SCRIPT_DIR/config/extension.json"
-readonly EXTENSION_LIST="$SCRIPT_DIR/config/extension.txt"
+readonly MANIFEST="$SCRIPT_DIR/config/extensions.json"
+readonly EXTENSIONS_LIST="$SCRIPT_DIR/config/extensions.txt"
 
 work_dir=''
 extensions_dir=''
@@ -424,7 +471,7 @@ transaction_active=false
 current_id=''
 
 usage() {
-	printf 'Usage: %s update extension [--extensions-dir DIR] [--check] [--help]\n' "$SCRIPT_NAME" >&2
+	printf 'Usage: %s update extensions [--extensions-dir DIR] [--check] [--help]\n' "$SCRIPT_NAME" >&2
 	printf 'Check Open VSX for newer versions and install verified VSIX packages.\n' >&2
 	printf '  --extensions-dir DIR  VSCodium extensions directory (default: ~/.vscode-oss/extensions)\n' >&2
 	printf '  --check               Report available updates without installing\n' >&2
@@ -510,12 +557,13 @@ restore_extension() {
 	elif [[ -f "$work_dir/index-absent" && -f "$extensions_dir/extensions.json" ]]; then
 		rm -f -- "$extensions_dir/extensions.json" || return 1
 	fi
-	if [[ -f "$work_dir/extension.json" ]]; then
-		cp -p -- "$work_dir/extension.json" "$MANIFEST" || return 1
+	if [[ -f "$work_dir/repo-extensions.json" ]]; then
+		cp -p -- "$work_dir/repo-extensions.json" "$MANIFEST" || return 1
 	fi
 	warn "rolled back $current_id"
 }
 
+# shellcheck disable=SC2317 # Invoked indirectly by the EXIT trap in this subshell.
 cleanup() {
 	local exit_status=$?
 	trap - EXIT
@@ -595,7 +643,7 @@ backup_extension() {
 	else
 		: >"$work_dir/index-absent"
 	fi
-	cp -p -- "$MANIFEST" "$work_dir/extension.json"
+	cp -p -- "$MANIFEST" "$work_dir/repo-extensions.json"
 	transaction_active=true
 }
 
@@ -658,14 +706,14 @@ install_extension() {
 	"$codium_bin" --extensions-dir "$extensions_dir" --list-extensions --show-versions |
 		grep -Fxiq -- "$id@$version" || die "installed version could not be verified: $id@$version"
 
-	manifest_tmp=$(mktemp "$SCRIPT_DIR/config/.extension.json.XXXXXXXX")
+	manifest_tmp=$(mktemp "$SCRIPT_DIR/config/.extensions.json.XXXXXXXX")
 	if ! jq --arg id "$id" --arg version "$version" '.[$id].version = $version' "$MANIFEST" >"$manifest_tmp"; then
 		rm -f -- "$manifest_tmp"
-		die "could not update extension.json: $id"
+		die "could not update extensions.json: $id"
 	fi
 	if ! mv -- "$manifest_tmp" "$MANIFEST"; then
 		rm -f -- "$manifest_tmp"
-		die "could not replace extension.json: $id"
+		die "could not replace extensions.json: $id"
 	fi
 	transaction_active=false
 	success "Updated $id to $version"
@@ -716,20 +764,20 @@ main() {
 	if [[ "$check_only" == false ]]; then
 		require_command "$codium_bin"
 	fi
-	[[ -f "$EXTENSION_LIST" ]] || die "extension list not found: $EXTENSION_LIST"
+	[[ -f "$EXTENSIONS_LIST" ]] || die "extension list not found: $EXTENSIONS_LIST"
 	platform=$(platform_name)
-	work_dir=$(mktemp -d "${TMPDIR:-/tmp}/update-extension.XXXXXXXX")
+	work_dir=$(mktemp -d "${TMPDIR:-/tmp}/update-extensions.XXXXXXXX")
 	trap cleanup EXIT
 	: >"$work_dir/ids"
 	while IFS= read -r id || [[ -n "$id" ]]; do
 		id=${id%$'\r'}
 		[[ -z "$id" || "$id" == \#* ]] && continue
-		[[ "$id" =~ ^[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+$ ]] || die "invalid extension ID in extension.txt: $id"
+		[[ "$id" =~ ^[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+$ ]] || die "invalid extension ID in extensions.txt: $id"
 		if [[ -z "${seen_ids[$id]+x}" ]]; then
 			printf '%s\n' "$id" >>"$work_dir/ids"
 			seen_ids[$id]=1
 		fi
-	done <"$EXTENSION_LIST"
+	done <"$EXTENSIONS_LIST"
 	index_file="$extensions_dir/extensions.json"
 	if [[ ! -f "$index_file" ]]; then
 		index_file="$work_dir/empty-index.json"
@@ -741,14 +789,14 @@ main() {
 		printf '{}\n' >"$current_manifest"
 	fi
 	jq -e 'type == "object"' "$current_manifest" >/dev/null || die 'invalid extension manifest'
-	reconcile_manifest "$current_manifest" "$index_file" || die 'could not reconcile extension.json with extension.txt'
+	reconcile_manifest "$current_manifest" "$index_file" || die 'could not reconcile extensions.json with extensions.txt'
 	jq -e 'type == "object" and all(to_entries[]; (.key | test("^[A-Za-z0-9_-]+\\.[A-Za-z0-9_.-]+$")) and (.value.url | type == "string") and (.value.version == null or (.value.version | type == "string")))' "$work_dir/manifest.json" >/dev/null || die 'invalid reconciled extension manifest'
 	manifest_to_read="$work_dir/manifest.json"
 	if [[ "$check_only" == false ]] && ! cmp -s "$work_dir/manifest.json" "$MANIFEST"; then
-		manifest_tmp=$(mktemp "$SCRIPT_DIR/config/.extension.json.XXXXXXXX")
+		manifest_tmp=$(mktemp "$SCRIPT_DIR/config/.extensions.json.XXXXXXXX")
 		if ! cp -- "$work_dir/manifest.json" "$manifest_tmp" || ! mv -- "$manifest_tmp" "$MANIFEST"; then
 			rm -f -- "$manifest_tmp"
-			die 'could not synchronize extension.json'
+			die 'could not synchronize extensions.json'
 		fi
 		manifest_to_read=$MANIFEST
 	fi
@@ -782,7 +830,7 @@ main() {
 				install_extension "$id" "$remote_version" "$download_url"
 				rm -rf -- "$work_dir/unpacked"
 				rm -rf -- "$work_dir/backup"
-				rm -f -- "$work_dir/old-paths" "$work_dir/extensions.json" "$work_dir/index-absent" "$work_dir/extension.json" "$work_dir/package.vsix"
+				rm -f -- "$work_dir/old-paths" "$work_dir/extensions.json" "$work_dir/index-absent" "$work_dir/repo-extensions.json" "$work_dir/package.vsix"
 			fi
 		else
 			skip "$id: installed $installed_version, latest $remote_version"
@@ -800,29 +848,63 @@ main "$@"
 
 main() {
 	local action=${1:-}
+	local direction target
 	[[ $# -eq 0 ]] || shift
 	case "$action" in
 	install) install_application "$@" ;;
 	remove) install_application --uninstall "$@" ;;
-	sync)
-		if [[ $# -eq 0 ]]; then
-			sync_setting
-			sync_extension
-		else
-			case "$1" in
-			setting) shift; sync_setting "$@" ;;
-			extension) shift; sync_extension "$@" ;;
-			*) printf 'Error: unknown sync target: %s\n' "$1" >&2; return 1 ;;
-			esac
+	local | repo)
+		direction=$action
+		if [[ ${1:-} == --help || ${1:-} == -h ]]; then
+			usage
+			return 0
 		fi
+		[[ ${1:-} == sync ]] || {
+			printf 'Error: expected "%s sync"\n' "$direction" >&2
+			return 1
+		}
+		shift
+		target=${1:-all}
+		case "$target" in
+		--help | -h)
+			usage
+			return 0
+			;;
+		settings | keybindings | extensions) ;;
+		all) [[ $# -eq 0 ]] || {
+			printf 'Error: omit the target to sync all\n' >&2
+			return 1
+		} ;;
+		*)
+			printf 'Error: unknown sync target: %s\n' "$target" >&2
+			return 1
+			;;
+		esac
+		[[ $# -eq 0 ]] || shift
+		if [[ ${1:-} == --help || ${1:-} == -h ]]; then
+			usage
+			return 0
+		fi
+		[[ $# -eq 0 ]] || {
+			printf 'Error: unexpected argument: %s\n' "$1" >&2
+			return 1
+		}
+		sync_configuration "$direction" "$target"
 		;;
 	update)
-		if [[ ${1:-} == extension ]]; then shift; fi
-		update_extension "$@"
+		if [[ ${1:-} == extensions ]]; then shift; fi
+		update_extensions "$@"
 		;;
 	--help | -h | help) usage ;;
-	'') usage; return 1 ;;
-	*) printf 'Error: unknown command: %s\n' "$action" >&2; usage; return 1 ;;
+	'')
+		usage
+		return 1
+		;;
+	*)
+		printf 'Error: unknown command: %s\n' "$action" >&2
+		usage
+		return 1
+		;;
 	esac
 }
 

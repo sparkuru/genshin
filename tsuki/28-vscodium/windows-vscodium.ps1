@@ -739,7 +739,7 @@ function Show-Usage {
 
 try {
     if ($Target -and $Action -notin @('sync', 'update')) { throw 'A target is only valid for sync or update.' }
-    if (-not $ExtensionFile) { $ExtensionFile = Join-Path $PSScriptRoot 'config\extension.txt' }
+    if (-not $ExtensionFile) { $ExtensionFile = Join-Path $PSScriptRoot 'config\extensions.txt' }
     if ($Check -and $Action -ne 'update') { throw '-Check is only valid for update extension.' }
     if ($Export -and ($Action -ne 'sync' -or $Target -ne 'extension')) { throw '-Export is only valid for sync extension.' }
     switch ($Action) {
