@@ -7,20 +7,25 @@ Manage VSCodium installation, settings and extensions on Windows.
 .EXAMPLE
 .\windows-vscodium.ps1 upgrade
 .EXAMPLE
-.\windows-vscodium.ps1 sync setting
+.\windows-vscodium.ps1 local sync settings
 .EXAMPLE
-.\windows-vscodium.ps1 sync extension -Export
+.\windows-vscodium.ps1 local sync settings -Link
+.EXAMPLE
+.\windows-vscodium.ps1 repo sync extensions
 .EXAMPLE
 .\windows-vscodium.ps1 update extension -Check
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('install', 'upgrade', 'remove', 'sync', 'update', 'help')]
+    [ValidateSet('install', 'upgrade', 'remove', 'local', 'repo', 'sync', 'update', 'help')]
     [string]$Action = 'help',
     [Parameter(Position = 1)]
-    [ValidateSet('setting', 'extension')]
+    [ValidateSet('sync', 'setting', 'extension', 'settings', 'keybindings', 'extensions')]
     [string]$Target,
+    [Parameter(Position = 2)]
+    [ValidateSet('settings', 'keybindings', 'extensions')]
+    [string]$SyncTarget,
     [string]$Archive,
     [string]$Path = (Join-Path $env:APPDATA 'Apps\VSCodium'),
     [switch]$Force,
@@ -29,6 +34,7 @@ param(
     [string]$ExtensionsDir,
     [string]$UserDir,
     [switch]$Export,
+    [switch]$Link,
     [switch]$Check
 )
 
@@ -78,12 +84,12 @@ function Get-CodiumDirectories {
 }
 
 function Read-ExtensionIds {
-    param([string]$Path)
+    param([string]$Path, [switch]$AllowEmpty)
 
     $ids = @(Get-Content -LiteralPath $Path | ForEach-Object {
         ($_ -split '#', 2)[0].Trim()
     } | Where-Object { $_ } | Sort-Object -Unique)
-    if ($ids.Count -eq 0) { throw "Extension list is empty: $Path" }
+    if ($ids.Count -eq 0 -and -not $AllowEmpty) { throw "Extension list is empty: $Path" }
     foreach ($id in $ids) {
         if ($id -notmatch '^[A-Za-z0-9][A-Za-z0-9_-]*\.[A-Za-z0-9][A-Za-z0-9_.-]*$') {
             throw "Invalid extension ID: $id"
@@ -288,79 +294,179 @@ function Install-Extension {
     return $true
 }
 
-function Sync-Setting {
-    try {
-        if (-not $UserDir) {
-            $codium = Find-Codium -RequestedPath $CodiumBin
-            $UserDir = (Get-CodiumDirectories -Codium $codium).User
-        }
-        $files = @('settings.json', 'keybindings.json')
-        foreach ($file in $files) {
-            if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot "config\$file") -PathType Leaf)) {
-                throw "Configuration file was not found: $file"
-            }
-        }
-        if ($PSCmdlet.ShouldProcess($UserDir, 'Back up existing settings and synchronize repository configuration')) {
-            New-Item -ItemType Directory -Path $UserDir -Force | Out-Null
-            $suffix = '.bak-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fffffff')
-            foreach ($file in $files) {
-                $target = Join-Path $UserDir $file
-                if (Test-Path -LiteralPath $target -PathType Leaf) {
-                    Copy-Item -LiteralPath $target -Destination ($target + $suffix)
-                }
-                Copy-Item -LiteralPath (Join-Path $PSScriptRoot "config\$file") -Destination $target -Force
-            }
-            Write-Output "Configuration synchronized: $UserDir"
-        }
+function Get-SyncFile {
+    param([string]$FilePath)
+
+    $item = $null
+    try { $item = Get-Item -LiteralPath $FilePath -Force -ErrorAction Stop }
+    catch [System.Management.Automation.ItemNotFoundException] { return $null }
+    if ($item.PSIsContainer) { throw "Synchronization target is a directory: $FilePath" }
+    if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -and $item.LinkType -ne 'SymbolicLink') {
+        throw "Unsupported reparse point: $FilePath"
     }
+    return $item
+}
+
+function Move-SyncFile {
+    param([string]$StagedPath, [string]$Destination)
+
+    $backup = $null
+    if (Get-SyncFile -FilePath $Destination) {
+        $backup = Join-Path ([System.IO.Path]::GetTempPath()) (
+            'vscodium-' + [System.IO.Path]::GetFileName($Destination) + '.backup.' + [guid]::NewGuid().ToString('N')
+        )
+        Move-Item -LiteralPath $Destination -Destination $backup
+        Write-Host "Backup: $backup"
+    }
+    try { Move-Item -LiteralPath $StagedPath -Destination $Destination }
     catch {
-        Write-Error -Message $_.Exception.Message -ErrorAction Continue
-        exit 1
+        if ($backup) { Move-Item -LiteralPath $backup -Destination $Destination }
+        throw
     }
 }
 
-function Sync-Extension {
+function Write-SyncFile {
+    param([byte[]]$Content, [string]$Destination)
+
+    $item = Get-SyncFile -FilePath $Destination
+    if ($item -and -not ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) {
+        $existing = [System.IO.File]::ReadAllBytes($Destination)
+        if ([Convert]::ToBase64String($existing) -ceq [Convert]::ToBase64String($Content)) { return }
+    }
+    $parent = Split-Path -Parent $Destination
+    New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    $staged = Join-Path $parent ('.vscodium-sync-' + [guid]::NewGuid().ToString('N'))
     try {
+        [System.IO.File]::WriteAllBytes($staged, $Content)
+        Move-SyncFile -StagedPath $staged -Destination $Destination
+    }
+    finally {
+        if (Get-SyncFile -FilePath $staged) { Remove-Item -LiteralPath $staged -Force }
+    }
+}
+
+function Sync-Configuration {
+    param([string]$Direction, [string]$Selection = 'all')
+
+    $names = switch ($Selection) {
+        'all' { 'settings'; 'keybindings' }
+        'setting' { 'settings'; 'keybindings' }
+        'settings' { 'settings' }
+        'keybindings' { 'keybindings' }
+    }
+    $syncExtensions = $Selection -in @('all', 'extension', 'extensions')
+    if ($Link -and ($Direction -ne 'local' -or -not $names)) {
+        throw '-Link is only valid when synchronizing settings or keybindings from repository to local.'
+    }
+    $codium = $null
+    if (($names -and -not $UserDir) -or $syncExtensions) {
         $codium = Find-Codium -RequestedPath $CodiumBin
+    }
+    if ($names) {
+        if (-not $UserDir) { $UserDir = (Get-CodiumDirectories -Codium $codium).User }
+        $UserDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($UserDir)
+    }
+    foreach ($name in $names) {
+        $repoPath = Join-Path $PSScriptRoot "config\$name.json"
+        $localPath = Join-Path $UserDir "$name.json"
+        if ($repoPath -ieq $localPath) { throw "Local and repository paths must differ: $repoPath" }
+        $source = if ($Direction -eq 'repo') { $localPath } else { $repoPath }
+        $null = Get-SyncFile -FilePath $repoPath
+        $null = Get-SyncFile -FilePath $localPath
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Configuration file was not found: $source" }
+    }
+    $ids = @()
+    if ($syncExtensions) {
         if (-not $ExtensionsDir) { $ExtensionsDir = (Get-CodiumDirectories -Codium $codium).Extensions }
-        if ($Export) {
+        $ExtensionFile = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ExtensionFile)
+        $null = Get-SyncFile -FilePath $ExtensionFile
+        if ($Direction -eq 'repo') {
             $result = Invoke-Codium -Command $codium -Arguments @('--extensions-dir', $ExtensionsDir, '--list-extensions')
-            $ids = @($result.Lines)
             if ($result.ExitCode -ne 0) { throw 'Cannot list installed extensions.' }
-            $ids = @($ids | Where-Object { $_ } | Sort-Object -Unique)
-            if ($ids.Count -eq 0) { throw 'Installed extension list is empty; refusing to erase the repository list.' }
-            foreach ($id in $ids) {
+            $sorted = [System.Collections.Generic.SortedSet[string]]::new([System.StringComparer]::Ordinal)
+            foreach ($line in $result.Lines) {
+                $id = [string]$line
+                if (-not $id) { continue }
                 if ($id -notmatch '^[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+$') { throw "Invalid installed extension ID: $id" }
+                $null = $sorted.Add($id)
             }
-            if ($PSCmdlet.ShouldProcess($ExtensionFile, 'Export installed extension IDs')) {
-                [System.IO.File]::WriteAllText(
-                    $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ExtensionFile),
-                    ($ids -join "`n") + "`n", [System.Text.UTF8Encoding]::new($false)
-                )
-                Write-Output "Extension list synchronized: $($ids.Count) entries"
-            }
+            $ids = @($sorted)
         }
-        else {
-            $ids = @(Read-ExtensionIds -Path $ExtensionFile)
-            if ($PSCmdlet.ShouldProcess($ExtensionsDir, "Install $($ids.Count) extensions from $ExtensionFile")) {
-                $installArgs = @('--extensions-dir', $ExtensionsDir)
-                foreach ($id in $ids) { $installArgs += @('--install-extension', $id) }
-                $result = Invoke-Codium -Command $codium -Arguments $installArgs
-                $result.Lines | ForEach-Object { Write-Host "$_" }
-                $installExitCode = $result.ExitCode
-                $result = Invoke-Codium -Command $codium -Arguments @('--extensions-dir', $ExtensionsDir, '--list-extensions')
-                $installed = @($result.Lines)
-                if ($result.ExitCode -ne 0) { throw 'Cannot verify installed extensions.' }
-                $missing = @($ids | Where-Object { $_ -notin $installed })
-                if ($missing.Count -gt 0) { throw "Extensions are still missing: $($missing -join ', ')" }
-                if ($installExitCode -ne 0) { throw "VSCodium returned exit code $installExitCode while installing extensions." }
-                Write-Output "Verified: $($ids.Count)/$($ids.Count) requested extensions installed."
+        else { $ids = @(Read-ExtensionIds -Path $ExtensionFile -AllowEmpty) }
+    }
+    foreach ($name in $names) {
+        $repoPath = Join-Path $PSScriptRoot "config\$name.json"
+        $localPath = Join-Path $UserDir "$name.json"
+        if ($Direction -eq 'repo' -or -not $Link) {
+            $source = if ($Direction -eq 'repo') { $localPath } else { $repoPath }
+            $destination = if ($Direction -eq 'repo') { $repoPath } else { $localPath }
+            if ($PSCmdlet.ShouldProcess($destination, "Back up and copy $name from $source")) {
+                Write-SyncFile -Content ([System.IO.File]::ReadAllBytes($source)) -Destination $destination
+                Write-Host "$name synchronized to $Direction"
+            }
+            continue
+        }
+        $repoItem = Get-SyncFile -FilePath $repoPath
+        $localItem = Get-SyncFile -FilePath $localPath
+        $repoIsLink = [bool]($repoItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)
+        if (-not $repoIsLink -and $localItem -and $localItem.LinkType -eq 'SymbolicLink') {
+            $linkTarget = [string]@($localItem.Target)[0]
+            if (-not [System.IO.Path]::IsPathRooted($linkTarget)) { $linkTarget = Join-Path $UserDir $linkTarget }
+            if ([System.IO.Path]::GetFullPath($linkTarget) -ieq $repoPath) { continue }
+        }
+        if ($PSCmdlet.ShouldProcess($localPath, "Back up and link local $name to $repoPath")) {
+            New-Item -ItemType Directory -Path $UserDir -Force | Out-Null
+            $staged = Join-Path $UserDir ('.vscodium-sync-' + [guid]::NewGuid().ToString('N'))
+            try {
+                # Create the link before moving originals so missing privileges cannot lose settings.
+                try { New-Item -ItemType SymbolicLink -Path $staged -Value $repoPath | Out-Null }
+                catch { throw "Cannot create a settings symbolic link. Use PowerShell 7 with Windows Developer Mode, or run PowerShell as administrator. $($_.Exception.Message)" }
+                if ($repoIsLink) {
+                    Write-SyncFile -Content ([System.IO.File]::ReadAllBytes($repoPath)) -Destination $repoPath
+                }
+                Move-SyncFile -StagedPath $staged -Destination $localPath
+                Write-Host "$name synchronized to local"
+            }
+            finally {
+                if (Get-SyncFile -FilePath $staged) { Remove-Item -LiteralPath $staged -Force }
             }
         }
     }
-    catch {
-        Write-Error -Message $_.Exception.Message -ErrorAction Continue
-        exit 1
+    if (-not $syncExtensions) { return }
+    if ($Direction -eq 'repo') {
+        if ($PSCmdlet.ShouldProcess($ExtensionFile, 'Back up and export installed extension IDs')) {
+            $content = if ($ids.Count) { ($ids -join "`n") + "`n" } else { '' }
+            Write-SyncFile -Content ([System.Text.UTF8Encoding]::new($false).GetBytes($content)) -Destination $ExtensionFile
+            Write-Host "Extension list synchronized: $($ids.Count) entries"
+        }
+    }
+    elseif ($ids.Count -and $PSCmdlet.ShouldProcess($ExtensionsDir, "Install $($ids.Count) extensions from $ExtensionFile")) {
+        $result = Invoke-Codium -Command $codium -Arguments @('--extensions-dir', $ExtensionsDir, '--list-extensions')
+        if ($result.ExitCode -ne 0) { throw 'Cannot read installed extensions.' }
+        $installed = @($result.Lines)
+        $failed = @()
+        $skipped = @()
+        foreach ($id in $ids) {
+            if ($id -in $installed) { continue }
+            $result = Invoke-Codium -Command $codium -Arguments @('--extensions-dir', $ExtensionsDir, '--install-extension', $id)
+            $result.Lines | ForEach-Object { Write-Host "$_" }
+            if ($result.ExitCode -ne 0) {
+                $notFoundPattern = '(?i)\bExtension\s+[''"]?' + [regex]::Escape($id) + '[''"]?\s+(?:was\s+)?not found\b'
+                if (($result.Lines -join "`n") -match $notFoundPattern) {
+                    $skipped += $id
+                    Write-Warning "Skipped ${id}: not found in the configured extension gallery; it may be private. Install its VSIX manually if needed."
+                }
+                else { $failed += $id }
+            }
+        }
+        $result = Invoke-Codium -Command $codium -Arguments @('--extensions-dir', $ExtensionsDir, '--list-extensions')
+        if ($result.ExitCode -ne 0) { throw 'Cannot verify installed extensions.' }
+        $missing = @($ids | Where-Object { $_ -notin $result.Lines -and $_ -notin $skipped })
+        if ($failed.Count -or $missing.Count) {
+            throw "Extension installation failed: $((@($failed) + @($missing) | Sort-Object -Unique) -join ', ')"
+        }
+        $verified = @($ids | Where-Object { $_ -in $result.Lines }).Count
+        Write-Host "Verified: $verified/$($ids.Count) requested extensions installed; skipped: $($skipped.Count) unavailable."
     }
 }
 
@@ -725,34 +831,45 @@ function Remove-Application {
 
 function Show-Usage {
     Write-Output @(
-        'Usage: .\windows-vscodium.ps1 COMMAND [TARGET] [OPTIONS]',
+        'Usage: .\windows-vscodium.ps1 COMMAND [SUBCOMMAND] [TARGET] [OPTIONS]',
         '  install -Archive FILE [-Path DIR] [-Force]',
         '  upgrade [-Path DIR]',
         '  remove [-Path DIR]',
-        '  sync',
-        '  sync setting [-UserDir DIR]',
-        '  sync extension [-Export]',
-        '  update extension [-Check]',
+        '  local sync [settings|keybindings|extensions]   Repository -> local (default: all)',
+        '  repo sync [settings|keybindings|extensions]    Local -> repository (default: all)',
+        '  Settings are copied by default; add -Link to local sync to create symbolic links.',
+        '  update extensions [-Check]',
+        '  Legacy aliases: sync, sync setting, sync extension [-Export], update extension',
+        '  Use -UserDir DIR, -ExtensionsDir DIR or -CodiumBin FILE to select local paths.',
         '  Use -WhatIf to preview changes; Get-Help .\windows-vscodium.ps1 -Full for parameters.'
     )
 }
 
 try {
-    if ($Target -and $Action -notin @('sync', 'update')) { throw 'A target is only valid for sync or update.' }
+    if ($Target -and $Action -notin @('local', 'repo', 'sync', 'update')) { throw 'A target is only valid for synchronization or update.' }
+    if ($SyncTarget -and $Action -notin @('local', 'repo')) { throw 'A third positional argument is only valid for local sync or repo sync.' }
+    if ($Action -in @('local', 'repo') -and $Target -ne 'sync') { throw "Expected '$Action sync'." }
     if (-not $ExtensionFile) { $ExtensionFile = Join-Path $PSScriptRoot 'config\extensions.txt' }
-    if ($Check -and $Action -ne 'update') { throw '-Check is only valid for update extension.' }
-    if ($Export -and ($Action -ne 'sync' -or $Target -ne 'extension')) { throw '-Export is only valid for sync extension.' }
+    if ($Check -and $Action -ne 'update') { throw '-Check is only valid for update extensions.' }
+    if ($Link -and $Action -notin @('local', 'sync')) { throw '-Link is only valid for local sync or the legacy sync aliases.' }
+    if ($Export -and ($Action -ne 'sync' -or $Target -notin @('extension', 'extensions'))) { throw '-Export is only valid for sync extension.' }
     switch ($Action) {
         'help' { Show-Usage }
         'install' { Install-Application }
         'upgrade' { Upgrade-Application }
         'remove' { Remove-Application }
+        { $_ -in @('local', 'repo') } {
+            $selection = if ($SyncTarget) { $SyncTarget } else { 'all' }
+            Sync-Configuration -Direction $Action -Selection $selection
+        }
         'sync' {
-            if (-not $Target -or $Target -eq 'setting') { Sync-Setting }
-            if (-not $Target -or $Target -eq 'extension') { Sync-Extension }
+            if ($Target -eq 'sync') { throw 'Use local sync or repo sync.' }
+            $direction = if ($Export) { 'repo' } else { 'local' }
+            $selection = if ($Target) { $Target } else { 'all' }
+            Sync-Configuration -Direction $direction -Selection $selection
         }
         'update' {
-            if ($Target -and $Target -ne 'extension') { throw 'Only update extension is supported.' }
+            if ($Target -and $Target -notin @('extension', 'extensions')) { throw 'Only update extensions is supported.' }
             Update-Extension
         }
     }
