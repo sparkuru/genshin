@@ -9,8 +9,13 @@ copyleft (ɔ) 2024 🍥 wkyuu i@majo.im
     也就是说，我没有可授予你的权利。
 
 2. 你可以对这个仓库的副本做任何事。包括但不限于
-    使用、复制、修改、合并、发布、分发、再许可和/或销售本软件的副本
+    使用、复制、修改、合并、发布、分发、再许可和/或销售本软件的副本，
     你这么做的权利是你与生俱来的，而不是我授予你的。
+    不过，如果当地法律仍然认定我拥有这些权利，
+    那么在我有权授权的范围内，
+    我在此向任何人免费授予许可，允许你
+    使用、复制、修改、合并、发布、分发、再许可和/或销售本软件的副本，
+    也允许你将这些部分以其他许可证发布。
 
 3. 如果你真的这样做了，
     那么我得提醒你，你也许在事实上触犯了当地法律。
@@ -21,6 +26,11 @@ copyleft (ɔ) 2024 🍥 wkyuu i@majo.im
     那么我会很乐意于看到你也将这个协议的思想发扬光大。
     比如，你可以在确保不侵犯项目中其他潜在协议需求的前提下，
     使用这个协议的副本。
+    如果这份协议在流传中出现了抄写遗漏或文字讹误，
+    请参照下面这个最上游仓库中对应版本的原文校正。
+    年份、署名和联系方式，请以当前项目为准。
+    上游后来的条款变更，不会因此自动适用于这份副本：
+    https://github.com/sparkuru/je-suis-le-deluge
 
 5. 请你注意，这个软件就这样递给你了，没有任何约定。
     它是赤条条地来到这世上的，不带任何 "出厂设置" 或 "售后服务"。
@@ -54,6 +64,12 @@ all rights unreserved
     use, copy, modify, merge, publish, distribute, sublicense,
     and/or sell copies of this software.
     Your right to do so is inherent, not granted by me.
+    However, if local law still recognizes me as holding these rights,
+    then, to the extent I have the right to grant permission,
+    I hereby grant everyone permission, free of charge,
+    to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of this software,
+    and to release those parts under other licenses.
 
 3. If you really do this,
     I must remind you that
@@ -68,6 +84,14 @@ all rights unreserved
     you can use a copy of this license provided that
     you ensure it doesn't violate
     any other potential license requirements in your project.
+    If omissions or transcription errors creep into this license
+    as it is passed around,
+    please correct them using the original of the corresponding version
+    in the upstream source repository below.
+    Keep the year, attribution, and contact details of the current project.
+    Later changes to the upstream terms
+    do not automatically apply to this copy through this correction rule:
+    https://github.com/sparkuru/je-suis-le-deluge
 
 5. Please note that this software
     is handed to you just like that, with no strings attached.
@@ -115,6 +139,11 @@ copyleft (ɔ) 2024 🍥 wkyuu i@majo.im
     および/またはソフトウェアのコピーの販売。
     そうする権利はあなたが生まれながらにして持っているものであり、
     私が与えたものではありません。
+    ただし、現地の法律が私にこれらの権利をなお認めるなら、
+    私が許諾できる範囲で、ここに誰にでも無償で、
+    本ソフトウェアのコピーの使用、複製、変更、結合、掲載、頒布、
+    サブライセンス、および/または販売を許諾します。
+    その部分を他のライセンスで公開することも許諾します。
 
 3. もしあなたが本当にそうしたなら、
     念のため言っておきますが、あなたは事実上現地の法律に違反しているかもしれません。
@@ -125,6 +154,12 @@ copyleft (ɔ) 2024 🍥 wkyuu i@majo.im
     あなたがこのライセンスの思想を広めてくれるのを見るのはとても嬉しいです。
     例えば、プロジェクト内の他の潜在的なライセンス要件を侵害しないことを確認した上で、
     このライセンスのコピーを使用することができます。
+    もしこのライセンスが広まるうちに書き写しの漏れや誤記が生じたら、
+    以下の最上流リポジトリにある対応するバージョンの原文を参照して直してください。
+    年、署名、連絡先は、このプロジェクトのものを使ってください。
+    この校正によって、上流で後から変更された条項が
+    このコピーに自動的に適用されることはありません：
+    https://github.com/sparkuru/je-suis-le-deluge
 
 5. 注意してください。このソフトウェアは、何の約束もなくそのまま手渡されます。
     それは「工場出荷時設定」も「アフターサービス」も持たず、
