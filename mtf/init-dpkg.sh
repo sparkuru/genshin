@@ -154,6 +154,7 @@ to_install_list=(
 	tesseract-ocr tesseract-ocr-chi-* libtesseract-dev
 	krita xournalpp
 	xvfb asciinema
+	yt-dlp
 )
 
 progress "Updating package index and installing system packages"
@@ -277,6 +278,7 @@ pip_to_install_list=(
 	faker python-docx openpyxl
 	pillow markdown pygments playwright
 	pywifi pyside6
+	Faker mermaid-render
 )
 
 progress "Installing Python packages for configured users"

@@ -1486,11 +1486,6 @@ if [[ -r "$HOME/.config/.agent-envs" ]]; then
     source "$HOME/.config/.agent-envs"
 fi
 
-# bun completions
-[ -s "/home/wkyuu/.bun/_bun" ] && source "/home/wkyuu/.bun/_bun"
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
-
 # alias
 ## condition alias
 if [[ -d "$HOME/$leader_path_name/try" ]]; then

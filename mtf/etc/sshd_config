@@ -17,6 +17,12 @@ KbdInteractiveAuthentication no
 ChallengeResponseAuthentication no
 PasswordAuthentication no
 
+# precise host ctrl
+# Match Address 127.0.0.1,::1
+#     AuthenticationMethods publickey
+#     PasswordAuthentication no
+#     KbdInteractiveAuthentication no
+
 PrintMotd no
 AcceptEnv LANG LC_*
 Subsystem sftp /usr/lib/openssh/sftp-server

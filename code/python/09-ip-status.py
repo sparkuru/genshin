@@ -123,10 +123,6 @@ def create_example_text(script_name: str, examples: list, notes: list = None) ->
     return text
 
 
-class Config:
-    BASE_URL = "https://freeipapi.com/api/json"
-
-
 @dataclass
 class TraceHop:
     """A hop's observed addresses, probe responses, and ICMP annotations."""
@@ -811,66 +807,139 @@ def run_trace(args: argparse.Namespace) -> int:
     return 0 if report["reached"] else (1 if report["status"] == "error" else 2)
 
 
-def execute_request(url: str, timeout: int = 5) -> str:
+def execute_request(url: str, headers: dict[str, str], timeout: int = 5) -> str:
     """Execute HTTP request and return response text"""
     try:
         response = requests.get(
             url,
             allow_redirects=True,
             timeout=(min(timeout, 5), max(timeout, 10)),
-            headers={
-                "Accept": "application/json",
-                "User-Agent": "ip-status.py/1.0 (+requests)",
-            },
+            headers=headers,
         )
         response.raise_for_status()
         return response.text.strip()
     except requests.Timeout:
-        print(CLIStyle.color("\nError: Request timed out", CLIStyle.COLORS["ERROR"]))
+        print(
+            CLIStyle.color("\nError: Request timed out", CLIStyle.COLORS["ERROR"]),
+            file=sys.stderr,
+        )
         print(
             CLIStyle.color(
                 "Please check your network connection or try again later",
                 CLIStyle.COLORS["WARNING"],
-            )
+            ),
+            file=sys.stderr,
         )
         exit(1)
     except requests.RequestException as e:
         print(
             CLIStyle.color(
                 f"\nError requesting API: {str(e)}", CLIStyle.COLORS["ERROR"]
-            )
+            ),
+            file=sys.stderr,
         )
         print(
             CLIStyle.color(
                 "Please make sure requests is installed and network is accessible",
                 CLIStyle.COLORS["WARNING"],
-            )
+            ),
+            file=sys.stderr,
         )
         exit(1)
 
 
-class IPRSSClient:
-    def __init__(self, args: dict) -> None:
-        self.ip = ""
-        self.args = args
+class IPProvider:
+    """Define the request and response behavior for an IP lookup service."""
 
-    def get_ip_with_location(self) -> None:
-        """Get public IP address with location details"""
-        if self.args["ip"] != "":
-            self.ip = self.args["ip"]
-            url = f"{Config.BASE_URL}/{self.ip}"
-        else:
-            url = Config.BASE_URL
-        response = execute_request(url, timeout=self.args["timeout"])
-        response_json = json.loads(response)
+    base_url = ""
+    headers: dict[str, str] = {}
 
-        if response_json.get("ipAddress"):
+    def request_url(self, ip: str) -> str:
+        """Build a URL for either the caller's address or a specific IP."""
+        return f"{self.base_url}/{ip}" if ip else self.base_url
+
+    def parse_response(self, response: str) -> dict:
+        """Parse the service response into its native fields."""
+        raise NotImplementedError
+
+    def print_text(self, response: str, fields: dict) -> None:
+        """Display the response in the service's text format."""
+        raise NotImplementedError
+
+
+class FreeIPAPIProvider(IPProvider):
+    """Look up IP information using FreeIPAPI's JSON endpoint."""
+
+    base_url = "https://freeipapi.com/api/json"
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "ip-status.py/1.0 (+requests)",
+    }
+
+    def parse_response(self, response: str) -> dict:
+        """Decode the JSON object returned by FreeIPAPI."""
+        fields = json.loads(response)
+        if not isinstance(fields, dict):
+            raise ValueError(
+                "Unexpected response from FreeIPAPI: expected a JSON object"
+            )
+        return fields
+
+    def print_text(self, response: str, fields: dict) -> None:
+        """Preserve the existing formatted FreeIPAPI output."""
+        if fields.get("ipAddress"):
             print(CLIStyle.color("IP with Location:", CLIStyle.COLORS["TITLE"]))
         else:
             print(CLIStyle.color("IP Query Result:", CLIStyle.COLORS["TITLE"]))
+        format_dict(fields, indent=2, exclude_keys=[])
 
-        self.ip = response_json.get("ipAddress", self.ip)
-        format_dict(response_json, indent=2, exclude_keys=[])
+
+class CIPProvider(IPProvider):
+    """Look up IP information using cip.cc's command-line response."""
+
+    base_url = "https://cip.cc"
+    headers = {"Accept": "text/plain", "User-Agent": "curl/8.0.0"}
+
+    def parse_response(self, response: str) -> dict:
+        """Keep each native field while checking for a valid IP response."""
+        fields = {}
+        for line in response.splitlines():
+            if not line.strip():
+                continue
+            key, separator, value = line.partition(":")
+            if not separator or not key.strip():
+                raise ValueError("Unexpected response from cip.cc")
+            fields[key.strip()] = value.strip()
+        try:
+            ipaddress.ip_address(fields["IP"])
+        except (KeyError, ValueError):
+            raise ValueError(
+                "Unexpected response from cip.cc: missing or invalid IP"
+            ) from None
+        return fields
+
+    def print_text(self, response: str, fields: dict) -> None:
+        """Display the original cip.cc response like curl."""
+        print(CLIStyle.color(response, 0))
+
+
+def output_lookup_report(fields: dict, output_format: str) -> None:
+    """Emit lookup fields as uncolored JSON or a single CSV record."""
+    if output_format == "json":
+        print(CLIStyle.color(json.dumps(fields, ensure_ascii=False, indent=2), 0))
+        return
+    buffer = io.StringIO(newline="")
+    writer = csv.DictWriter(buffer, fieldnames=list(fields), lineterminator="\n")
+    writer.writeheader()
+    writer.writerow(
+        {
+            key: json.dumps(value, ensure_ascii=False)
+            if isinstance(value, (dict, list))
+            else value
+            for key, value in fields.items()
+        }
+    )
+    print(CLIStyle.color(buffer.getvalue(), 0), end="")
 
 
 def format_dict(data: dict, indent=0, exclude_keys=None):
@@ -900,11 +969,12 @@ def format_dict(data: dict, indent=0, exclude_keys=None):
             )
 
 
-def check_ip_and_return_str(ip: str) -> str:
+def check_ip_and_return_str(ip: str, report_to_stderr: bool = False) -> str:
     """Check if IP address is valid and extract it, or resolve domain
 
     Args:
         ip (str): Input IP address string or domain name
+        report_to_stderr (bool): Keep resolution messages off standard output
 
     Returns:
         str: Extracted valid IP address
@@ -924,7 +994,8 @@ def check_ip_and_return_str(ip: str) -> str:
         print(
             CLIStyle.color(
                 f"Resolved {domain} -> {resolved_ip}", CLIStyle.COLORS["WARNING"]
-            )
+            ),
+            file=sys.stderr if report_to_stderr else sys.stdout,
         )
         return resolved_ip
     except socket.gaierror:
@@ -934,10 +1005,16 @@ def check_ip_and_return_str(ip: str) -> str:
 def main() -> int:
     """Dispatch IP information lookups or the optional route trace."""
     script_name = os.path.basename(sys.argv[0])
+    providers: dict[str, IPProvider] = {
+        "freeipapi": FreeIPAPIProvider(),
+        "cip": CIPProvider(),
+    }
 
     examples = [
         ("Check your own IP", ""),
         ("Check specific IP", "8.8.8.8"),
+        ("Look up your IP using cip.cc", "--api cip"),
+        ("Look up a specific IP using cip.cc", "--api cip 8.8.8.8"),
         ("Show request URL", "-c"),
         ("Output as JSON", "-f json"),
         ("Trace a domain without third-party API lookups", "--trace example.com"),
@@ -956,9 +1033,8 @@ def main() -> int:
 
     notes = [
         "Shows IP address information",
-        "Includes country/region, city, ISP",
-        "Shows geographical location (lat/long)",
-        "Displays timezone information",
+        "Available location details depend on the selected provider",
+        "FreeIPAPI can include geographical coordinates and timezone information",
         "Use position argument for specific IP lookup",
         "Trace mode requires traceroute on Unix/macOS or tracert on Windows",
         "Windows tracing uses ICMP with 3 probes per hop; TCP tracing requires Linux",
@@ -967,7 +1043,7 @@ def main() -> int:
         "Auto mode reserves time for fallbacks and can stop after initial silence; later replies may be hidden",
         "JSON keeps every attempt separately; top-level hops belong only to the selected attempt",
         "Trace exit codes: 0 = target replied, 2 = arrival unconfirmed, 1 = error",
-        "JSON/CSV output in trace mode contains no ANSI colors",
+        "JSON/CSV output contains no ANSI colors",
     ]
 
     ap = ColoredArgumentParser(
@@ -982,6 +1058,14 @@ def main() -> int:
         type=str,
         metavar=CLIStyle.color("IP", CLIStyle.COLORS["CONTENT"]),
         help=CLIStyle.color("Specify IP address to lookup", CLIStyle.COLORS["CONTENT"]),
+    )
+    ap.add_argument(
+        "--api",
+        choices=tuple(providers),
+        help=CLIStyle.color(
+            "Select the IP lookup provider (default: freeipapi)",
+            CLIStyle.COLORS["CONTENT"],
+        ),
     )
     ap.add_argument(
         "-c",
@@ -1135,8 +1219,8 @@ def main() -> int:
         namespace.silent_hops = (
             5 if namespace.silent_hops is None else namespace.silent_hops
         )
-        if namespace.ip or namespace.cmd:
-            ap.error("--trace cannot be combined with a positional IP or --cmd")
+        if namespace.ip or namespace.cmd or namespace.api:
+            ap.error("--trace cannot be combined with a positional IP, --cmd, or --api")
         if not 1 <= namespace.max_hops <= 255 or not 1 <= namespace.queries <= 10:
             ap.error("--max-hops must be 1-255 and --queries must be 1-10")
         if not 0.01 <= namespace.probe_timeout <= 60:
@@ -1149,31 +1233,27 @@ def main() -> int:
             ap.error("--silent-hops must be between 0 and 255")
         return run_trace(namespace)
     args = vars(namespace)
+    provider = providers[args["api"] or "freeipapi"]
 
     if args["ip"]:
-        args["ip"] = check_ip_and_return_str(args["ip"])
+        args["ip"] = check_ip_and_return_str(
+            args["ip"], report_to_stderr=args["format"] != "text"
+        )
     else:
         args["ip"] = ""
 
+    url = provider.request_url(args["ip"])
     if args["cmd"]:
         print(CLIStyle.color("Request URL:", CLIStyle.COLORS["TITLE"]))
-        if args["ip"]:
-            print(
-                CLIStyle.color(
-                    f"{' ' * 2}{Config.BASE_URL}/{args['ip']}",
-                    CLIStyle.COLORS["CONTENT"],
-                )
-            )
-        else:
-            print(
-                CLIStyle.color(
-                    f"{' ' * 2}{Config.BASE_URL}", CLIStyle.COLORS["CONTENT"]
-                )
-            )
+        print(CLIStyle.color(f"  {url}", CLIStyle.COLORS["CONTENT"]))
         return 0
 
-    client = IPRSSClient(args)
-    client.get_ip_with_location()
+    response = execute_request(url, headers=provider.headers, timeout=args["timeout"])
+    fields = provider.parse_response(response)
+    if args["format"] == "text":
+        provider.print_text(response, fields)
+    else:
+        output_lookup_report(fields, args["format"])
     return 0
 
 

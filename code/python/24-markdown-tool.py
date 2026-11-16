@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# pip install Faker "mermaid-render>=0.14.1,<0.15"
 """
 Markdown helper toolkit for better Typora / Markdown writing experience.
 
@@ -6,9 +7,11 @@ Sub-commands:
 - cleanimg / ci       : Clean unreferenced images in assets directory.
 - datamasking / dm    : Mask sensitive strings in markdown files using Faker, with undo support.
 - tableformat / tf    : Unflatten Word-pasted tables (restore merged-cell hierarchy).
+- mermaid / mm        : Render Mermaid diagrams to an image.
 """
 
 import argparse
+import importlib
 import json
 import re
 import shutil
@@ -89,6 +92,44 @@ class CLIStyle:
         print(CLIStyle.color(text, color) if color else text)
 
 
+class ColoredHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """Color option names while preserving the layout of help examples."""
+
+    def _format_action_invocation(self, action: argparse.Action) -> str:
+        if not action.option_strings:
+            return super()._format_action_invocation(action)
+        if action.nargs == 0:
+            options = action.option_strings
+        else:
+            metavar = self._get_default_metavar_for_optional(action)
+            arguments = self._format_args(action, metavar)
+            options = [f"{option} {arguments}" for option in action.option_strings]
+        return ", ".join(
+            CLIStyle.color(option, CLIStyle.COLORS["SUB_TITLE"]) for option in options
+        )
+
+
+class ColoredArgumentParser(argparse.ArgumentParser):
+    """Keep descriptions and section headings consistent with CLI output."""
+
+    def format_help(self) -> str:
+        formatter = self._get_formatter()
+        if self.description:
+            formatter.add_text(
+                CLIStyle.color(self.description, CLIStyle.COLORS["TITLE"])
+            )
+        formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
+        for group in self._action_groups:
+            formatter.start_section(
+                CLIStyle.color(group.title, CLIStyle.COLORS["TITLE"])
+            )
+            formatter.add_arguments(group._group_actions)
+            formatter.end_section()
+        if self.epilog:
+            formatter.add_text(self.epilog)
+        return formatter.format_help()
+
+
 def _build_main_epilog(script_name: str) -> str:
     C = CLIStyle.color
     T = CLIStyle.COLORS
@@ -127,6 +168,10 @@ def _build_main_epilog(script_name: str) -> str:
         C(f"  {script_name} tableformat undo", T["EXAMPLE"]),
         C(f"  {script_name} tableformat undo -y", T["EXAMPLE"]),
         "",
+        C("  # 4) Render Mermaid diagrams", T["SUB_TITLE"]),
+        C(f"  {script_name} mermaid", T["EXAMPLE"]),
+        C(f"  {script_name} mermaid -o diagram.png < diagram.mmd", T["EXAMPLE"]),
+        "",
         C("Notes:", T["TITLE"]),
         C(
             "  cleanimg        : Unreferenced images are MOVED to /tmp by default.",
@@ -156,20 +201,25 @@ def _build_main_epilog(script_name: str) -> str:
             "                   Non-dry-run runs create /tmp backups, which 'undo' can restore.",
             T["CONTENT"],
         ),
+        C(
+            "  mermaid         : Paste a diagram and finish input with Ctrl+D (Windows: Ctrl+Z, Enter).",
+            T["CONTENT"],
+        ),
     ]
     return "\n".join(lines)
 
 
 def _build_parser() -> argparse.ArgumentParser:
     script_name = Path(sys.argv[0]).name
-    parser = argparse.ArgumentParser(
+    parser = ColoredArgumentParser(
         description=(
             "Markdown helper toolkit.\n"
             "- cleanimg / ci     : Clean unreferenced images in assets directory.\n"
             "- datamasking / dm  : Mask sensitive strings in markdown files using Faker or reversible markers.\n"
-            "- tableformat / tf  : Unflatten Word-pasted tables (restore merged-cell hierarchy)."
+            "- tableformat / tf  : Unflatten Word-pasted tables (restore merged-cell hierarchy).\n"
+            "- mermaid / mm      : Render Mermaid diagrams to an image."
         ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=ColoredHelpFormatter,
         epilog=_build_main_epilog(script_name),
     )
     parser.add_argument(
@@ -184,7 +234,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "cleanimg",
         aliases=["ci"],
         help="Clean unreferenced images in assets directory",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=ColoredHelpFormatter,
         description="Scan markdown files and move/delete unreferenced images in assets directory.",
     )
     clean_parser.add_argument(
@@ -223,7 +273,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Mask sensitive strings in markdown files using Faker or reversible markers"
         ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=ColoredHelpFormatter,
         description=(
             "Data masking for markdown content.\n"
             "- Faker mode (default): replace sensitive values with random fake strings.\n"
@@ -316,7 +366,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "tableformat",
         aliases=["tf"],
         help="Unflatten markdown tables (restore merged-cell hierarchy from Word paste)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=ColoredHelpFormatter,
         description=(
             "Fix tables pasted from Word where the first column had merged cells.\n"
             "Content is shifted left in raw paste; this restores empty cells by carrying\n"
@@ -347,6 +397,50 @@ def _build_parser() -> argparse.ArgumentParser:
         "--yes",
         action="store_true",
         help="Skip confirmation prompt (e.g. for 'tf undo')",
+    )
+
+    mermaid_parser = subparsers.add_parser(
+        "mermaid",
+        aliases=["mm"],
+        help="Render a Mermaid diagram to a PNG or SVG image",
+        formatter_class=ColoredHelpFormatter,
+        description=(
+            "Paste Mermaid code and finish input with Ctrl+D "
+            "(Windows: Ctrl+Z, Enter).\n"
+            "Markdown Mermaid code fences and piped input are also supported."
+        ),
+        epilog="\n".join(
+            [
+                CLIStyle.color("Examples:", CLIStyle.COLORS["TITLE"]),
+                CLIStyle.color(f"  {script_name} mermaid", CLIStyle.COLORS["EXAMPLE"]),
+                CLIStyle.color(
+                    f"  {script_name} mermaid -o diagram.png < diagram.mmd",
+                    CLIStyle.COLORS["EXAMPLE"],
+                ),
+                CLIStyle.color(
+                    f"  {script_name} mm -o diagram.svg < diagram.mmd",
+                    CLIStyle.COLORS["EXAMPLE"],
+                ),
+                "",
+                CLIStyle.color(
+                    'Install: pip install "mermaid-render>=0.14.1,<0.15"',
+                    CLIStyle.COLORS["CONTENT"],
+                ),
+                CLIStyle.color(
+                    "Existing output files are never overwritten.",
+                    CLIStyle.COLORS["CONTENT"],
+                ),
+            ]
+        ),
+    )
+    mermaid_parser.add_argument(
+        "-o",
+        "--output",
+        metavar="FILE",
+        help=CLIStyle.color(
+            "Output .png or .svg file (default: mermaid.png, then mermaid-1.png, etc.)",
+            CLIStyle.COLORS["CONTENT"],
+        ),
     )
 
     return parser
@@ -1488,6 +1582,82 @@ def _run_tableformat(args: argparse.Namespace) -> int:
     return 0
 
 
+def _unwrap_mermaid_fence(source: str) -> str:
+    """Remove a single Markdown Mermaid code fence, if present."""
+    source = source.strip()
+    match = re.fullmatch(
+        r"(`{3,}|~{3,})[ \t]*mermaid[ \t]*\r?\n(?:(.*?)\r?\n)?[ \t]*\1[ \t]*",
+        source,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    return (match.group(2) or "").strip() if match else source
+
+
+def _save_mermaid_image(data: bytes, output: Path | None) -> Path:
+    """Save an image without overwriting an existing file."""
+    candidate = output if output is not None else Path("mermaid.png")
+    index = 0
+    while True:
+        try:
+            with candidate.open("xb") as image_file:
+                image_file.write(data)
+            return candidate
+        except FileExistsError:
+            if output is not None:
+                raise
+            index += 1
+            candidate = Path(f"mermaid-{index}.png")
+
+
+def _run_mermaid(args: argparse.Namespace) -> int:
+    """Read Mermaid source from stdin and render it to an image."""
+    output = Path(args.output).expanduser() if args.output is not None else None
+    image_format = output.suffix.lower().lstrip(".") if output else "png"
+    if image_format not in ("png", "svg"):
+        CLIStyle.print(
+            "[ERROR] Output must end in .png or .svg.", CLIStyle.COLORS["ERROR"]
+        )
+        return 1
+    if output is not None and output.exists():
+        CLIStyle.print(
+            f"[ERROR] Output already exists: {output}", CLIStyle.COLORS["ERROR"]
+        )
+        return 1
+
+    try:
+        renderer = importlib.import_module("mermaid_render")
+    except ModuleNotFoundError as exc:
+        if exc.name != "mermaid_render":
+            raise
+        CLIStyle.print(
+            '[ERROR] Install the renderer: pip install "mermaid-render>=0.14.1,<0.15"',
+            CLIStyle.COLORS["ERROR"],
+        )
+        return 1
+
+    if sys.stdin.isatty():
+        CLIStyle.print(
+            "Paste Mermaid code below; press Ctrl+D when done "
+            "(Windows: Ctrl+Z, then Enter):",
+            CLIStyle.COLORS["CONTENT"],
+        )
+    source = _unwrap_mermaid_fence(sys.stdin.read())
+    if not source:
+        CLIStyle.print("[ERROR] No Mermaid code provided.", CLIStyle.COLORS["ERROR"])
+        return 1
+
+    image_data = renderer.convert(source, format=image_format)
+    try:
+        saved_path = _save_mermaid_image(image_data, output)
+    except FileExistsError:
+        CLIStyle.print(
+            f"[ERROR] Output already exists: {output}", CLIStyle.COLORS["ERROR"]
+        )
+        return 1
+    CLIStyle.print(f"[OK] Image saved to: {saved_path.resolve()}", CLIStyle.COLORS["OK"])
+    return 0
+
+
 def main() -> int:
     parser = _build_parser()
     args = parser.parse_args()
@@ -1509,6 +1679,8 @@ def main() -> int:
             return _run_datamasking(args)
         if args.command in ("tableformat", "tf"):
             return _run_tableformat(args)
+        if args.command in ("mermaid", "mm"):
+            return _run_mermaid(args)
         CLIStyle.print(
             f"[ERROR] Unknown command: {args.command}", CLIStyle.COLORS["ERROR"]
         )
