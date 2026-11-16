@@ -17,6 +17,10 @@ Apply this gate when Trellis reaches any equivalent of:
 
 This gate belongs before commit, not after commit.
 
+For bootstrap, assess the initialization task's current-stage acceptance under [Initialization Delivery](initialization-delivery.md), not whether the source PRD's entire product has been implemented. Future-only UI/browser/device execution is not a skipped material check when no corresponding implementation exists. Missing required current setup or a broken existing app still blocks normally. Tracking a verified unchanged upstream baseline by itself does not require a separate subjective review; provenance, notices, exact paths and checkout verification still apply.
+
+The generated-assets condition below refers to product-facing generated assets. Local assistant skill/data setup is assessed by its actual diff, verified installer/source and residual risks; generation alone does not trigger human review. Unexpected overwrites, uncertain provenance or sensitive changes still require resolution under the applicable rules.
+
 ## Decision Rules
 
 Require human review when any of these apply:
@@ -151,5 +155,5 @@ After patching, verify:
 - the request format is concrete
 - project-specific commands or manual checks are recorded
 - the shared rule is in `.trellis/spec/trellis-plus/`
-- protected Trellis files were not modified or staged
+- protected Trellis content was not customized; any separately tracked unchanged initialization baseline satisfies the file policy, with personal files excluded
 - no current task status was changed just by installing the enhancement

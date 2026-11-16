@@ -72,11 +72,13 @@ Use the existing Playwright browser projects and device/touch emulation for repr
 
 ## Durable Project Profile
 
-For every project where this enhancement applies, create or update one durable section named `### Trellis Plus: Playwright Validation Profile`.
+For bootstrap with planned browser UI but no application yet, record one future-validation checkpoint in the shared spec: the first browser implementation task must supply the profile fields below and execute focused desktop/mobile checks before its submit-ready gate. Record only known values; do not install a test framework or invent commands just to finish setup. Profile execution is not yet applicable at this stage, while the checkpoint itself must be actionable and loaded. This exception does not apply to a runnable or expected-to-run existing UI; missing setup there remains a real gap. See [Initialization Delivery](initialization-delivery.md).
+
+Once a browser application exists and this enhancement applies, create or update one durable section named `### Trellis Plus: Playwright Validation Profile`. Before that point, the bootstrap checkpoint above is the current-stage deliverable.
 
 Place it in the project-owned `.trellis/spec/trellis-plus/index.md` or a detail file beside it. Do not put it in `.trellis/workflow.md` or an existing generated spec index merely to make the profile durable. Do not create a parallel test framework or a task-local substitute just to hold this profile.
 
-The profile must contain only repository-confirmed values and these fields:
+The runnable application's profile must contain only repository-confirmed values and these fields:
 
 ```markdown
 ### Trellis Plus: Playwright Validation Profile
@@ -190,6 +192,7 @@ Add the detailed rule once and short pointers elsewhere. Do not create a paralle
 
 After patching, verify:
 
+- for a bootstrap without an application, the loaded future-validation checkpoint meets the stage-specific rule above; assess the runtime/profile checks below only when their trigger exists
 - browser-accessible UI changes are classified before human review is requested
 - existing Playwright or equivalent browser-test conventions are discovered and preserved
 - the project has one current `Trellis Plus: Playwright Validation Profile` at the prescribed durable location
@@ -202,4 +205,4 @@ After patching, verify:
 - mobile-supported UI changes include an adaptation decision and separate desktop/mobile results; desktop-only exclusions cite scope evidence
 - snapshot changes require intentional review and failure artifacts are retained
 - human review requests name only residual risks that automation cannot resolve
-- protected Trellis files were not modified or staged
+- protected Trellis content was not customized; any separately tracked unchanged initialization baseline satisfies the file policy, with personal files excluded

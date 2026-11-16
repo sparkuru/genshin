@@ -61,7 +61,6 @@ status_line = [
 [features]
 hooks = true
 fast_mode = true
-multi_agent = true
 # Keep ChatGPT-specific Apps out of this third-party coding profile.
 apps = false
 

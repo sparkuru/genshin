@@ -6,6 +6,8 @@ Make development commands and user previews reproducible through the existing pr
 
 This enhancement is a bootstrap/before-development checkpoint, not a new phase in every task. Keep its project-specific result in `.trellis/spec/trellis-plus/development.md`, or an existing equivalent detail file linked from the shared index. Follow `environment-configuration.md` for configuration setup and `development-principles.md` for dev defaults.
 
+For a PRD-only bootstrap with no selected implementation/toolchain, complete an actionable before-development checkpoint: the first implementation task must select the evidenced runtime/toolchain, establish the wrapper and applicable service setup, and verify its real commands. Do not choose a stack or create a speculative container/server solely to close initialization. Existing tools/services remain subject to their applicable setup and execution checks; their failures cannot be deferred as future-only work. Follow [Initialization Delivery](initialization-delivery.md) for this stage distinction.
+
 ## Discovery
 
 Inspect manifests, actual service commands, framework and Compose settings, existing `hako`/equivalent wrappers, `dev.sh`, `preview.sh`, `.devhome`, environment examples/loaders, local-file ignore rules, and the configured development environment. Inspect local configuration keys without revealing secret values. Read README for evidence without editing it. Determine which services the user needs together, their readiness checks, host/container ports, environment inputs, and stop mechanism.

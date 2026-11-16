@@ -21,6 +21,8 @@ Do not classify a repository as frontend-only from `package.json` alone. Backend
 
 If the task explicitly changes user-facing UI, treat it as a frontend task even when the repository's existing UI footprint is small or not yet established.
 
+During bootstrap, the user-designated current product PRD can establish planned UI applicability before source code or frontend dependencies exist. Initialize applicable UUPM within authorization and record the workflow now; generate a task-specific design system when actual UI planning begins. Do not count a dependency's bundled example or an unrelated archived UI idea as the project's UI scope.
+
 ## Initialization Check
 
 Initialization means that UUPM has been installed in the current project for the active AI platform. Check the platform-specific project path and verify the generated skill entry point exists. These generated platform files are personal/local integration files by default; do not commit them merely because they live inside the project. Common paths include:
@@ -38,7 +40,7 @@ An installation for another AI platform does not satisfy the active platform unl
 
 ## Required User Prompt
 
-When the project is frontend/UI and the active platform has no complete project-local UUPM initialization, stop before UUPM-specific edits or commands and ask exactly one focused question:
+When the project is frontend/UI and the active platform has no complete project-local UUPM initialization, first inspect existing authorization. An explicit request to initialize applicable UUPM, or an accepted plan naming that initialization and its project-local effect, supplies the decision; proceed without asking again. A generic skill invocation alone does not authorize an installation. If the decision is missing, stop only the UUPM-dependent work and ask one focused question while continuing independent authorized work:
 
 ```text
 A frontend/UI task was detected, but UI/UX Pro Max (UUPM) is not initialized in this project for <PLATFORM-NAME>. Initialize it now with `uipro init --ai <PLATFORM-NAME>`?
@@ -46,7 +48,7 @@ A frontend/UI task was detected, but UI/UX Pro Max (UUPM) is not initialized in 
 Initialization creates the platform-specific UUPM skill files in this project. Choosing no continues the Trellis workflow while skipping UUPM design-system generation and UUPM-specific checks.
 ```
 
-The prompt must identify the detected platform and the project-local effect. Do not ask this question for backend-only tasks, and do not ask it again when a complete initialization is already present.
+The prompt must identify the detected platform and the project-local effect. Do not ask it for backend-only tasks, when initialization is complete, or when its authorization is already present.
 
 If the user declines:
 
@@ -163,11 +165,11 @@ After verification, promote only stable, reusable UI rules into the project-owne
 After applying this enhancement, verify:
 
 - frontend detection cites concrete repository or task evidence
-- the initialization prompt appears only for a frontend/UI project lacking active-platform UUPM
+- current PRD UI scope is detected even before implementation; the prompt appears only when active-platform UUPM and its initialization authorization are both missing
 - user acceptance runs the narrow platform-specific initializer and user decline skips UUPM commands
 - incomplete initialization is not reported as successful
 - the shared Trellis Plus spec records UUPM behavior for Plan, Implement, Check, and Update Spec
-- UUPM research is saved under the active task and added to both implement and check context
-- UI checks include states, responsive behavior, accessibility, Playwright validation when browser-automatable, and manual review only when needed
+- once actual UI planning occurs, UUPM research is saved under the active task and added to both implement and check context; bootstrap without UI design checks the loaded procedure instead
+- once UI implementation occurs, its checks include states, responsive behavior, accessibility, Playwright validation when browser-automatable, and manual review only when needed
 - `trellis update` recovery re-applies pointers without silently reinstalling or overwriting UUPM
-- protected Trellis files were not modified or staged
+- protected Trellis content was not customized; any separately tracked unchanged initialization baseline satisfies the file policy, with personal files excluded

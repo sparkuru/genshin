@@ -23,7 +23,6 @@ status_line = [
 [features]
 hooks = true
 fast_mode = true
-multi_agent = true
 
 [notice]
 hide_rate_limit_model_nudge = true

@@ -34,6 +34,10 @@ Create or merge `.trellis/mainline.md` without moving, deleting, or rewriting th
 
 Carry forward already approved requirements without requesting approval again. For drafts, preserve useful direction as `proposed`, set the active objective to `not yet approved` if necessary, and list the decision still needed. Preserve established approval and supersession precedence: an older unapproved design does not reopen an approved PRD merely because they differ. Record alternatives as unapproved or superseded. Conflicting authoritative sources, or genuinely unclear authority affecting current acceptance, require an unresolved choice; neither filename nor modification time alone authorizes selecting one. Proposed direction grants no implementation or serial-continuation authority.
 
+When the user supplies or identifies their completed PRD as the current product requirements, record that designation and import its confirmed scope as current; do not downgrade it solely because code is absent or implementation has not been authorized. Preserve sections explicitly marked draft, alternative or undecided. Merely finding a file named `prd.md` still proves neither approval nor priority. Requirement confirmation authorizes neither product implementation nor serial continuation: bootstrap imports the requirements and prepares development, then reports the next permitted action.
+
+For new-project bootstrap, link `00` acceptance/closure and future-stage obligations under [Initialization Delivery](initialization-delivery.md). Do not require an executable product backlog or create product tasks merely to import the PRD. Preserve source-established ordering; otherwise record the next scope decision without inventing an implementation sequence.
+
 On rerun, merge new evidence into the same record, preserving accepted decisions and user edits. Do not replace an established mainline with an older source or silently promote an inferred feature into approved work.
 
 ## Control Record
@@ -142,7 +146,7 @@ Preserve existing wording and state names when reading the workflow. Trellis Plu
 - Confirm approved source requirements import without redundant approval, conflicting drafts remain unresolved, and source documents stay intact.
 - Confirm rerunning import preserves accepted decisions and does not duplicate work rows; task start, accepted changes, checks, and archive update the record.
 - Confirm the shared continuity rule is in `.trellis/spec/trellis-plus/`.
-- Confirm `.trellis/workflow.md` and other protected Trellis files were not modified or staged.
+- Confirm protected Trellis content was not customized; any separately tracked unchanged initialization baseline satisfies the file policy. Personal files remain excluded.
 - Forward-read a no-record request: it reports evidence and asks for direction.
 - Forward-read `guided`: it recommends but does not create work or edit code.
 - Forward-read authorized `serial`: it advances one ready listed child through normal create/plan/implement/check/commit/archive flow, then returns to Pulse.
