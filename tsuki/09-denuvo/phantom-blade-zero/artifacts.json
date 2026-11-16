@@ -1,0 +1,368 @@
+{
+  "$schema": "../artifacts.schema.json",
+  "schema_version": 1,
+  "project": "phantom-blade-zero",
+  "sample_version": "本地目标值与历史 301524 记录一致；主程序未验证",
+  "target_base": "pbz/platform/steam",
+  "artifacts": [
+    {
+      "target_path": "PBZ.exe",
+      "local_path": null,
+      "size_bytes": null,
+      "sha256": null,
+      "group": "game",
+      "necessity": "required",
+      "note": "本地未提供主程序；版本、大小和 SHA-256 均未验证。",
+      "source_refs": [
+        {
+          "source_id": "steam-store",
+          "match_status": "unverified",
+          "archive_member": null,
+          "note": "仅为相关来源，未验证能取得与该目标文件一致的字节。"
+        }
+      ]
+    },
+    {
+      "target_path": "artifact.dll",
+      "local_path": "unique/artifact.dll",
+      "size_bytes": 1157120,
+      "sha256": "bef24d1edb6d2be2ae21def87cb8696237fa7461f0b72fb7fdd42d599e5f41d9",
+      "group": "common",
+      "necessity": "unknown",
+      "note": "哈希由本地样本计算；未核实完全一致的下载地址。",
+      "source_refs": []
+    },
+    {
+      "target_path": "artifact.json",
+      "local_path": "unique/artifact.json",
+      "size_bytes": 15869,
+      "sha256": "d00bd362a56bf00ff22db44604199d0b1f7af168251b2802b5566ae4ba93249b",
+      "group": "common",
+      "necessity": "unknown",
+      "note": "哈希由本地样本计算；未核实完全一致的下载地址。",
+      "source_refs": []
+    },
+    {
+      "target_path": "winmm.dll",
+      "local_path": "unique/winmm.dll",
+      "size_bytes": 14848,
+      "sha256": "1daf6203a198e233a8410959d56aadaec7ee981a9395c56d97a1dbf042318d6d",
+      "group": "common",
+      "necessity": "unknown",
+      "note": "两方案的本地 winmm.dll 哈希相同；样本引用 artifact.dll，尚未确认其公开来源。",
+      "source_refs": []
+    },
+    {
+      "target_path": "coldloader.dll",
+      "local_path": "workspace/samples/ARTIFACT/platform/steam/coldloader.dll",
+      "size_bytes": 116736,
+      "sha256": "4d568e8608e3dd52d251919535292c753f2586a9fdde72986937720f46b76c17",
+      "group": "common",
+      "necessity": "unknown",
+      "note": "哈希由本地样本计算；未核实完全一致的下载地址。",
+      "source_refs": [
+        {
+          "source_id": "coldloader",
+          "match_status": "different",
+          "archive_member": "coldloader.dll",
+          "note": "v1.4.0 与当前 301524 样本不同；但其大小及哈希前后缀与历史 302256 记录吻合，历史哈希被截断，不能确认为同一文件。"
+        }
+      ]
+    },
+    {
+      "target_path": "steamclient64.dll",
+      "local_path": "workspace/samples/ARTIFACT/platform/steam/steamclient64.dll",
+      "size_bytes": 22404008,
+      "sha256": "844676acebc626f22e4b10c2c143ffb3429c7d9d9213962396e1ab7c0c19150d",
+      "group": "common",
+      "necessity": "unknown",
+      "note": "已从 GBE Fork 指定发行包中取得完全相同的文件，包内路径与来源见 source_refs。",
+      "source_refs": [
+        {
+          "source_id": "gbe-fork-2026-09-16-vs26",
+          "match_status": "matched",
+          "archive_member": "release/steamclient_experimental/steamclient64.dll",
+          "note": "已下载发行包并对包内文件计算 SHA-256，与本地样本完全一致。"
+        }
+      ]
+    },
+    {
+      "target_path": "Artifact_AMD/SimpleSvm.sys",
+      "local_path": "workspace/samples/ARTIFACT/platform/steam/Artifact_AMD/SimpleSvm.sys",
+      "size_bytes": 18600,
+      "sha256": "121252d98bc0d6a2a6bba0ec8863af58203c999fa5023aa58f6c28ea38fa4229",
+      "group": "amd",
+      "necessity": "unknown",
+      "note": "哈希由本地样本计算；未核实完全一致的下载地址。",
+      "source_refs": [
+        {
+          "source_id": "simplesvm",
+          "match_status": "unverified",
+          "archive_member": null,
+          "note": "样本包含上游源码中的多个特征日志；官方仓库无预编译 sys，未验证替代兼容性。"
+        }
+      ]
+    },
+    {
+      "target_path": "Artifact_Intel/hyperevade.dll",
+      "local_path": "workspace/samples/ARTIFACT/platform/steam/Artifact_Intel/hyperevade.dll",
+      "size_bytes": 6256,
+      "sha256": "363dcd84d733864f1c9bafe87d6c59438b844905426fedd7a39c70d2b30cee52",
+      "group": "intel",
+      "necessity": "unknown",
+      "note": "哈希由本地样本计算；未核实完全一致的下载地址。",
+      "source_refs": [
+        {
+          "source_id": "hyperdbg",
+          "match_status": "different",
+          "archive_member": "release/hyperevade.dll",
+          "note": "已下载并逐字节对比 v0.25 同名文件；SHA-256 不同，是否可替代尚未运行验证。"
+        }
+      ]
+    },
+    {
+      "target_path": "Artifact_Intel/hyperhv.dll",
+      "local_path": "workspace/samples/ARTIFACT/platform/steam/Artifact_Intel/hyperhv.dll",
+      "size_bytes": 553152,
+      "sha256": "e2c8f972d7b60f48d3efdc86f93e5b12ca3b6b078decef9fa940883640f9a569",
+      "group": "intel",
+      "necessity": "unknown",
+      "note": "哈希由本地样本计算；未核实完全一致的下载地址。",
+      "source_refs": [
+        {
+          "source_id": "hyperdbg",
+          "match_status": "different",
+          "archive_member": "release/hyperhv.dll",
+          "note": "已下载并逐字节对比 v0.25 同名文件；SHA-256 不同，是否可替代尚未运行验证。"
+        }
+      ]
+    },
+    {
+      "target_path": "Artifact_Intel/hyperkd.sys",
+      "local_path": "workspace/samples/ARTIFACT/platform/steam/Artifact_Intel/hyperkd.sys",
+      "size_bytes": 11376,
+      "sha256": "437c1a18448ded371d7b7b8c05ffbf53b0e7b44d63000d8d8051c2275f511182",
+      "group": "intel",
+      "necessity": "unknown",
+      "note": "哈希由本地样本计算；未核实完全一致的下载地址。",
+      "source_refs": [
+        {
+          "source_id": "hyperdbg",
+          "match_status": "different",
+          "archive_member": "release/hyperkd.sys",
+          "note": "已下载并逐字节对比 v0.25 同名文件；SHA-256 不同，是否可替代尚未运行验证。"
+        }
+      ]
+    },
+    {
+      "target_path": "Artifact_Intel/hyperlog.dll",
+      "local_path": "workspace/samples/ARTIFACT/platform/steam/Artifact_Intel/hyperlog.dll",
+      "size_bytes": 13992,
+      "sha256": "348227a093fc05b5e81e2b437b13e0655730a328e5661cd8900b54bdf5726ede",
+      "group": "intel-extra",
+      "necessity": "unknown",
+      "note": "哈希由本地样本计算；未核实完全一致的下载地址。 是否实际需要尚未确认。",
+      "source_refs": [
+        {
+          "source_id": "hyperdbg",
+          "match_status": "different",
+          "archive_member": "release/hyperlog.dll",
+          "note": "已下载并逐字节对比 v0.25 同名文件；SHA-256 不同，是否可替代尚未运行验证。"
+        }
+      ]
+    },
+    {
+      "target_path": "Artifact_Intel/hyperlog.inf",
+      "local_path": "workspace/samples/ARTIFACT/platform/steam/Artifact_Intel/hyperlog.inf",
+      "size_bytes": 1940,
+      "sha256": "a4d8656225f64646bbe4dce7da160b894d6d3f88c7c8a546d6c581102fbd4546",
+      "group": "intel-extra",
+      "necessity": "unknown",
+      "note": "与 HyperDbg v0.18 发行包的对应文件仅 DriverVer 不同；替换该字段可精确重建本地样本。是否实际需要尚未确认。",
+      "source_refs": [
+        {
+          "source_id": "hyperdbg",
+          "match_status": "not-applicable",
+          "archive_member": null,
+          "note": "v0.25 压缩包没有此文件；见 v0.18 参考。"
+        },
+        {
+          "source_id": "hyperdbg-v018",
+          "match_status": "different",
+          "archive_member": "release/hyperlog.inf",
+          "note": "将 DriverVer 中 02/15/2026,21.35.3.178 替换为 10/28/2026,17.52.34.159 后，与样本逐字节相同。"
+        }
+      ]
+    },
+    {
+      "target_path": "Artifact_Intel/kdserial.dll",
+      "local_path": "workspace/samples/ARTIFACT/platform/steam/Artifact_Intel/kdserial.dll",
+      "size_bytes": 30984,
+      "sha256": "14fcfc080b3db77a1363c8cd5796697597f90ed861a2d9a9321cda5a69e4f1e8",
+      "group": "intel-extra",
+      "necessity": "unknown",
+      "note": "哈希由本地样本计算；未核实完全一致的下载地址。 是否实际需要尚未确认。",
+      "source_refs": [
+        {
+          "source_id": "hyperdbg",
+          "match_status": "different",
+          "archive_member": "release/kdserial.dll",
+          "note": "已下载并逐字节对比 v0.25 同名文件；SHA-256 不同，是否可替代尚未运行验证。"
+        }
+      ]
+    },
+    {
+      "target_path": "steam_settings/configs.app.ini",
+      "local_path": "workspace/samples/ARTIFACT/platform/steam/steam_settings/configs.app.ini",
+      "size_bytes": 125,
+      "sha256": "66fc00fd793effe3d2657fcc4de17f44913bae700cd0d3eeec3ac59f2679f317",
+      "group": "sample-config",
+      "necessity": "unknown",
+      "note": "哈希由本地样本计算；未核实完全一致的下载地址。 可变配置示例，重新生成或修改后哈希可能不同。",
+      "source_refs": []
+    },
+    {
+      "target_path": "steam_settings/configs.main.ini",
+      "local_path": "workspace/samples/ARTIFACT/platform/steam/steam_settings/configs.main.ini",
+      "size_bytes": 31,
+      "sha256": "cc965963c75b919eb5757955cabb0d90385e096035d59d29765540c0537e7ff1",
+      "group": "sample-config",
+      "necessity": "unknown",
+      "note": "哈希由本地样本计算；未核实完全一致的下载地址。 可变配置示例，重新生成或修改后哈希可能不同。",
+      "source_refs": []
+    },
+    {
+      "target_path": "steam_settings/configs.user.ini",
+      "local_path": "workspace/samples/ARTIFACT/platform/steam/steam_settings/configs.user.ini",
+      "size_bytes": 93,
+      "sha256": "f8d1107a00b7fccb8ba3210147988a5a6a3168381e7f4e3cf934860a86228382",
+      "group": "sample-config",
+      "necessity": "unknown",
+      "note": "哈希由本地样本计算；未核实完全一致的下载地址。 可变配置示例，重新生成或修改后哈希可能不同。",
+      "source_refs": []
+    },
+    {
+      "target_path": "steam_settings/steam_appid.txt",
+      "local_path": "workspace/samples/ARTIFACT/platform/steam/steam_settings/steam_appid.txt",
+      "size_bytes": 7,
+      "sha256": "a0243485041e2a78ab16e836496568868cb42223decd90e7abee313dec7ad596",
+      "group": "sample-config",
+      "necessity": "unknown",
+      "note": "样本哈希与不带换行的 ASCII 内容 4115450 一致，可依据公开 App ID 重新生成。",
+      "source_refs": []
+    },
+    {
+      "target_path": "steam_settings/supported_languages.txt",
+      "local_path": "workspace/samples/ARTIFACT/platform/steam/steam_settings/supported_languages.txt",
+      "size_bytes": 137,
+      "sha256": "ece0e4101778d41105090ac1529cd4cf336fd3b143f5b75e570b0eebde3251a6",
+      "group": "sample-config",
+      "necessity": "unknown",
+      "note": "哈希由本地样本计算；未核实完全一致的下载地址。 可变配置示例，重新生成或修改后哈希可能不同。",
+      "source_refs": []
+    },
+    {
+      "target_path": "Artifact_Intel/hyperlog.sys",
+      "local_path": null,
+      "size_bytes": null,
+      "sha256": null,
+      "group": "intel-extra",
+      "necessity": "unknown",
+      "note": "本地 hyperlog.inf 中有引用，但未找到该文件；运行时是否需要未确认。",
+      "source_refs": [
+        {
+          "source_id": "hyperdbg",
+          "match_status": "unverified",
+          "archive_member": null,
+          "note": "仅为相关来源，未验证能取得与该目标文件一致的字节。"
+        }
+      ]
+    },
+    {
+      "target_path": "Artifact_Intel/hyperlog.cat",
+      "local_path": null,
+      "size_bytes": null,
+      "sha256": null,
+      "group": "intel-extra",
+      "necessity": "unknown",
+      "note": "本地 hyperlog.inf 中有引用，但未找到该文件；运行时是否需要未确认。",
+      "source_refs": [
+        {
+          "source_id": "hyperdbg",
+          "match_status": "unverified",
+          "archive_member": null,
+          "note": "仅为相关来源，未验证能取得与该目标文件一致的字节。"
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "steam-store",
+      "kind": "store-page",
+      "url": "https://store.steampowered.com/app/4115450/",
+      "filename": null,
+      "sha256": null,
+      "hash_basis": "unknown",
+      "metadata_url": null,
+      "note": "商店页面不是主程序直接下载地址，未验证当前发行版本与样本匹配。"
+    },
+    {
+      "id": "hyperdbg",
+      "kind": "publisher-download",
+      "url": "https://github.com/HyperDbg/HyperDbg/releases/download/v0.25/hyperdbg-v0.25.zip",
+      "filename": "hyperdbg-v0.25.zip",
+      "sha256": "9a71eed1ef340af39c34fc432f53c955c5016dfed1fa575e1f955f2b7ed60492",
+      "hash_basis": "locally-calculated",
+      "metadata_url": "https://github.com/HyperDbg/HyperDbg/releases/expanded_assets/v0.25",
+      "note": "已下载并校验该发行压缩包；包内同名组件与本地样本不相同，详见 docs/UPSTREAM-COMPARISON.md。"
+    },
+    {
+      "id": "simplesvm",
+      "kind": "project-page",
+      "url": "https://github.com/tandasat/SimpleSvm/tree/c4a479e0244b5771c0c865f751f97d1b4f27c091",
+      "filename": null,
+      "sha256": null,
+      "hash_basis": "unknown",
+      "metadata_url": "https://github.com/tandasat/SimpleSvm",
+      "note": "上游源码已检出；样本包含多个上游源码中的特征字符串。仓库没有预编译 sys，尚未验证自行编译能否替代。"
+    },
+    {
+      "id": "coldloader",
+      "kind": "publisher-download",
+      "url": "https://github.com/denuvosanctuary/coldloader/releases/download/v1.4.0/coldloader-release-x64.zip",
+      "filename": "coldloader-release-x64.zip",
+      "sha256": "aa98e3f3faeff5f1045cf6982d84a416f973e25d009e6f13ff06c97cade51c03",
+      "hash_basis": "locally-calculated",
+      "metadata_url": "https://github.com/denuvosanctuary/coldloader/releases/expanded_assets/v1.4.0",
+      "note": "已下载并校验 v1.4.0 压缩包；其中 DLL 不同于本地 301524 样本。"
+    },
+    {
+      "id": "hyperdbg-v018",
+      "kind": "publisher-download",
+      "url": "https://github.com/HyperDbg/HyperDbg/releases/download/v0.18/hyperdbg-v0.18.zip",
+      "filename": "hyperdbg-v0.18.zip",
+      "sha256": "79630b61800a1ff43147556a1a16cffa2eba63776e4e82b3b16013e65e2dafe1",
+      "hash_basis": "locally-calculated",
+      "metadata_url": "https://github.com/HyperDbg/HyperDbg/releases/expanded_assets/v0.18",
+      "note": "实际下载并校验；release/hyperlog.inf 仅 DriverVer 与本地样本不同，可按记录重建。"
+    },
+    {
+      "id": "gbe-fork-2026-09-16-vs26",
+      "kind": "publisher-download",
+      "url": "https://github.com/Detanup01/gbe_fork/releases/download/release-2026_09_16_2/emu-win-release-vs26.7z",
+      "filename": "emu-win-release-vs26.7z",
+      "sha256": "adca5355d5615d8846eac6379e89730494cfe64131d94c0b1372fcfe46670d9d",
+      "hash_basis": "locally-calculated",
+      "metadata_url": "https://github.com/Detanup01/gbe_fork/releases/expanded_assets/release-2026_09_16_2",
+      "note": "已下载并校验发行包及其 release/steamclient_experimental/steamclient64.dll；包内文件与本地样本完全相同。"
+    }
+  ],
+  "notes": [
+    "local_path 相对于当前方案目录；target_path 相对于 target_base。",
+    "source_refs 的匹配状态分别针对目标文件与来源；unverified 不代表可直接取得对应文件。",
+    "专属样本位于可纳入 Git 的 unique；其他样本、状态和归档位于被 Git 忽略的 workspace。本清单不包含实体文件内容。",
+    "本地样本与历史 301524 目标值相符，但匹配主程序缺失；历史 302256 构建另见 docs/HOST-STATE.md，不能混用。",
+    "已直接比对公开上游源码及发行包，方法和结果见 docs/UPSTREAM-COMPARISON.md；字节不同不等于源码不可获取。"
+  ]
+}

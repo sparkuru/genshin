@@ -1,0 +1,12 @@
+{
+  "$schema": "../artifacts.schema.json",
+  "schema_version": 1,
+  "project": "new-solution",
+  "sample_version": "待确认",
+  "target_base": "待填写",
+  "artifacts": [],
+  "sources": [],
+  "notes": [
+    "local_path 相对于方案目录；target_path 相对于 target_base。"
+  ]
+}

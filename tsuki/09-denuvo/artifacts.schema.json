@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Solution artifacts manifest",
+  "type": "object",
+  "required": ["schema_version", "project", "sample_version", "target_base", "artifacts", "sources", "notes"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "schema_version": {"const": 1},
+    "project": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "sample_version": {"type": "string", "minLength": 1},
+    "target_base": {"type": "string", "minLength": 1},
+    "artifacts": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+    "sources": {"type": "array", "items": {"$ref": "#/$defs/source"}},
+    "notes": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {
+      "anyOf": [{"type": "string", "pattern": "^[a-f0-9]{64}$"}, {"type": "null"}]
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["target_path", "local_path", "size_bytes", "sha256", "group", "necessity", "source_refs", "note"],
+      "properties": {
+        "target_path": {"type": "string", "minLength": 1},
+        "local_path": {"type": ["string", "null"]},
+        "size_bytes": {"type": ["integer", "null"], "minimum": 0},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "group": {"type": "string", "minLength": 1},
+        "necessity": {"enum": ["required", "conditional", "optional", "unknown"]},
+        "source_refs": {"type": "array", "items": {"$ref": "#/$defs/source_ref"}},
+        "note": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "source_ref": {
+      "type": "object",
+      "required": ["source_id", "match_status", "archive_member", "note"],
+      "properties": {
+        "source_id": {"type": "string", "minLength": 1},
+        "match_status": {"enum": ["unverified", "matched", "different", "not-applicable"]},
+        "archive_member": {"type": ["string", "null"]},
+        "note": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "required": ["id", "kind", "url", "filename", "sha256", "hash_basis", "metadata_url", "note"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["store-page", "project-page", "publisher-download", "other"]},
+        "url": {"type": "string", "minLength": 1},
+        "filename": {"type": ["string", "null"]},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "hash_basis": {"enum": ["publisher", "locally-calculated", "unknown"]},
+        "metadata_url": {"type": ["string", "null"]},
+        "note": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

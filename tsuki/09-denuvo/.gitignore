@@ -1,0 +1,12 @@
+# The parent repository ignores lib/ globally; keep solution library sources.
+!/*/lib/
+!/*/lib/**
+
+# Windows executables, libraries, and drivers supplied outside this repository.
+*.[dD][lL][lL]
+*.[eE][xX][eE]
+*.[sS][yY][sS]
+
+# Each solution's workspace holds local samples, state, logs, and archives.
+/*/workspace/*
+!/*/workspace/readme.md

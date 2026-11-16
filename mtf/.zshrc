@@ -897,7 +897,7 @@ ggit() {
 				"  push                           Pull and push changes" \
 				"  commit [commit_msg]            Commit all changes" \
 				"  auto [commit_msg]              Commit and push changes" \
-				"  size                           Show current directory size excluding Git-ignored files" \
+				"  size [directory]               Show directory size excluding Git-ignored files" \
 				"  root                           Change to repository root" \
 				"  path <file_path>               Print raw GitHub URL" \
 				"  ignore <file_or_dir_path>      Inspect Git ignore rules" \
@@ -910,7 +910,23 @@ ggit() {
 			echo
 			git remote -v
 			;;
-        size)
+        size) (
+            if (( $# > 2 )); then
+                printf '%s\n' "usage: ggit size [directory]" >&2
+                return 2
+            fi
+            if (( $# == 2 )); then
+                local target_dir="$2"
+                if [[ "$target_dir" != /* ]]; then
+                    target_dir="./$target_dir"
+                fi
+                if [[ ! -d "$target_dir" ]]; then
+                    printf 'ggit size: not a directory: %s\n' "$2" >&2
+                    return 1
+                fi
+                builtin cd -q -- "$target_dir" || return 1
+            fi
+
             if ! command -v git >/dev/null 2>&1 || ! command -v du >/dev/null 2>&1; then
                 printf '%s\n' "ggit size requires git and du" >&2
                 return 1
@@ -969,7 +985,7 @@ ggit() {
             done
 
             du -abh --time -d 1 "${exclude_args[@]}" . 2>/dev/null
-            ;;
+        ) ;;
         push)
             if [ $(git pull -q; echo $?) -eq 0 ]; then
                 git push
