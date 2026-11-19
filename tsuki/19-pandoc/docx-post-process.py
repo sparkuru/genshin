@@ -5,6 +5,7 @@
 Pandoc docx post-process filter.
 
 This filter currently:
+- formats bulleted list items with a two-character marker indent;
 - formats markdown tables and table captions with custom docx styles;
 - converts markdown fenced code blocks to the text-block style;
 - removes manually typed numeric prefixes from auto-numbered headings.
@@ -30,6 +31,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.oxml.table import CT_Tbl
 from docx.oxml.text.paragraph import CT_P
+from docx.shared import Pt
 from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 
@@ -373,6 +375,61 @@ def _process_heading_manual_number(
         _delete_paragraph_prefix(block, prefix_length)
 
 
+def _process_bullet_item(
+    block: object,
+    index: int,
+    blocks: list[object],
+    doc: DocxDocument,
+) -> None:
+    """Align bullet markers two full-width characters inside each list level."""
+    del index, blocks
+    if not isinstance(block, Paragraph):
+        return
+    properties = block._p.pPr
+    numbering = properties.numPr if properties is not None else None
+    if numbering is None or numbering.numId is None or not numbering.numId.val:
+        return
+    level = numbering.ilvl.val if numbering.ilvl is not None else 0
+    definitions = doc.part.numbering_part.element
+    instance = definitions.find(f"w:num[@w:numId='{numbering.numId.val}']", definitions.nsmap)
+    if instance is None:
+        return
+    abstract_id = instance.abstractNumId.val
+    path = f"w:abstractNum[@w:abstractNumId='{abstract_id}']/w:lvl[@w:ilvl='{level}']"
+    override = f"w:lvlOverride[@w:ilvl='{level}']/w:lvl"
+    definition = instance.find(override, definitions.nsmap)
+    if definition is None:
+        definition = definitions.find(path, definitions.nsmap)
+    if definition is None:
+        return
+    fmt = definition.find(qn("w:numFmt"))
+    if fmt is None or fmt.get(qn("w:val")) != "bullet":
+        return
+
+    # At 12 pt, two full-width characters occupy 24 pt. Reserve another
+    # character for the marker so wrapped lines align with the item text.
+    text_start = Pt(24 * (level + 1) + 12)
+    layout = block.paragraph_format
+    layout.left_indent = text_start
+    layout.first_line_indent = Pt(-12)
+    layout.tab_stops.add_tab_stop(text_start)
+    layout.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    layout.line_spacing = 1.25
+    layout.space_before = Pt(0)
+    layout.space_after = Pt(4)
+    spacing = properties.find(qn("w:spacing"))
+    for name in ("beforeLines", "afterLines"):
+        spacing.set(qn(f"w:{name}"), "0")
+    for run in block._p.xpath(".//w:r"):
+        font = run.get_or_add_rPr()
+        font.sz_val = Pt(12)
+        complex_size = font.find(qn("w:szCs"))
+        if complex_size is None:
+            complex_size = OxmlElement("w:szCs")
+            font.sz.addnext(complex_size)
+        complex_size.set(qn("w:val"), "24")
+
+
 def _process_reserved_extension_slot(
     block: object,
     index: int,
@@ -402,6 +459,7 @@ def _document_processors() -> tuple[BlockProcessor, ...]:
         _process_table_and_caption,
         _process_text_block,
         _process_heading_manual_number,
+        _process_bullet_item,
         _process_reserved_extension_slot,
     )
 

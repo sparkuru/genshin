@@ -22,6 +22,5 @@ prometheus.prometheus
 redhat.vscode-xml
 redhat.vscode-yaml
 sketchbuch.vsc-workspace-sidebar
-sst-dev.opencode
 tamasfe.even-better-toml
 yzhang.markdown-all-in-one

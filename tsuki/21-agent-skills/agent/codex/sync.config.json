@@ -1,0 +1,117 @@
+{
+  "common": {
+    "personality": "pragmatic",
+    "approvals_reviewer": "auto_review",
+    "approval_policy": "on-request",
+    "default_permissions": ":workspace",
+    "tui": {
+      "auto_recap": false,
+      "screen_reader_detection_done": true,
+      "status_line": [
+        "current-dir",
+        "model-with-reasoning",
+        "context-remaining",
+        "used-tokens",
+        "weekly-limit"
+      ]
+    },
+    "features": {
+      "hooks": true,
+      "fast_mode": true
+    },
+    "notice": {
+      "hide_rate_limit_model_nudge": true
+    }
+  },
+  "remove_on_migration": [
+    "sandbox_mode"
+  ],
+  "profiles": {
+    "config.toml": {
+      "defaults": {
+        "model": "gpt-6.2-sol",
+        "model_reasoning_effort": "high",
+        "service_tier": "default"
+      },
+      "managed": {
+        "agents": {
+          "sub_agent": {
+            "description": "Bounded low-risk worker for explicit small tasks that benefit from exhaustive checking and fast completion.",
+            "config_file": "agents/sub_agent.toml"
+          }
+        }
+      }
+    },
+    "deep.config.toml": {
+      "defaults": {
+        "model": "gpt-6.2-astra",
+        "model_reasoning_effort": "medium",
+        "service_tier": "default"
+      },
+      "managed": {
+        "developer_instructions": "High-capability orchestration mode is active for this profile.\n\nDo not select the `sub_agent` agent. Delegate independently useful work to the\nbuilt-in `default`, `worker`, or `explorer` agents when it helps; let them\ninherit this profile's model and reasoning effort unless explicitly overridden.\nWait for delegated results and verify their evidence before relying on them.\n"
+      }
+    },
+    "luna.config.toml": {
+      "defaults": {
+        "model": "gpt-5.6-luna",
+        "model_reasoning_effort": "max",
+        "service_tier": "fast"
+      },
+      "managed": {
+        "agents": {
+          "sub_agent": {
+            "description": "Bounded low-risk worker for explicit small tasks that benefit from exhaustive checking and fast completion.",
+            "config_file": "agents/sub_agent.toml"
+          }
+        }
+      }
+    },
+    "opencode.config.toml": {
+      "defaults": {
+        "model": "muse-spark-1.3-contributor",
+        "model_reasoning_effort": "high",
+        "service_tier": "default"
+      },
+      "managed": {
+        "model_provider": "opencode-go",
+        "model_catalog_json": "opencode.models.json",
+        "developer_instructions": "Choose whether to delegate based on task complexity, coupling, and the cost of\ncoordination. Complete small or tightly coupled tasks in the primary agent.\nDelegate only when a subtask has a clear scope and can be completed and\nvalidated independently, and delegation materially helps the overall task.\n\nFor this profile, use available built-in `default`, `worker`, or `explorer`\nagents for delegation. Do not use the custom `luna` or `sub_agent` roles, which\noverride model settings. If a suitable built-in role is unavailable, complete\nthe work in the primary agent.\n\nDelegated agents must inherit the active OpenCode Go model, model provider,\nprovider configuration, reasoning effort, and service tier unless the user\nexplicitly requests an override. Keep API keys in the configured environment;\ndo not copy their values into prompts or files, or silently switch providers.\nWait for delegated results and verify their evidence before relying on them.\n",
+        "model_providers": {
+          "opencode-go": {
+            "name": "OpenCode Go",
+            "base_url": "https://opencode.ai/inference/go/openai/v1",
+            "env_key": "OPENCODE_API_KEY",
+            "env_key_instructions": "Create a service account API key with Inference only permission in OpenCode Console (https://opencode.ai/console), then export OPENCODE_API_KEY before starting Codex.",
+            "wire_api": "responses",
+            "requires_openai_auth": false,
+            "supports_websockets": false
+          }
+        },
+        "tui": {
+          "status_line": [
+            "current-dir",
+            "model-with-reasoning",
+            "context-remaining",
+            "used-tokens"
+          ]
+        },
+        "features": {
+          "apps": false
+        }
+      },
+      "notes": [
+        "Native OpenCode Go Responses models:",
+        "GPT: gpt-5.6-luna, gpt-6-luna",
+        "Grok: grok-4.6, grok-4.7",
+        "Muse: muse-spark-1.3-contributor, muse-spark-1.2-contributor",
+        "Muse Contributor availability depends on your region.",
+        "Use bare API model IDs without the opencode-go/ prefix.",
+        "Override for one session: codex --profile opencode -m grok-4.6",
+        "Endpoint reference: https://docs.opencode.ai/docs/go/#endpoints",
+        "sync.sh installs the model catalog beside this profile.",
+        "Models use the same provider for review and ChatGPT Apps are disabled."
+      ]
+    }
+  }
+}

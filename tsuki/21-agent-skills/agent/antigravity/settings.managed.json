@@ -1,0 +1,11 @@
+{
+  "model": "Gemini 4 Argon (Medium)",
+  "permissions": {
+    "allow": [
+      "mcp(browseros-neo/name_session)",
+      "mcp(browseros-neo/run)",
+      "mcp(browseros-neo/screenshot)",
+      "mcp(browseros-neo/tabs)"
+    ]
+  }
+}

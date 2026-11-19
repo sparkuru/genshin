@@ -1,15 +1,15 @@
-# Create a service account API key with Inference only permission in OpenCode Console (https://opencode.ai/console), then export OPENCODE_SERVICE_API_KEY.
-## export OPENCODE_SERVICE_API_KEY=
+# Create a service account API key with Inference only permission in OpenCode Console (https://opencode.ai/console), then export OPENCODE_API_KEY.
+## export OPENCODE_API_KEY=
 
 # Claude Code through OpenCode Go.
 export ANTHROPIC_BASE_URL='https://opencode.ai/inference/go/anthropic'
 
 # Keep the service account key machine-local and derive the Claude Code token.
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
-if [ -n "${OPENCODE_SERVICE_API_KEY:-}" ]; then
-	export ANTHROPIC_AUTH_TOKEN="$OPENCODE_SERVICE_API_KEY"
+if [ -n "${OPENCODE_API_KEY:-}" ]; then
+	export ANTHROPIC_AUTH_TOKEN="$OPENCODE_API_KEY"
 else
-	printf '%s\n' 'OpenCode Go API key is unavailable; set OPENCODE_SERVICE_API_KEY locally using a Console service account key.' >&2
+	printf '%s\n' 'OpenCode Go API key is unavailable; set OPENCODE_API_KEY locally using a Console service account key.' >&2
 fi
 
 ## Change these IDs to select other Go models with a Messages endpoint.

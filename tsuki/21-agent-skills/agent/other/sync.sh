@@ -4,7 +4,7 @@ set -Eeuo pipefail
 readonly SCRIPT_NAME="${0##*/}"
 # Keep machine-specific variables here; source assignments for them are skipped.
 readonly -a UNSYNCED_VARIABLES=(
-	OPENCODE_SERVICE_API_KEY
+	OPENCODE_API_KEY
 	OPENAI_API_KEY
 )
 readonly STYLE_RESET=$'\033[0m'
@@ -31,7 +31,7 @@ Requires OpenCode 2. In OpenCode Console, open Keys and create a service account
 API key with Inference only permission for a workspace subscribed to Go:
 https://opencode.ai/console
 SETUP
-	printf 'Save the key as OPENCODE_SERVICE_API_KEY in %s before syncing.\n' "$1"
+	printf 'Save the key as OPENCODE_API_KEY in %s before syncing.\n' "$1"
 }
 
 usage() {
@@ -40,7 +40,7 @@ usage() {
 
 Sync agent-envs to ~/.config/.agent-envs, replacing shared configuration and
 preserving machine-local single-line assignments listed in UNSYNCED_VARIABLES
-at the top of this script (including OPENCODE_SERVICE_API_KEY). Source assignments for
+at the top of this script (including OPENCODE_API_KEY). Source assignments for
 these variables are excluded. The current process environment is not copied.
 
   --dry-run          Show the planned change without writing files.
@@ -48,8 +48,7 @@ these variables are excluded. The current process environment is not copied.
   --help, -h         Show this help.
 
 Local assignments are loaded before shared configuration so it can use them.
-OPENCODE_SERVICE_API_KEY supplies ANTHROPIC_AUTH_TOKEN for Claude Code.
-Legacy client credential assignments are replaced.
+OPENCODE_API_KEY supplies ANTHROPIC_AUTH_TOKEN for Claude Code.
 Use a Console service account key; OpenCode V2 OAuth login is not an API key.
 Other local code and settings are replaced. Changed destinations are backed up
 before writing; the resulting file has mode 600. Multiline credentials are not supported.

@@ -11,17 +11,17 @@ script_dir_path="$(
 )"
 readonly SCRIPT_DIR="$script_dir_path"
 unset script_dir_path
-readonly CODEX_HOME="${HOME:?HOME is not set}/.codex"
+readonly CODEX_DIR="${CODEX_HOME:-${HOME:?HOME is not set}/.codex}"
 readonly -a MANAGED_LINK_TARGETS=(
-	"$CODEX_HOME/AGENTS.md"
-	"$CODEX_HOME/agents"
-	"$CODEX_HOME/rules/default.rules"
+	"$CODEX_DIR/AGENTS.md"
+	"$CODEX_DIR/agents"
+	"$CODEX_DIR/rules/default.rules"
 )
 
-temp_dir=""
-
 usage() {
-	printf 'Usage: %s [--help]\n' "$SCRIPT_NAME" >&2
+	printf 'Usage: %s [--help]\n\n' "$SCRIPT_NAME" >&2
+	printf 'Update managed TOML blocks from sync.config.json and back up existing profiles.\n' >&2
+	printf 'Set CODEX_HOME to select a target directory. Requires Python 3.11 or later.\n' >&2
 }
 
 die() {
@@ -31,93 +31,6 @@ die() {
 
 require_command() {
 	command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
-}
-
-preserve_file_mode() {
-	local source_path=$1
-	local target_path=$2
-	local file_mode
-
-	if file_mode=$(stat -c '%a' "$source_path" 2>/dev/null); then
-		chmod "$file_mode" "$target_path"
-		return 0
-	fi
-
-	if file_mode=$(stat -f '%Lp' "$source_path" 2>/dev/null); then
-		chmod "$file_mode" "$target_path"
-		return 0
-	fi
-
-	die "unable to determine file mode: $source_path"
-}
-
-cleanup() {
-	if [[ -n "$temp_dir" && -d "$temp_dir" ]]; then
-		case "$temp_dir" in
-		"$CODEX_HOME"/.codex-sync.*)
-			rm -rf -- "$temp_dir"
-			;;
-		esac
-	fi
-}
-
-validate_dynamic_sections() {
-	local config_path=$1
-
-	[[ -f "$config_path" ]] || return 0
-
-	awk '
-        /^[[:space:]]*\[(hooks[.]state|projects[.])/ {
-            header = $0
-            sub(/^[[:space:]]*/, "", header)
-            sub(/[[:space:]]*$/, "", header)
-            if (seen[header]++) {
-                printf "Error: duplicate user-managed TOML table on line %d\n", NR > "/dev/stderr"
-                exit 1
-            }
-        }
-    ' "$config_path"
-}
-
-write_config() {
-	local source_config=$1
-	local target_config=$2
-	local source_copy="$temp_dir/source-config.toml"
-	local managed_config="$temp_dir/managed-config.toml"
-	local preserved_config="$temp_dir/preserved-config.toml"
-
-	cp -- "$source_config" "$source_copy"
-
-	awk '
-        /^[[:space:]]*\[/ {
-            skip = ($0 ~ /^[[:space:]]*\[(hooks[.]state|projects[.])/)
-        }
-        skip { next }
-        { print }
-    ' "$source_copy" >"$managed_config"
-
-	if [[ -f "$target_config" ]]; then
-		awk '
-            /^[[:space:]]*\[/ {
-                found = ($0 ~ /^[[:space:]]*\[(hooks[.]state|projects[.])/)
-            }
-            found { print }
-        ' "$target_config" >"$preserved_config"
-	else
-		: >"$preserved_config"
-	fi
-
-	if [[ -s "$preserved_config" ]]; then
-		[[ ! -s "$managed_config" ]] || printf '\n' >>"$managed_config"
-		cat -- "$preserved_config" >>"$managed_config"
-	fi
-
-	if [[ -f "$target_config" ]]; then
-		preserve_file_mode "$target_config" "$managed_config"
-	fi
-
-	mv -- "$managed_config" "$temp_dir/config.toml"
-	mv -- "$temp_dir/config.toml" "$target_config"
 }
 
 link_path() {
@@ -136,6 +49,9 @@ link_path() {
 	done
 	[[ "$target_is_managed" == true ]] || die "refusing to replace unexpected target: $target_path"
 
+	if [[ -L "$target_path" && "$(readlink -- "$target_path")" == "$source_path" ]]; then
+		return 0
+	fi
 	if [[ -e "$target_path" || -L "$target_path" ]]; then
 		rm -rf -- "$target_path"
 	fi
@@ -156,52 +72,36 @@ main() {
 		esac
 	done
 
-	local source_config="$SCRIPT_DIR/config.toml"
+	local source_config="$SCRIPT_DIR/sync.config.json"
+	local config_updater="$SCRIPT_DIR/sync_config.py"
 	local source_agents="$SCRIPT_DIR/agents"
 	local source_rules="$SCRIPT_DIR/codex.rules"
 	local source_agents_file="$SCRIPT_DIR/agents.md"
-	local source_deep_profile="$SCRIPT_DIR/deep.config.toml"
-	local source_luna_profile="$SCRIPT_DIR/luna.config.toml"
-	local source_opencode_profile="$SCRIPT_DIR/opencode.config.toml"
 	local source_opencode_catalog="$SCRIPT_DIR/opencode.models.json"
-	local target_config="$CODEX_HOME/config.toml"
-	local target_deep_profile="$CODEX_HOME/deep.config.toml"
-	local target_luna_profile="$CODEX_HOME/luna.config.toml"
-	local target_opencode_profile="$CODEX_HOME/opencode.config.toml"
-	local target_opencode_catalog="$CODEX_HOME/opencode.models.json"
 
-	for command_name in awk cat chmod cp ln mkdir mktemp mv rm stat; do
+	local command_name
+	for command_name in cmp cp ln mkdir python3 readlink rm; do
 		require_command "$command_name"
 	done
+	python3 -c 'import tomllib' 2>/dev/null || die "Python 3.11 or later is required"
 
 	[[ -f "$source_config" ]] || die "source file not found: $source_config"
+	[[ -f "$config_updater" ]] || die "source file not found: $config_updater"
 	[[ -d "$source_agents" ]] || die "source directory not found: $source_agents"
 	[[ -f "$source_rules" ]] || die "source file not found: $source_rules"
 	[[ -f "$source_agents_file" ]] || die "source file not found: $source_agents_file"
-	[[ -f "$source_deep_profile" ]] || die "source file not found: $source_deep_profile"
-	[[ -f "$source_luna_profile" ]] || die "source file not found: $source_luna_profile"
-	[[ -f "$source_opencode_profile" ]] || die "source file not found: $source_opencode_profile"
 	[[ -f "$source_opencode_catalog" ]] || die "source file not found: $source_opencode_catalog"
 
-	validate_dynamic_sections "$target_config"
-	validate_dynamic_sections "$target_deep_profile"
-	validate_dynamic_sections "$target_luna_profile"
-	validate_dynamic_sections "$target_opencode_profile"
+	mkdir -p -- "$CODEX_DIR/rules"
+	python3 "$config_updater" "$source_config" "$CODEX_DIR"
+	if ! cmp -s -- "$source_opencode_catalog" "$CODEX_DIR/opencode.models.json"; then
+		cp -- "$source_opencode_catalog" "$CODEX_DIR/opencode.models.json"
+	fi
+	link_path "$source_agents" "$CODEX_DIR/agents"
+	link_path "$source_rules" "$CODEX_DIR/rules/default.rules"
+	link_path "$source_agents_file" "$CODEX_DIR/AGENTS.md"
 
-	mkdir -p -- "$CODEX_HOME/rules"
-	temp_dir=$(mktemp -d "$CODEX_HOME/.codex-sync.XXXXXXXXXX")
-	trap cleanup EXIT
-
-	cp -- "$source_opencode_catalog" "$target_opencode_catalog"
-	write_config "$source_config" "$target_config"
-	write_config "$source_deep_profile" "$target_deep_profile"
-	write_config "$source_luna_profile" "$target_luna_profile"
-	write_config "$source_opencode_profile" "$target_opencode_profile"
-	link_path "$source_agents" "$CODEX_HOME/agents"
-	link_path "$source_rules" "$CODEX_HOME/rules/default.rules"
-	link_path "$source_agents_file" "$CODEX_HOME/AGENTS.md"
-
-	printf 'Synced Codex configuration to %s\n' "$CODEX_HOME"
+	printf 'Synced Codex configuration to %s\n' "$CODEX_DIR"
 }
 
 main "$@"

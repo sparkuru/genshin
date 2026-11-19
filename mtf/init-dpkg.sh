@@ -279,6 +279,7 @@ pip_to_install_list=(
 	pillow markdown pygments playwright
 	pywifi pyside6
 	Faker mermaid-render
+	mcp anyio httpx
 )
 
 progress "Installing Python packages for configured users"
