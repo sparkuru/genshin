@@ -17,7 +17,8 @@
     },
     "features": {
       "hooks": true,
-      "fast_mode": true
+      "fast_mode": true,
+      "tui_workspace": false
     },
     "notice": {
       "hide_rate_limit_model_nudge": true

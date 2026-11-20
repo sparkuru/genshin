@@ -155,6 +155,7 @@ to_install_list=(
 	krita xournalpp
 	xvfb asciinema
 	yt-dlp
+	xclip
 )
 
 progress "Updating package index and installing system packages"
