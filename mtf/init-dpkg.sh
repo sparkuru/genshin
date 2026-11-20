@@ -280,6 +280,7 @@ pip_to_install_list=(
 	pywifi pyside6
 	Faker mermaid-render
 	mcp anyio httpx
+  ffmpeg-python
 )
 
 progress "Installing Python packages for configured users"
