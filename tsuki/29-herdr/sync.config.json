@@ -1,0 +1,19 @@
+{
+  "common": {
+    "onboarding": false,
+    "theme": {
+      "name": "rose-pine-dawn",
+      "auto_switch": false
+    },
+    "terminal": {
+      "kitty_graphics": false
+    }
+  },
+  "remove_on_migration": [],
+  "profiles": {
+    "config.toml": {
+      "defaults": {},
+      "managed": {}
+    }
+  }
+}

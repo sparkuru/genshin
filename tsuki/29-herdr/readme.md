@@ -35,3 +35,23 @@ herdr installation complete
   Binary:  /home/wkyuu/cargo/bin/herdr/herdr
   Command: /home/wkyuu/.local/bin/herdr
 ```
+
+## Manage configuration
+
+Edit `sync.config.json` and run:
+
+```bash
+./sync.sh --force
+```
+
+The script updates the marked section of the Herdr configuration and preserves
+other settings. It saves a private backup in a `herdr-config-backup-*`
+directory under the system temporary directory. An existing configuration is
+only changed with `--force`; an unchanged configuration can be synced without it.
+The script requires Python 3.11 or newer and uses `HERDR_CONFIG_PATH`, then
+`XDG_CONFIG_HOME`, then `~/.config/herdr/config.toml` to locate the config.
+Symbolic-link targets are rejected.
+
+The managed `terminal.kitty_graphics = false` applies to all programs in the
+affected Herdr server. Restart the affected server or reconnect its client, then
+restart Codex, to apply the change. The sync script never restarts Herdr.
