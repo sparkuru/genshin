@@ -16,6 +16,24 @@ mihomua
 └── mihomua.yaml
 ```
 
+## Remote deployment
+
+Set the required values in `deploy.sh`, including `WAN_INTERFACE`. Generating a new configuration also requires `LAN_CIDR` and `SUBSCRIPTION_URL`. The WAN interface must exist on the target; it is used as Mihomo's outbound interface and by the bypass service. `TUN_DEVICE` defaults to `mihomo`, must have a different name from the WAN interface, and must be available on the target.
+
+`BUILD_PROXY` is optional. When set, it is passed to remote image builds, GeoIP downloads, and the Mihomua container; local image builds use the local Docker configuration. When empty, the script passes no explicit proxy settings, though system or Docker proxy settings may still apply.
+
+When generating a configuration, the script adds a provider named `subscription` but leaves proxy groups and rules unchanged. The template must reference that provider from whichever groups should use it and must define every policy referenced by its rules.
+
+The interface names can also be supplied on the command line:
+
+```bash
+./deploy.sh --wan-interface vmbr0 --tun-device mihomo
+```
+
+To retain an existing configuration directory, add `--config-dir /path/to/config`. The script keeps its files and updates the selected WAN and TUN settings in `config.yaml`; set `CONTROLLER_PORT` to match the existing configuration for verification. Set `SSH_CONFIG_FILE` when a non-default SSH configuration is needed.
+
+The deployment uses the host network and TUN automatic routing, so its routing rules can also affect traffic from other services on the host. With `--force`, the existing deployment is stopped before the script checks that its TUN interface has been released.
+
 ## bypass sidecar
 
 mihomo `tun.auto-route: true` 会注入一条 `ip rule: not iif lo lookup <table>`，把所有非 lo 入向流量推进代理表

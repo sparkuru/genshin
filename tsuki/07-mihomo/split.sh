@@ -13,30 +13,30 @@ readonly DST_PATH="$SCRIPT_DIR/include.yaml"
 TMP_PATH=""
 
 usage() {
-    printf 'Usage: %s [--help]\n' "$SCRIPT_NAME" >&2
-    printf '  Sanitize %s into %s\n' "$SRC_PATH" "$DST_PATH" >&2
+	printf 'Usage: %s [--help]\n' "$SCRIPT_NAME" >&2
+	printf '  Sanitize %s into %s\n' "$SRC_PATH" "$DST_PATH" >&2
 }
 
 die() {
-    printf 'Error: %s\n' "$*" >&2
-    exit 1
+	printf 'Error: %s\n' "$*" >&2
+	exit 1
 }
 
 require_command() {
-    command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+	command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
 cleanup() {
-    if [[ -n "$TMP_PATH" && -f "$TMP_PATH" ]]; then
-        rm -f -- "$TMP_PATH"
-    fi
+	if [[ -n "$TMP_PATH" && -f "$TMP_PATH" ]]; then
+		rm -f -- "$TMP_PATH"
+	fi
 }
 
 render_yaml() {
-    local src="$1"
-    local dst="$2"
+	local src="$1"
+	local dst="$2"
 
-    python3 - "$src" "$dst" <<'PYEOF'
+	python3 - "$src" "$dst" <<'PYEOF'
 import re
 import secrets
 import sys
@@ -47,6 +47,7 @@ dst_path = Path(sys.argv[2])
 
 NAME_MAP = {
     "tree-diagram": "outside",
+	"ip":			"outside",
     "schale":       "inside",
 }
 
@@ -150,38 +151,38 @@ PYEOF
 }
 
 main() {
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -h|--help)
-                usage
-                return 0
-                ;;
-            --)
-                shift
-                break
-                ;;
-            -*)
-                usage
-                die "unknown option: $1"
-                ;;
-            *)
-                usage
-                die "unexpected argument: $1"
-                ;;
-        esac
-    done
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+		-h | --help)
+			usage
+			return 0
+			;;
+		--)
+			shift
+			break
+			;;
+		-*)
+			usage
+			die "unknown option: $1"
+			;;
+		*)
+			usage
+			die "unexpected argument: $1"
+			;;
+		esac
+	done
 
-    [[ -f "$SRC_PATH" ]] || die "source file not found: $SRC_PATH"
-    require_command python3
+	[[ -f "$SRC_PATH" ]] || die "source file not found: $SRC_PATH"
+	require_command python3
 
-    TMP_PATH=$(mktemp "${TMPDIR:-/tmp}/include.XXXXXX.yaml")
-    trap cleanup EXIT
+	TMP_PATH=$(mktemp "${TMPDIR:-/tmp}/include.XXXXXX.yaml")
+	trap cleanup EXIT
 
-    render_yaml "$SRC_PATH" "$TMP_PATH"
-    mv -- "$TMP_PATH" "$DST_PATH"
-    TMP_PATH=""
+	render_yaml "$SRC_PATH" "$TMP_PATH"
+	mv -- "$TMP_PATH" "$DST_PATH"
+	TMP_PATH=""
 
-    printf 'wrote %s\n' "$DST_PATH"
+	printf 'wrote %s\n' "$DST_PATH"
 }
 
 main "$@"

@@ -1,0 +1,139 @@
+name: excalidraw
+
+services:
+  https:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        printf '%s\n' "$$CADDYFILE" > /etc/caddy/Caddyfile
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    environment:
+      CADDYFILE: |
+        {
+          auto_https disable_redirects
+          skip_install_trust
+          default_sni ${EXCALIDRAW_HOST:-localhost}
+        }
+
+        https://${EXCALIDRAW_HOST:-localhost}:443 {
+          tls internal
+
+          handle_path /storage/* {
+            reverse_proxy storage:8080
+          }
+
+          handle /socket.io/* {
+            reverse_proxy room:80
+          }
+
+          handle {
+            reverse_proxy excalidraw:80
+          }
+        }
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      ALL_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      all_proxy: ""
+      NO_PROXY: "*"
+      no_proxy: "*"
+    ports:
+      - "${EXCALIDRAW_BIND_ADDRESS:-0.0.0.0}:${EXCALIDRAW_PORT:-5000}:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      excalidraw:
+        condition: service_healthy
+      storage:
+        condition: service_started
+      room:
+        condition: service_started
+    networks:
+      - edge
+      - internal
+
+  excalidraw:
+    image: alswl/excalidraw:v0.18.1-fork-b2
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        sed -i 's#https://excalidraw.nyc3.cdn.digitaloceanspaces.com/oss/#/#g' /usr/share/nginx/html/index.html
+        sed -i 's#https://excalidraw.nyc3.cdn.digitaloceanspaces.com/oss/fonts/Assistant/Assistant-[A-Za-z]*\.woff2#/Assistant-Regular.woff2#g' /usr/share/nginx/html/assets/*.css
+        exec /docker-entrypoint.sh python3 /launcher.py /usr/share/nginx/html
+    environment:
+      VITE_APP_BACKEND_V2_GET_URL: "https://${EXCALIDRAW_HOST:-localhost}:${EXCALIDRAW_PORT:-5000}/storage/api/v2/scenes/"
+      VITE_APP_BACKEND_V2_POST_URL: "https://${EXCALIDRAW_HOST:-localhost}:${EXCALIDRAW_PORT:-5000}/storage/api/v2/scenes/"
+      VITE_APP_HTTP_STORAGE_BACKEND_URL: "https://${EXCALIDRAW_HOST:-localhost}:${EXCALIDRAW_PORT:-5000}/storage/api/v2"
+      VITE_APP_WS_SERVER_URL: "https://${EXCALIDRAW_HOST:-localhost}:${EXCALIDRAW_PORT:-5000}"
+      VITE_APP_FIREBASE_CONFIG: "{}"
+      VITE_APP_STORAGE_BACKEND: http
+      VITE_APP_DISABLE_TRACKING: "true"
+      PUBLIC_URL: "https://${EXCALIDRAW_HOST:-localhost}:${EXCALIDRAW_PORT:-5000}"
+    healthcheck:
+      # Docker client proxy settings must not affect a loopback check.
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-Y",
+          "off",
+          "-O",
+          "/dev/null",
+          "http://127.0.0.1/",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - internal
+
+  storage:
+    image: alswl/excalidraw-storage-backend:v2023.11.11
+    restart: unless-stopped
+    environment:
+      STORAGE_URI: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+
+  room:
+    image: alswl/excalidraw-room-go:v0.1.0
+    restart: unless-stopped
+    environment:
+      PORT: "80"
+    networks:
+      - internal
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command:
+      ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - internal
+
+networks:
+  edge:
+  internal:
+    internal: true
+
+volumes:
+  caddy_data:
+  caddy_config:
+  redis_data:
