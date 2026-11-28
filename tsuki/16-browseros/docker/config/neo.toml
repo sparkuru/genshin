@@ -1,0 +1,9 @@
+# Unspecified settings use the image defaults.
+# See the official Docker documentation for available settings.
+#
+# [tabs]
+# grouping = "explicit"
+# close_after_minutes = 30
+#
+# [run]
+# wall_timeout_seconds = 60
